@@ -1,34 +1,46 @@
 import asyncio
 
-from sqlalchemy import text
-
+from app.bootstrap.container import Container
+from app.core.events import TokenCreated
 from app.core.logging import get_logger, setup_logging
-from app.infrastructure.database import engine
+from app.infrastructure.database import create_session, engine
 
 
-async def check_database() -> None:
-    async with engine.connect() as connection:
-        result = await connection.execute(
-            text("SELECT 1")
+async def run() -> None:
+    session = await create_session()
+
+    try:
+        container = Container(
+            session=session,
         )
 
-        print(
-            "Database response:",
-            result.scalar(),
+        container.setup()
+
+        await container.event_bus.publish(
+            TokenCreated(
+                token_address="8xDemoTokenAddress123",
+                creator="DemoCreatorWallet",
+            )
         )
+
+    finally:
+        await session.close()
+        await engine.dispose()
 
 
 def main() -> None:
     setup_logging()
 
-    logger = get_logger("alpha-engine")
+    logger = get_logger(
+        "alpha-engine"
+    )
 
     logger.info(
         "application_started",
         message="Alpha Engine is running",
     )
 
-    asyncio.run(check_database())
+    asyncio.run(run())
 
 
 if __name__ == "__main__":
