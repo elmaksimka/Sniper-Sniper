@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.collectors.token_collector import TokenCollector
 from app.core.event_bus import EventBus
+from app.detectors.token_detector import TokenDetector
 from app.listeners.helius_client import HeliusClient
 from app.listeners.helius_listener import HeliusListener
 from app.listeners.transaction_scanner import TransactionScanner
@@ -35,8 +36,11 @@ class Container:
 
         self.helius_client = HeliusClient()
 
+        self.token_detector = TokenDetector()
+
         self.transaction_scanner = TransactionScanner(
             client=self.helius_client,
+            detector=self.token_detector,
         )
 
         self.helius_listener = HeliusListener(

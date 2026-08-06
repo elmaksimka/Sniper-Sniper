@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from app.detectors.token_detector import TokenDetector
 from app.listeners.helius_client import HeliusClient
 
 
@@ -11,8 +12,10 @@ class TransactionScanner:
     def __init__(
         self,
         client: HeliusClient,
+        detector: TokenDetector,
     ):
         self.client = client
+        self.detector = detector
 
     async def scan_address(
         self,
@@ -20,7 +23,7 @@ class TransactionScanner:
         limit: int = 5,
     ) -> list[dict]:
         """
-        Get recent transactions for address.
+        Scan address transactions and detect tokens.
         """
 
         signatures_response = await self.client.get_signatures(
@@ -44,7 +47,7 @@ class TransactionScanner:
 
         for item in signatures:
             signature = item.get(
-                "signature"
+                "signature",
             )
 
             if not signature:
@@ -62,15 +65,22 @@ class TransactionScanner:
                 continue
 
             transaction = transaction_response.get(
-                "result"
+                "result",
             )
 
-            if transaction:
-                transactions.append(
-                    {
-                        "signature": signature,
-                        "transaction": transaction,
-                    }
-                )
+            if not transaction:
+                continue
+
+            detected_tokens = self.detector.detect(
+                transaction,
+            )
+
+            transactions.append(
+                {
+                    "signature": signature,
+                    "tokens": detected_tokens,
+                    "transaction": transaction,
+                }
+            )
 
         return transactions
