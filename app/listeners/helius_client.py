@@ -1,10 +1,17 @@
 from __future__ import annotations
 
-from typing import Any
+from dataclasses import dataclass
+from typing import Any, Literal
 
 import httpx
 
 from app.core.config import get_settings
+
+
+@dataclass(frozen=True, slots=True)
+class HeliusTransactionPage:
+    transactions: list[dict[str, Any]]
+    pagination_token: str | None
 
 
 class HeliusClient:
@@ -18,7 +25,6 @@ class HeliusClient:
             if self.api_key
             else ""
         )
-        self.base_url = "https://api.helius.xyz"
 
     async def _request(
         self,
@@ -69,22 +75,46 @@ class HeliusClient:
             ],
         )
 
-    async def get_transactions(
+    async def get_transactions_for_address(
         self,
         wallet: str,
-        limit: int = 10,
-    ) -> list[dict[str, Any]]:
-        if not self.api_key:
-            return []
+        limit: int = 100,
+        pagination_token: str | None = None,
+        sort_order: Literal["asc", "desc"] = "desc",
+    ) -> HeliusTransactionPage:
+        config: dict[str, Any] = {
+            "transactionDetails": "full",
+            "encoding": "jsonParsed",
+            "maxSupportedTransactionVersion": 0,
+            "sortOrder": sort_order,
+            "limit": min(max(limit, 1), 100),
+            "commitment": "finalized",
+            "filters": {
+                "status": "succeeded",
+                "tokenAccounts": "balanceChanged",
+            },
+        }
+        if pagination_token:
+            config["paginationToken"] = pagination_token
 
-        url = f"{self.base_url}/v0/addresses/{wallet}/transactions"
+        response = await self._request(
+            "getTransactionsForAddress",
+            [wallet, config],
+        )
+        result = response.get("result")
+        if not isinstance(result, dict):
+            return HeliusTransactionPage([], None)
 
-        async with httpx.AsyncClient(timeout=10) as client:
-            response = await client.get(
-                url,
-                params={"api-key": self.api_key, "limit": limit},
-            )
-            response.raise_for_status()
-            data = response.json()
-
-        return data if isinstance(data, list) else []
+        data = result.get("data")
+        transactions = (
+            [item for item in data if isinstance(item, dict)]
+            if isinstance(data, list)
+            else []
+        )
+        next_token = result.get("paginationToken")
+        return HeliusTransactionPage(
+            transactions=transactions,
+            pagination_token=(
+                next_token if isinstance(next_token, str) and next_token else None
+            ),
+        )

@@ -4,7 +4,7 @@ Alpha Engine uses conservative SOL allocation for normalized token trades.
 
 ## Data priority
 
-1. Helius `events.swap.nativeInput` and `nativeOutput`
+1. Helius `events.swap.nativeInput` and `nativeOutput`, when available
 2. Helius `nativeTransfers`
 3. Wallet native balance changes from `accountData` or raw RPC metadata
 
@@ -26,5 +26,5 @@ basis requires a separate historical price source.
 - Unsupported or partially parsed protocols may only expose balance changes.
 - Rent changes can be present in native balance fallbacks.
 - Token-to-token swaps do not yet contribute SOL cost basis or realized PnL.
-- The Enhanced Transactions API must eventually be replaced with the current
-  Helius transaction-history RPC before production launch.
+- Primary history ingestion uses `getTransactionsForAddress` with full raw
+  transactions. Enhanced swap events remain an optional enrichment path.

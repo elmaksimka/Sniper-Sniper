@@ -92,6 +92,8 @@ financial advice.
 
 Transaction normalization and conservative SOL allocation are documented in
 [`docs/ACCOUNTING.md`](docs/ACCOUNTING.md).
+Wallet history pagination is documented in
+[`docs/INGESTION.md`](docs/INGESTION.md).
 
 ## Status
 
