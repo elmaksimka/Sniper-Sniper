@@ -88,6 +88,8 @@ poetry run pytest tests/integration -q
 Read endpoints:
 
 - `GET /health`
+- `GET /health/live`
+- `GET /health/ready`
 - `GET /api/v1/tokens`
 - `GET /api/v1/tokens/{address}`
 - `GET /api/v1/wallets`
@@ -123,6 +125,8 @@ Transaction normalization and conservative SOL allocation are documented in
 [`docs/ACCOUNTING.md`](docs/ACCOUNTING.md).
 Wallet history pagination is documented in
 [`docs/INGESTION.md`](docs/INGESTION.md).
+Production probes and startup ordering are documented in
+[`docs/OPERATIONS.md`](docs/OPERATIONS.md).
 
 ## Status
 

@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     monitor_max_pages: int = Field(default=10, ge=1, le=100)
     worker_leader_lock_key: int = Field(default=712_493_551, ge=1)
     worker_standby_poll_seconds: float = Field(default=5, gt=0)
+    worker_heartbeat_interval_seconds: float = Field(default=15, gt=0)
+    worker_heartbeat_stale_seconds: float = Field(default=120, gt=0)
+    readiness_check_timeout_seconds: float = Field(default=3, gt=0)
 
     # Database
     database_url: str = Field(

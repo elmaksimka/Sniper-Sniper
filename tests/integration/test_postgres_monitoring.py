@@ -1,3 +1,4 @@
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
@@ -5,9 +6,12 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from app.infrastructure.leader_election import PostgresLeaderElector
+from app.listeners.helius_client import HeliusClient
 from app.infrastructure.models import Wallet, WalletMonitor
 from app.repositories.monitor_repository import MonitorRepository
+from app.repositories.heartbeat_repository import HeartbeatRepository
 from app.services.monitor_service import MonitorService
+from app.services.system_health_service import SystemHealthService
 
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
@@ -64,3 +68,46 @@ async def test_postgres_advisory_lock_allows_one_worker_leader(
     finally:
         await first.release()
         await second.release()
+
+
+class HealthyHeliusClient(HeliusClient):
+    def __init__(self) -> None:
+        pass
+
+    max_retries = 0
+
+    async def get_health(self) -> dict[str, str]:
+        return {"result": "ok"}
+
+    async def aclose(self) -> None:
+        return None
+
+
+async def test_readiness_uses_persisted_worker_heartbeat(
+    postgres_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with postgres_session_factory() as session:
+        heartbeats = HeartbeatRepository(session)
+        heartbeat = await heartbeats.beat(
+            "monitor-worker",
+            "integration-worker",
+            {"state": "idle", "processed_transactions": 3},
+        )
+        service = SystemHealthService(
+            session,
+            helius_client=HealthyHeliusClient(),
+            worker_stale_after_seconds=120,
+            check_timeout_seconds=1,
+        )
+
+        report = await service.readiness()
+
+        assert report["status"] == "ready"
+        assert report["checks"]["worker"]["instance_id"] == "integration-worker"
+
+        heartbeat.last_heartbeat_at = datetime.now(UTC) - timedelta(minutes=5)
+        await session.commit()
+        stale_report = await service.readiness()
+
+    assert stale_report["status"] == "not_ready"
+    assert stale_report["checks"]["worker"]["reason"] == "heartbeat_stale"

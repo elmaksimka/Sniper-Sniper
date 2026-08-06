@@ -253,3 +253,16 @@ class WalletMonitor(Base):
     )
 
     wallet: Mapped["Wallet"] = relationship(back_populates="monitor")
+
+
+class ServiceHeartbeat(Base):
+    __tablename__ = "service_heartbeats"
+
+    service_name: Mapped[str] = mapped_column(String(64), primary_key=True)
+    instance_id: Mapped[str] = mapped_column(String(128))
+    last_heartbeat_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        index=True,
+    )
+    details: Mapped[dict] = mapped_column(JSON, default=dict)

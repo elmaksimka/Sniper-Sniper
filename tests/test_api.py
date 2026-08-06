@@ -7,6 +7,7 @@ from app.api.dependencies import get_analytics_service, get_read_service
 from app.api.dependencies import get_score_snapshot_service, get_scoring_service
 from app.api.dependencies import get_alert_service
 from app.api.dependencies import get_monitor_service
+from app.api.dependencies import get_system_health_service
 from app.core.analytics import TokenAnalytics, TokenPosition, WalletAnalytics
 from app.core.scoring import WalletScore
 from app.infrastructure.models import (
@@ -277,6 +278,21 @@ class FakeMonitorService:
         return self.monitor
 
 
+class FakeSystemHealthService:
+    def __init__(self, ready: bool = True) -> None:
+        self.ready = ready
+
+    async def readiness(self) -> dict:
+        component_status = "ok" if self.ready else "error"
+        return {
+            "status": "ready" if self.ready else "not_ready",
+            "checks": {
+                "database": {"status": component_status},
+                "helius": {"status": component_status},
+                "worker": {"status": component_status},
+            },
+        }
+
 def create_client() -> tuple[TestClient, FakeReadService]:
     application = create_app()
     service = FakeReadService()
@@ -285,6 +301,7 @@ def create_client() -> tuple[TestClient, FakeReadService]:
     snapshots = FakeScoreSnapshotService()
     alerts = FakeAlertService()
     monitors = FakeMonitorService()
+    system_health = FakeSystemHealthService()
     application.dependency_overrides[get_read_service] = lambda: service
     application.dependency_overrides[get_analytics_service] = lambda: analytics
     application.dependency_overrides[get_scoring_service] = lambda: scoring
@@ -293,6 +310,9 @@ def create_client() -> tuple[TestClient, FakeReadService]:
     )
     application.dependency_overrides[get_alert_service] = lambda: alerts
     application.dependency_overrides[get_monitor_service] = lambda: monitors
+    application.dependency_overrides[get_system_health_service] = (
+        lambda: system_health
+    )
     return TestClient(application), service
 
 
@@ -303,6 +323,30 @@ def test_health() -> None:
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_liveness_and_readiness() -> None:
+    client, _ = create_client()
+
+    live = client.get("/health/live")
+    ready = client.get("/health/ready")
+
+    assert live.status_code == 200
+    assert live.json() == {"status": "ok"}
+    assert ready.status_code == 200
+    assert ready.json()["status"] == "ready"
+
+
+def test_readiness_returns_503_when_a_dependency_is_unhealthy() -> None:
+    application = create_app()
+    service = FakeSystemHealthService(ready=False)
+    application.dependency_overrides[get_system_health_service] = lambda: service
+    client = TestClient(application)
+
+    response = client.get("/health/ready")
+
+    assert response.status_code == 503
+    assert response.json()["status"] == "not_ready"
 
 
 def test_list_tokens_returns_paginated_response() -> None:
