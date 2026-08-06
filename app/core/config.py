@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     monitor_poll_interval_seconds: float = Field(default=30, gt=0)
     monitor_page_size: int = Field(default=100, ge=1, le=100)
     monitor_max_pages: int = Field(default=10, ge=1, le=100)
+    worker_leader_lock_key: int = Field(default=712_493_551, ge=1)
+    worker_standby_poll_seconds: float = Field(default=5, gt=0)
 
     # Database
     database_url: str = Field(

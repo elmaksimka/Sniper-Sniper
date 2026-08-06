@@ -28,8 +28,13 @@ honored when Helius provides it. Transient JSON-RPC rate-limit and availability
 errors use the same retry policy; permanent RPC errors are surfaced to the
 worker and recorded on the affected monitor.
 
+Multiple worker replicas coordinate through a session-level PostgreSQL advisory
+lock. One replica holds a dedicated lock connection and performs ingestion;
+standby replicas poll for leadership and take over after the leader releases or
+loses its database connection. The leader verifies the connection before every
+poll so a stale process cannot continue ingesting after losing the lock.
+
 ## Remaining production work
 
 - add integration tests against a real PostgreSQL instance and recorded RPC
   responses
-- add worker leader election before running multiple replicas
