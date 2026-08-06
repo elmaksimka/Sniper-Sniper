@@ -127,6 +127,8 @@ Wallet history pagination is documented in
 [`docs/INGESTION.md`](docs/INGESTION.md).
 Production probes and startup ordering are documented in
 [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
+Container image and production Compose deployment are documented in
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
 ## Status
 

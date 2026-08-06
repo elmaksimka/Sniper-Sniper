@@ -7,11 +7,15 @@ from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+from app.core.config import get_settings
 from app.infrastructure.models import Base
 
 
 # Alembic Config object
 config = context.config
+database_url = get_settings().database_url
+if database_url:
+    config.set_main_option("sqlalchemy.url", database_url)
 
 
 # Configure Python logging
