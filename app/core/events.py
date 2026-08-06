@@ -26,6 +26,8 @@ class Event:
 class TokenCreated(Event):
     token_address: str
     creator: str
+    symbol: str | None = None
+    name: str | None = None
 
 
 @dataclass(slots=True, kw_only=True)

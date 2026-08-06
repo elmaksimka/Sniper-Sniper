@@ -7,7 +7,7 @@ class HeliusListener:
     """
     Listens for Solana blockchain events.
 
-    Uses HeliusClient as external data source.
+    Uses Helius API to enrich token data.
     """
 
     def __init__(
@@ -21,8 +21,6 @@ class HeliusListener:
     async def start(self) -> None:
         """
         Start listening.
-
-        Temporary mock event.
         """
 
         print(
@@ -36,9 +34,52 @@ class HeliusListener:
             health,
         )
 
+        token_address = (
+            "So11111111111111111111111111111111111111112"
+        )
+
+        asset_response = await self.client.get_asset(
+            token_address,
+        )
+
+        if "error" in asset_response:
+            print(
+                "Helius asset error:",
+                asset_response["error"],
+            )
+            return
+
+        asset = asset_response.get(
+            "result",
+            {},
+        )
+
+        metadata = (
+            asset
+            .get("content", {})
+            .get("metadata", {})
+        )
+
+        symbol = metadata.get(
+            "symbol"
+        )
+
+        name = metadata.get(
+            "name"
+        )
+
+        print(
+            "Token discovered:",
+            token_address,
+            symbol,
+            name,
+        )
+
         await self.event_bus.publish(
             TokenCreated(
-                token_address="HeliusDemoToken123",
-                creator="DemoCreatorWallet",
+                token_address=token_address,
+                creator="HeliusListener",
+                symbol=symbol,
+                name=name,
             )
         )
