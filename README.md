@@ -43,6 +43,7 @@ Start PostgreSQL and apply migrations:
 ```powershell
 docker compose up -d postgres
 poetry run alembic upgrade head
+poetry run python -m app.backfill_scores
 ```
 
 Run the wallet scanner:
@@ -71,6 +72,7 @@ Read endpoints:
 - `GET /api/v1/analytics/wallets/{address}/positions`
 - `GET /api/v1/analytics/tokens/{address}`
 - `GET /api/v1/scores/wallets/{address}`
+- `GET /api/v1/scores/wallets`
 
 ### Wallet score v1
 

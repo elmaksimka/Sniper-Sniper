@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.infrastructure.database import get_session
 from app.services.analytics_service import AnalyticsService
 from app.services.read_service import ReadService
+from app.services.score_snapshot_service import ScoreSnapshotService
 from app.services.scoring_service import ScoringService
 
 
@@ -36,4 +37,16 @@ def get_scoring_service(session: SessionDependency) -> ScoringService:
 ScoringServiceDependency = Annotated[
     ScoringService,
     Depends(get_scoring_service),
+]
+
+
+def get_score_snapshot_service(
+    session: SessionDependency,
+) -> ScoreSnapshotService:
+    return ScoreSnapshotService(session)
+
+
+ScoreSnapshotServiceDependency = Annotated[
+    ScoreSnapshotService,
+    Depends(get_score_snapshot_service),
 ]

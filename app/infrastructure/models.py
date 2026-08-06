@@ -88,6 +88,12 @@ class Wallet(Base):
         back_populates="wallet",
     )
 
+    score_snapshot: Mapped["WalletScoreSnapshot | None"] = relationship(
+        back_populates="wallet",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+
 
 class Trade(Base):
     __tablename__ = "trades"
@@ -148,3 +154,31 @@ class Trade(Base):
     wallet: Mapped["Wallet"] = relationship(
         back_populates="trades",
     )
+
+
+class WalletScoreSnapshot(Base):
+    __tablename__ = "wallet_score_snapshots"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    wallet_id: Mapped[int] = mapped_column(
+        ForeignKey("wallets.id", ondelete="CASCADE"),
+        unique=True,
+    )
+    score: Mapped[float] = mapped_column(Float, index=True)
+    grade: Mapped[str] = mapped_column(String(2), index=True)
+    methodology_version: Mapped[str] = mapped_column(String(32))
+    activity_score: Mapped[float] = mapped_column(Float)
+    diversification_score: Mapped[float] = mapped_column(Float)
+    exit_experience_score: Mapped[float] = mapped_column(Float)
+    realized_performance_score: Mapped[float] = mapped_column(Float)
+    data_quality_score: Mapped[float] = mapped_column(Float)
+    realized_pnl_sol: Mapped[float] = mapped_column(Float)
+    realized_roi: Mapped[float] = mapped_column(Float)
+    unmatched_sell_ratio: Mapped[float] = mapped_column(Float)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+    wallet: Mapped["Wallet"] = relationship(back_populates="score_snapshot")

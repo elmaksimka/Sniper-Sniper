@@ -4,10 +4,10 @@ from fastapi.testclient import TestClient
 
 from app.api.app import create_app
 from app.api.dependencies import get_analytics_service, get_read_service
-from app.api.dependencies import get_scoring_service
+from app.api.dependencies import get_score_snapshot_service, get_scoring_service
 from app.core.analytics import TokenAnalytics, TokenPosition, WalletAnalytics
 from app.core.scoring import WalletScore
-from app.infrastructure.models import Token, Trade, Wallet
+from app.infrastructure.models import Token, Trade, Wallet, WalletScoreSnapshot
 
 
 class FakeReadService:
@@ -162,14 +162,50 @@ class FakeScoringService:
         )
 
 
+class FakeScoreSnapshotService:
+    def __init__(self) -> None:
+        wallet = Wallet(id=2, address="wallet")
+        self.snapshot = WalletScoreSnapshot(
+            id=1,
+            wallet_id=wallet.id,
+            wallet=wallet,
+            score=72.5,
+            grade="B",
+            methodology_version="wallet-v1",
+            activity_score=15,
+            diversification_score=10,
+            exit_experience_score=15,
+            realized_performance_score=25,
+            data_quality_score=7.5,
+            realized_pnl_sol=2,
+            realized_roi=0.2,
+            unmatched_sell_ratio=0.25,
+            updated_at=datetime.now(UTC),
+        )
+        self.filters: tuple[int, int, str | None] | None = None
+
+    async def leaderboard(
+        self,
+        limit: int,
+        offset: int,
+        grade: str | None,
+    ) -> tuple[list[WalletScoreSnapshot], int]:
+        self.filters = (limit, offset, grade)
+        return [self.snapshot], 1
+
+
 def create_client() -> tuple[TestClient, FakeReadService]:
     application = create_app()
     service = FakeReadService()
     analytics = FakeAnalyticsService()
     scoring = FakeScoringService()
+    snapshots = FakeScoreSnapshotService()
     application.dependency_overrides[get_read_service] = lambda: service
     application.dependency_overrides[get_analytics_service] = lambda: analytics
     application.dependency_overrides[get_scoring_service] = lambda: scoring
+    application.dependency_overrides[get_score_snapshot_service] = (
+        lambda: snapshots
+    )
     return TestClient(application), service
 
 
@@ -311,3 +347,28 @@ def test_missing_wallet_score_returns_404() -> None:
     response = client.get("/api/v1/scores/wallets/missing")
 
     assert response.status_code == 404
+
+
+def test_wallet_score_leaderboard() -> None:
+    client, _ = create_client()
+
+    response = client.get(
+        "/api/v1/scores/wallets",
+        params={"limit": 10, "offset": 5, "grade": "B"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    assert payload["limit"] == 10
+    assert payload["offset"] == 5
+    assert payload["items"][0]["wallet_address"] == "wallet"
+    assert payload["items"][0]["score"] == 72.5
+
+
+def test_wallet_score_leaderboard_validates_grade() -> None:
+    client, _ = create_client()
+
+    response = client.get("/api/v1/scores/wallets", params={"grade": "Z"})
+
+    assert response.status_code == 422

@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from app.api.dependencies import (
     AnalyticsServiceDependency,
     ReadServiceDependency,
+    ScoreSnapshotServiceDependency,
     ScoringServiceDependency,
 )
 from app.api.schemas import (
@@ -21,6 +22,8 @@ from app.api.schemas import (
     WalletAnalyticsRead,
     WalletPositionsRead,
     WalletScoreRead,
+    WalletScoreLeaderboardPage,
+    WalletScoreSnapshotRead,
 )
 
 
@@ -190,3 +193,25 @@ async def get_wallet_score(
         )
 
     return WalletScoreRead.model_validate(score)
+
+
+@router.get(
+    "/scores/wallets",
+    response_model=WalletScoreLeaderboardPage,
+)
+async def list_wallet_scores(
+    service: ScoreSnapshotServiceDependency,
+    limit: Limit = 50,
+    offset: Offset = 0,
+    grade: Literal["A", "B", "C", "D", "E"] | None = None,
+) -> WalletScoreLeaderboardPage:
+    snapshots, total = await service.leaderboard(limit, offset, grade)
+    return WalletScoreLeaderboardPage(
+        items=[
+            WalletScoreSnapshotRead.from_snapshot(snapshot)
+            for snapshot in snapshots
+        ],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )

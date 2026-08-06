@@ -4,7 +4,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from app.infrastructure.models import Trade
+from app.infrastructure.models import Trade, WalletScoreSnapshot
 
 
 class TokenRead(BaseModel):
@@ -144,3 +144,35 @@ class WalletScoreRead(BaseModel):
     realized_pnl_sol: float
     realized_roi: float
     unmatched_sell_ratio: float
+
+
+class WalletScoreSnapshotRead(WalletScoreRead):
+    updated_at: datetime
+
+    @classmethod
+    def from_snapshot(
+        cls,
+        snapshot: WalletScoreSnapshot,
+    ) -> WalletScoreSnapshotRead:
+        return cls(
+            wallet_address=snapshot.wallet.address,
+            score=snapshot.score,
+            grade=snapshot.grade,
+            methodology_version=snapshot.methodology_version,
+            activity_score=snapshot.activity_score,
+            diversification_score=snapshot.diversification_score,
+            exit_experience_score=snapshot.exit_experience_score,
+            realized_performance_score=snapshot.realized_performance_score,
+            data_quality_score=snapshot.data_quality_score,
+            realized_pnl_sol=snapshot.realized_pnl_sol,
+            realized_roi=snapshot.realized_roi,
+            unmatched_sell_ratio=snapshot.unmatched_sell_ratio,
+            updated_at=snapshot.updated_at,
+        )
+
+
+class WalletScoreLeaderboardPage(BaseModel):
+    items: list[WalletScoreSnapshotRead]
+    total: int
+    limit: int
+    offset: int

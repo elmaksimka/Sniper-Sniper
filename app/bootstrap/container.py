@@ -5,10 +5,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.analyzer import TokenAnalyzer
 from app.collectors.token_collector import TokenCollector
 from app.collectors.trade_collector import TradeCollector
+from app.collectors.score_collector import ScoreCollector
 from app.core.event_bus import EventBus
 from app.listeners.helius_client import HeliusClient
 from app.listeners.transaction_scanner import TransactionScanner
 from app.services.metadata_service import MetadataService
+from app.services.score_snapshot_service import ScoreSnapshotService
+from app.services.scoring_service import ScoringService
 from app.services.token_detection_service import TokenDetectionService
 from app.services.token_parser import TokenParser
 from app.services.token_service import TokenService
@@ -24,6 +27,8 @@ class Container:
         self.token_service = TokenService(session)
         self.wallet_service = WalletService(session)
         self.trade_service = TradeService(session)
+        self.scoring_service = ScoringService(session)
+        self.score_snapshot_service = ScoreSnapshotService(session)
 
         self.token_collector = TokenCollector(
             event_bus=self.event_bus,
@@ -34,6 +39,12 @@ class Container:
             token_service=self.token_service,
             wallet_service=self.wallet_service,
             trade_service=self.trade_service,
+        )
+        self.score_collector = ScoreCollector(
+            event_bus=self.event_bus,
+            scoring_service=self.scoring_service,
+            snapshot_service=self.score_snapshot_service,
+            wallet_service=self.wallet_service,
         )
 
         self.helius_client = HeliusClient()
@@ -57,3 +68,4 @@ class Container:
     def setup(self) -> None:
         self.token_collector.register()
         self.trade_collector.register()
+        self.score_collector.register()
