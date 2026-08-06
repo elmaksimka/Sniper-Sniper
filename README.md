@@ -90,6 +90,9 @@ The API returns every component, the methodology version, realized ROI, and
 the unmatched-sell ratio. It is an analytics heuristic, not a prediction or
 financial advice.
 
+Transaction normalization and conservative SOL allocation are documented in
+[`docs/ACCOUNTING.md`](docs/ACCOUNTING.md).
+
 ## Status
 
 🚧 In development.
