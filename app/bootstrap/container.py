@@ -1,7 +1,8 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.event_bus import EventBus
 from app.collectors.token_collector import TokenCollector
+from app.core.event_bus import EventBus
+from app.listeners.helius_listener import HeliusListener
 from app.services.token_service import TokenService
 
 
@@ -28,6 +29,10 @@ class Container:
         self.token_collector = TokenCollector(
             event_bus=self.event_bus,
             token_service=self.token_service,
+        )
+
+        self.helius_listener = HeliusListener(
+            event_bus=self.event_bus,
         )
 
     def setup(self) -> None:

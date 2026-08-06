@@ -1,7 +1,6 @@
 import asyncio
 
 from app.bootstrap.container import Container
-from app.core.events import TokenCreated
 from app.core.logging import get_logger, setup_logging
 from app.infrastructure.database import create_session, engine
 
@@ -16,12 +15,7 @@ async def run() -> None:
 
         container.setup()
 
-        await container.event_bus.publish(
-            TokenCreated(
-                token_address="8xDemoTokenAddress123",
-                creator="DemoCreatorWallet",
-            )
-        )
+        await container.helius_listener.start()
 
     finally:
         await session.close()
@@ -32,7 +26,7 @@ def main() -> None:
     setup_logging()
 
     logger = get_logger(
-        "alpha-engine"
+        "alpha-engine",
     )
 
     logger.info(

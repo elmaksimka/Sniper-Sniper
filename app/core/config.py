@@ -20,6 +20,16 @@ class Settings(BaseSettings):
         description="Solana RPC endpoint",
     )
 
+    helius_api_key: str = Field(
+        default="",
+        description="Helius API key",
+    )
+
+    helius_rpc_url: str = Field(
+        default="",
+        description="Helius RPC endpoint",
+    )
+
     # Database
     database_url: str = Field(
         default="",
