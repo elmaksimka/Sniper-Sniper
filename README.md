@@ -52,6 +52,12 @@ Run the wallet scanner:
 poetry run python -m app.main
 ```
 
+Run the continuous monitored-wallet worker:
+
+```powershell
+poetry run python -m app.worker
+```
+
 Run the read API:
 
 ```powershell
@@ -75,6 +81,10 @@ Read endpoints:
 - `GET /api/v1/scores/wallets`
 - `GET /api/v1/alerts`
 - `POST /api/v1/alerts/{alert_id}/acknowledge`
+- `GET /api/v1/monitors`
+- `POST /api/v1/monitors`
+- `POST /api/v1/monitors/{address}/enable`
+- `DELETE /api/v1/monitors/{address}`
 
 ### Wallet score v1
 

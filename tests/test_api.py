@@ -6,9 +6,17 @@ from app.api.app import create_app
 from app.api.dependencies import get_analytics_service, get_read_service
 from app.api.dependencies import get_score_snapshot_service, get_scoring_service
 from app.api.dependencies import get_alert_service
+from app.api.dependencies import get_monitor_service
 from app.core.analytics import TokenAnalytics, TokenPosition, WalletAnalytics
 from app.core.scoring import WalletScore
-from app.infrastructure.models import Alert, Token, Trade, Wallet, WalletScoreSnapshot
+from app.infrastructure.models import (
+    Alert,
+    Token,
+    Trade,
+    Wallet,
+    WalletMonitor,
+    WalletScoreSnapshot,
+)
 
 
 class FakeReadService:
@@ -235,6 +243,40 @@ class FakeAlertService:
         return self.alert
 
 
+class FakeMonitorService:
+    def __init__(self) -> None:
+        now = datetime.now(UTC)
+        self.monitor = WalletMonitor(
+            id=1,
+            wallet_id=1,
+            wallet=Wallet(id=1, address="wallet"),
+            enabled=True,
+            checkpoint_signature="checkpoint",
+            last_scanned_at=now,
+            last_error=None,
+            created_at=now,
+            updated_at=now,
+        )
+
+    async def add(self, address: str) -> WalletMonitor:
+        self.monitor.wallet.address = address
+        self.monitor.enabled = True
+        return self.monitor
+
+    async def list(self, enabled_only: bool = False) -> list[WalletMonitor]:
+        return [self.monitor] if not enabled_only or self.monitor.enabled else []
+
+    async def set_enabled(
+        self,
+        address: str,
+        enabled: bool,
+    ) -> WalletMonitor | None:
+        if address != self.monitor.wallet.address:
+            return None
+        self.monitor.enabled = enabled
+        return self.monitor
+
+
 def create_client() -> tuple[TestClient, FakeReadService]:
     application = create_app()
     service = FakeReadService()
@@ -242,6 +284,7 @@ def create_client() -> tuple[TestClient, FakeReadService]:
     scoring = FakeScoringService()
     snapshots = FakeScoreSnapshotService()
     alerts = FakeAlertService()
+    monitors = FakeMonitorService()
     application.dependency_overrides[get_read_service] = lambda: service
     application.dependency_overrides[get_analytics_service] = lambda: analytics
     application.dependency_overrides[get_scoring_service] = lambda: scoring
@@ -249,6 +292,7 @@ def create_client() -> tuple[TestClient, FakeReadService]:
         lambda: snapshots
     )
     application.dependency_overrides[get_alert_service] = lambda: alerts
+    application.dependency_overrides[get_monitor_service] = lambda: monitors
     return TestClient(application), service
 
 
@@ -446,3 +490,26 @@ def test_acknowledge_alert() -> None:
     assert response.status_code == 200
     assert response.json()["acknowledged_at"] is not None
     assert missing.status_code == 404
+
+
+def test_monitor_management_api() -> None:
+    client, _ = create_client()
+
+    created = client.post("/api/v1/monitors", json={"address": "tracked"})
+    listed = client.get("/api/v1/monitors")
+    disabled = client.delete("/api/v1/monitors/tracked")
+    enabled = client.post("/api/v1/monitors/tracked/enable")
+
+    assert created.status_code == 201
+    assert created.json()["wallet_address"] == "tracked"
+    assert listed.json()["total"] == 1
+    assert disabled.json()["enabled"] is False
+    assert enabled.json()["enabled"] is True
+
+
+def test_unknown_monitor_returns_404() -> None:
+    client, _ = create_client()
+
+    response = client.delete("/api/v1/monitors/missing")
+
+    assert response.status_code == 404

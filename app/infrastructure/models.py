@@ -95,6 +95,12 @@ class Wallet(Base):
         uselist=False,
     )
 
+    monitor: Mapped["WalletMonitor | None"] = relationship(
+        back_populates="wallet",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+
 
 class Trade(Base):
     __tablename__ = "trades"
@@ -208,3 +214,34 @@ class Alert(Base):
         DateTime(timezone=True),
         nullable=True,
     )
+
+
+class WalletMonitor(Base):
+    __tablename__ = "wallet_monitors"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    wallet_id: Mapped[int] = mapped_column(
+        ForeignKey("wallets.id", ondelete="CASCADE"),
+        unique=True,
+    )
+    enabled: Mapped[bool] = mapped_column(default=True, index=True)
+    checkpoint_signature: Mapped[str | None] = mapped_column(
+        String(128),
+        nullable=True,
+    )
+    last_scanned_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+    last_error: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+    wallet: Mapped["Wallet"] = relationship(back_populates="monitor")

@@ -16,10 +16,13 @@ Alpha Engine retrieves wallet history with the Helius
 workers. `scan_address()` performs bounded pagination, deduplicates signatures
 across pages, and stops if an upstream pagination token repeats.
 
+The continuous monitor worker stores a high-water transaction signature per
+wallet. Each poll walks newest-first pages until it finds that signature, then
+processes the new batch oldest-first. An incomplete catch-up never advances the
+checkpoint.
+
 ## Remaining production work
 
-- persist wallet pagination/checkpoint state
 - add retry and rate-limit handling
-- continuously schedule monitored wallets
 - add integration tests against a real PostgreSQL instance and recorded RPC
   responses

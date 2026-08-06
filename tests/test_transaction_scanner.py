@@ -130,3 +130,56 @@ async def test_scanner_stops_when_pagination_token_repeats() -> None:
     result = await scanner.scan_address("wallet", limit=10)
 
     assert result == []
+
+
+class CatchUpClient:
+    async def get_transactions_for_address(
+        self,
+        wallet: str,
+        limit: int,
+        pagination_token: str | None,
+        sort_order: str,
+    ) -> HeliusTransactionPage:
+        if pagination_token is None:
+            return HeliusTransactionPage(
+                [raw_transaction("sig-3"), raw_transaction("sig-2")],
+                "page-2",
+            )
+        return HeliusTransactionPage(
+            [raw_transaction("sig-1"), raw_transaction("older")],
+            None,
+        )
+
+
+@pytest.mark.asyncio
+async def test_scan_since_stops_at_checkpoint_and_returns_chronological() -> None:
+    helius: Any = CatchUpClient()
+    scanner = TransactionScanner(helius, TokenParser(), TokenAnalyzer())
+
+    batch = await scanner.scan_since(
+        "wallet",
+        checkpoint_signature="sig-1",
+        page_size=2,
+        max_pages=2,
+    )
+
+    assert batch.complete is True
+    assert batch.newest_signature == "sig-3"
+    assert [tx["signature"] for tx in batch.transactions] == ["sig-2", "sig-3"]
+
+
+@pytest.mark.asyncio
+async def test_scan_since_does_not_return_partial_batch() -> None:
+    helius: Any = CatchUpClient()
+    scanner = TransactionScanner(helius, TokenParser(), TokenAnalyzer())
+
+    batch = await scanner.scan_since(
+        "wallet",
+        checkpoint_signature="missing",
+        page_size=2,
+        max_pages=1,
+    )
+
+    assert batch.complete is False
+    assert batch.transactions == []
+    assert batch.newest_signature == "sig-3"

@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Query, status
 from app.api.dependencies import (
     AlertServiceDependency,
     AnalyticsServiceDependency,
+    MonitorServiceDependency,
     ReadServiceDependency,
     ScoreSnapshotServiceDependency,
     ScoringServiceDependency,
@@ -14,6 +15,9 @@ from app.api.dependencies import (
 from app.api.schemas import (
     AlertPage,
     AlertRead,
+    MonitorCreate,
+    MonitorPage,
+    MonitorRead,
     TokenAnalyticsRead,
     TokenPage,
     TokenRead,
@@ -260,3 +264,50 @@ async def acknowledge_alert(
         )
 
     return AlertRead.from_alert(alert)
+
+
+@router.get("/monitors", response_model=MonitorPage)
+async def list_monitors(
+    service: MonitorServiceDependency,
+    enabled_only: bool = False,
+) -> MonitorPage:
+    monitors = await service.list(enabled_only)
+    return MonitorPage(
+        items=[MonitorRead.from_monitor(monitor) for monitor in monitors],
+        total=len(monitors),
+    )
+
+
+@router.post(
+    "/monitors",
+    response_model=MonitorRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_monitor(
+    payload: MonitorCreate,
+    service: MonitorServiceDependency,
+) -> MonitorRead:
+    monitor = await service.add(payload.address)
+    return MonitorRead.from_monitor(monitor)
+
+
+@router.post("/monitors/{address}/enable", response_model=MonitorRead)
+async def enable_monitor(
+    address: str,
+    service: MonitorServiceDependency,
+) -> MonitorRead:
+    monitor = await service.set_enabled(address, True)
+    if monitor is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Monitor not found")
+    return MonitorRead.from_monitor(monitor)
+
+
+@router.delete("/monitors/{address}", response_model=MonitorRead)
+async def disable_monitor(
+    address: str,
+    service: MonitorServiceDependency,
+) -> MonitorRead:
+    monitor = await service.set_enabled(address, False)
+    if monitor is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Monitor not found")
+    return MonitorRead.from_monitor(monitor)

@@ -14,6 +14,13 @@ class TransactionScanPage:
     pagination_token: str | None
 
 
+@dataclass(frozen=True, slots=True)
+class TransactionCatchUp:
+    transactions: list[dict[str, Any]]
+    newest_signature: str | None
+    complete: bool
+
+
 class TransactionScanner:
     """Fetch and normalize paginated Helius wallet transactions."""
 
@@ -88,6 +95,62 @@ class TransactionScanner:
             pagination_token = next_token
 
         return transactions
+
+    async def scan_since(
+        self,
+        wallet: str,
+        checkpoint_signature: str | None,
+        page_size: int = 100,
+        max_pages: int = 10,
+    ) -> TransactionCatchUp:
+        collected: list[dict[str, Any]] = []
+        seen_signatures: set[str] = set()
+        seen_tokens: set[str] = set()
+        pagination_token: str | None = None
+        newest_signature: str | None = None
+
+        for _ in range(max_pages):
+            page = await self.scan_page(
+                wallet,
+                limit=page_size,
+                pagination_token=pagination_token,
+            )
+
+            for transaction in page.transactions:
+                signature = transaction["signature"]
+                if newest_signature is None:
+                    newest_signature = signature
+                if signature == checkpoint_signature:
+                    return TransactionCatchUp(
+                        list(reversed(collected)),
+                        newest_signature,
+                        True,
+                    )
+                if signature not in seen_signatures:
+                    seen_signatures.add(signature)
+                    collected.append(transaction)
+
+            # The first scan intentionally establishes a bounded high-water mark.
+            if checkpoint_signature is None:
+                return TransactionCatchUp(
+                    list(reversed(collected)),
+                    newest_signature,
+                    True,
+                )
+
+            next_token = page.pagination_token
+            if not next_token:
+                return TransactionCatchUp(
+                    list(reversed(collected)),
+                    newest_signature,
+                    True,
+                )
+            if next_token in seen_tokens:
+                return TransactionCatchUp([], newest_signature, False)
+            seen_tokens.add(next_token)
+            pagination_token = next_token
+
+        return TransactionCatchUp([], newest_signature, False)
 
     def _normalize(
         self,

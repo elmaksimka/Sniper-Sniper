@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.infrastructure.database import get_session
 from app.services.alert_service import AlertService
 from app.services.analytics_service import AnalyticsService
+from app.services.monitor_service import MonitorService
 from app.services.read_service import ReadService
 from app.services.score_snapshot_service import ScoreSnapshotService
 from app.services.scoring_service import ScoringService
@@ -58,3 +59,13 @@ def get_alert_service(session: SessionDependency) -> AlertService:
 
 
 AlertServiceDependency = Annotated[AlertService, Depends(get_alert_service)]
+
+
+def get_monitor_service(session: SessionDependency) -> MonitorService:
+    return MonitorService(session)
+
+
+MonitorServiceDependency = Annotated[
+    MonitorService,
+    Depends(get_monitor_service),
+]

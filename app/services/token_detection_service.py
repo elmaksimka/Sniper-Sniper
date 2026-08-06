@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 from app.analyzer import TokenTrade
 from app.core.event_bus import EventBus
@@ -31,6 +32,12 @@ class TokenDetectionService:
         limit: int = 10,
     ) -> list[str]:
         transactions = await self.scanner.scan_address(wallet, limit)
+        return await self.process_transactions(transactions)
+
+    async def process_transactions(
+        self,
+        transactions: list[dict[str, Any]],
+    ) -> list[str]:
         found: set[str] = set()
 
         for transaction in transactions:

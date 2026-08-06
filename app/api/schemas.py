@@ -4,7 +4,12 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from app.infrastructure.models import Alert, Trade, WalletScoreSnapshot
+from app.infrastructure.models import (
+    Alert,
+    Trade,
+    WalletMonitor,
+    WalletScoreSnapshot,
+)
 
 
 class TokenRead(BaseModel):
@@ -211,3 +216,36 @@ class AlertPage(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class MonitorCreate(BaseModel):
+    address: str
+
+
+class MonitorRead(BaseModel):
+    id: int
+    wallet_address: str
+    enabled: bool
+    checkpoint_signature: str | None
+    last_scanned_at: datetime | None
+    last_error: str | None
+    created_at: datetime
+    updated_at: datetime
+
+    @classmethod
+    def from_monitor(cls, monitor: WalletMonitor) -> MonitorRead:
+        return cls(
+            id=monitor.id,
+            wallet_address=monitor.wallet.address,
+            enabled=monitor.enabled,
+            checkpoint_signature=monitor.checkpoint_signature,
+            last_scanned_at=monitor.last_scanned_at,
+            last_error=monitor.last_error,
+            created_at=monitor.created_at,
+            updated_at=monitor.updated_at,
+        )
+
+
+class MonitorPage(BaseModel):
+    items: list[MonitorRead]
+    total: int
