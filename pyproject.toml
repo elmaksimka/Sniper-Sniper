@@ -1,0 +1,59 @@
+[tool.poetry]
+name = "alpha-engine"
+version = "0.1.0"
+description = "Solana Alpha Engine"
+authors = ["Maksym"]
+packages = [
+    { include = "app" }
+]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+
+pydantic = "^2.11"
+
+sqlalchemy = "^2.0"
+
+asyncpg = "^0.30"
+
+alembic = "^1.16"
+
+fastapi = "^0.116"
+
+uvicorn = "^0.35"
+
+httpx = "^0.28"
+
+websockets = "^15.0"
+
+python-dotenv = "^1.1"
+
+redis = "^6.4"
+
+structlog = "^25.4"
+
+polars = "^1.33"
+
+networkx = "^3.5"
+
+orjson = "^3.11"
+
+tenacity = "^9.1"
+
+pydantic-settings = "^2.10"
+
+[tool.poetry.group.dev.dependencies]
+
+pytest = "^8.4"
+
+pytest-asyncio = "^1.1"
+
+ruff = "^0.12"
+
+mypy = "^1.17"
+
+[build-system]
+
+requires = ["poetry-core"]
+
+build-backend = "poetry.core.masonry.api"
