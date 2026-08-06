@@ -4,7 +4,9 @@ from fastapi.testclient import TestClient
 
 from app.api.app import create_app
 from app.api.dependencies import get_analytics_service, get_read_service
+from app.api.dependencies import get_scoring_service
 from app.core.analytics import TokenAnalytics, TokenPosition, WalletAnalytics
+from app.core.scoring import WalletScore
 from app.infrastructure.models import Token, Trade, Wallet
 
 
@@ -139,12 +141,35 @@ class FakeAnalyticsService:
         ]
 
 
+class FakeScoringService:
+    async def score_wallet(self, address: str) -> WalletScore | None:
+        if address != "wallet":
+            return None
+
+        return WalletScore(
+            wallet_address="wallet",
+            score=72.5,
+            grade="B",
+            methodology_version="wallet-v1",
+            activity_score=15,
+            diversification_score=10,
+            exit_experience_score=15,
+            realized_performance_score=25,
+            data_quality_score=7.5,
+            realized_pnl_sol=2,
+            realized_roi=0.2,
+            unmatched_sell_ratio=0.25,
+        )
+
+
 def create_client() -> tuple[TestClient, FakeReadService]:
     application = create_app()
     service = FakeReadService()
     analytics = FakeAnalyticsService()
+    scoring = FakeScoringService()
     application.dependency_overrides[get_read_service] = lambda: service
     application.dependency_overrides[get_analytics_service] = lambda: analytics
+    application.dependency_overrides[get_scoring_service] = lambda: scoring
     return TestClient(application), service
 
 
@@ -265,3 +290,24 @@ def test_get_wallet_positions() -> None:
     assert payload["items"][0]["quantity"] == 10.0
     assert payload["items"][0]["realized_pnl_sol"] == 0.25
     assert payload["items"][0]["has_incomplete_history"] is False
+
+
+def test_get_wallet_score() -> None:
+    client, _ = create_client()
+
+    response = client.get("/api/v1/scores/wallets/wallet")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["score"] == 72.5
+    assert payload["grade"] == "B"
+    assert payload["methodology_version"] == "wallet-v1"
+    assert payload["realized_performance_score"] == 25.0
+
+
+def test_missing_wallet_score_returns_404() -> None:
+    client, _ = create_client()
+
+    response = client.get("/api/v1/scores/wallets/missing")
+
+    assert response.status_code == 404

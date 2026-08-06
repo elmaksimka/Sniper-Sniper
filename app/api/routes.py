@@ -4,7 +4,11 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, HTTPException, Query, status
 
-from app.api.dependencies import AnalyticsServiceDependency, ReadServiceDependency
+from app.api.dependencies import (
+    AnalyticsServiceDependency,
+    ReadServiceDependency,
+    ScoringServiceDependency,
+)
 from app.api.schemas import (
     TokenAnalyticsRead,
     TokenPage,
@@ -16,6 +20,7 @@ from app.api.schemas import (
     WalletRead,
     WalletAnalyticsRead,
     WalletPositionsRead,
+    WalletScoreRead,
 )
 
 
@@ -167,3 +172,21 @@ async def get_wallet_positions(
         items=items,
         total=len(items),
     )
+
+
+@router.get(
+    "/scores/wallets/{address}",
+    response_model=WalletScoreRead,
+)
+async def get_wallet_score(
+    address: str,
+    service: ScoringServiceDependency,
+) -> WalletScoreRead:
+    score = await service.score_wallet(address)
+    if score is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Wallet not found",
+        )
+
+    return WalletScoreRead.model_validate(score)

@@ -70,6 +70,21 @@ Read endpoints:
 - `GET /api/v1/analytics/wallets/{address}`
 - `GET /api/v1/analytics/wallets/{address}/positions`
 - `GET /api/v1/analytics/tokens/{address}`
+- `GET /api/v1/scores/wallets/{address}`
+
+### Wallet score v1
+
+The wallet score is an explainable 0-100 heuristic composed of:
+
+- activity: 20 points
+- token diversification: 15 points
+- exit experience: 20 points
+- realized performance: 35 points
+- data quality: 10 points
+
+The API returns every component, the methodology version, realized ROI, and
+the unmatched-sell ratio. It is an analytics heuristic, not a prediction or
+financial advice.
 
 ## Status
 
