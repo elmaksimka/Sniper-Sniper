@@ -5,7 +5,6 @@ from app.repositories.token_repository import TokenRepository
 
 
 class TokenService:
-
     def __init__(
         self,
         session: AsyncSession,
@@ -17,9 +16,11 @@ class TokenService:
     async def create_token(
         self,
         address: str,
-        creator: str | None = None,
         symbol: str | None = None,
         name: str | None = None,
+        creator: str | None = None,
+        decimals: int | None = None,
+        supply: int | None = None,
     ) -> Token:
 
         existing_token = await self.repository.get_by_address(
@@ -47,9 +48,11 @@ class TokenService:
 
         token = Token(
             address=address,
-            creator=creator,
             symbol=symbol,
             name=name,
+            creator=creator,
+            decimals=decimals,
+            supply=supply,
         )
 
         return await self.repository.create(

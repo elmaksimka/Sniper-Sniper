@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.models import Wallet
@@ -33,3 +33,16 @@ class WalletRepository:
         )
 
         return result.scalar_one_or_none()
+
+    async def list_all(self, limit: int, offset: int) -> list[Wallet]:
+        result = await self.session.execute(
+            select(Wallet)
+            .order_by(Wallet.first_seen.desc(), Wallet.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return list(result.scalars().all())
+
+    async def count(self) -> int:
+        result = await self.session.execute(select(func.count(Wallet.id)))
+        return result.scalar_one()

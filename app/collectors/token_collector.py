@@ -38,4 +38,6 @@ class TokenCollector:
             creator=event.creator,
             symbol=event.symbol,
             name=event.name,
+            decimals=event.decimals,
+            supply=event.supply,
         )

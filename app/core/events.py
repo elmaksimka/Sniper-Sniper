@@ -67,6 +67,9 @@ class TradeObserved(Event):
     side: str
     amount: float
     price: float
+    sol_change: float
+    signature: str | None = None
+    transaction_at: datetime | None = None
 
 
 # -----------------------

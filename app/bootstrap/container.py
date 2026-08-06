@@ -1,63 +1,59 @@
+from __future__ import annotations
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.analyzer import TokenAnalyzer
 from app.collectors.token_collector import TokenCollector
+from app.collectors.trade_collector import TradeCollector
 from app.core.event_bus import EventBus
-from app.detectors.token_detector import TokenDetector
 from app.listeners.helius_client import HeliusClient
-from app.listeners.helius_listener import HeliusListener
 from app.listeners.transaction_scanner import TransactionScanner
+from app.services.metadata_service import MetadataService
 from app.services.token_detection_service import TokenDetectionService
+from app.services.token_parser import TokenParser
 from app.services.token_service import TokenService
+from app.services.token_store import TokenStore
+from app.services.trade_service import TradeService
+from app.services.wallet_service import WalletService
 
 
 class Container:
-    """
-    Application dependency container.
-
-    Responsible for creating and connecting
-    application components.
-    """
-
-    def __init__(
-        self,
-        session: AsyncSession,
-    ):
-        self.session = session
-
+    def __init__(self, session: AsyncSession) -> None:
         self.event_bus = EventBus()
 
-        self.token_service = TokenService(
-            session=session,
-        )
+        self.token_service = TokenService(session)
+        self.wallet_service = WalletService(session)
+        self.trade_service = TradeService(session)
 
         self.token_collector = TokenCollector(
             event_bus=self.event_bus,
             token_service=self.token_service,
         )
+        self.trade_collector = TradeCollector(
+            event_bus=self.event_bus,
+            token_service=self.token_service,
+            wallet_service=self.wallet_service,
+            trade_service=self.trade_service,
+        )
 
         self.helius_client = HeliusClient()
+        self.token_parser = TokenParser()
+        self.token_analyzer = TokenAnalyzer()
+        self.metadata_service = MetadataService(self.helius_client)
+        self.token_store = TokenStore()
 
-        self.token_detector = TokenDetector()
-
-        self.transaction_scanner = TransactionScanner(
-            client=self.helius_client,
-            detector=self.token_detector,
+        self.scanner = TransactionScanner(
+            helius=self.helius_client,
+            parser=self.token_parser,
+            analyzer=self.token_analyzer,
         )
-
         self.token_detection_service = TokenDetectionService(
-            scanner=self.transaction_scanner,
+            scanner=self.scanner,
+            store=self.token_store,
+            metadata=self.metadata_service,
             event_bus=self.event_bus,
-            client=self.helius_client,
-        )
-
-        self.helius_listener = HeliusListener(
-            event_bus=self.event_bus,
-            client=self.helius_client,
         )
 
     def setup(self) -> None:
-        """
-        Register event handlers.
-        """
-
         self.token_collector.register()
+        self.trade_collector.register()

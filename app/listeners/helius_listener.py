@@ -7,7 +7,7 @@ class HeliusListener:
     """
     Listens for Solana blockchain events.
 
-    Detects new tokens and extracts creator wallet.
+    Detects token candidates and extracts metadata.
     """
 
     def __init__(
@@ -46,19 +46,19 @@ class HeliusListener:
             if not signature:
                 continue
 
-            transaction = await self.client.get_transaction(
+            transaction_response = await self.client.get_transaction(
                 signature
             )
 
-            result = transaction.get(
+            transaction = transaction_response.get(
                 "result"
             )
 
-            if not result:
+            if not transaction:
                 continue
 
             tokens = self.extract_tokens(
-                result
+                transaction
             )
 
             for token_address in tokens:
@@ -76,7 +76,7 @@ class HeliusListener:
                 )
 
                 creator = self.extract_creator(
-                    result
+                    transaction
                 )
 
                 print(
@@ -101,6 +101,9 @@ class HeliusListener:
         self,
         address: str,
     ) -> dict:
+        """
+        Fetch token metadata.
+        """
 
         response = await self.client.get_asset(
             address
@@ -131,46 +134,54 @@ class HeliusListener:
         transaction: dict,
     ) -> list[str]:
         """
-        Extract token mint addresses
-        from transaction.
+        Extract token mint addresses.
         """
-
-        tokens = set()
 
         meta = transaction.get(
             "meta",
             {},
         )
 
-        pre = meta.get(
+        pre = set()
+
+        for item in meta.get(
             "preTokenBalances",
-            []
-        )
-
-        post = meta.get(
-            "postTokenBalances",
-            []
-        )
-
-        for balance in pre + post:
-
-            mint = balance.get(
+            [],
+        ):
+            mint = item.get(
                 "mint"
             )
 
             if mint:
-                tokens.add(
+                pre.add(
                     mint
                 )
 
-        return list(tokens)
+        post = set()
+
+        for item in meta.get(
+            "postTokenBalances",
+            [],
+        ):
+            mint = item.get(
+                "mint"
+            )
+
+            if mint:
+                post.add(
+                    mint
+                )
+
+        return list(
+            post - pre
+        )
 
     def extract_creator(
         self,
         transaction: dict,
     ) -> str:
         """
-        Extract first signer wallet.
+        Extract creator wallet from transaction.
         """
 
         message = (
@@ -179,24 +190,58 @@ class HeliusListener:
             .get("message", {})
         )
 
-        accounts = message.get(
-            "accountKeys",
-            []
+        account_keys = (
+            message
+            .get("accountKeys", [])
         )
 
-        for account in accounts:
+        print(
+            "ACCOUNT KEYS:",
+            account_keys[:5],
+        )
 
-            if isinstance(account, dict):
+        for account in account_keys:
+
+            if isinstance(
+                account,
+                dict,
+            ):
+
+                pubkey = account.get(
+                    "pubkey"
+                )
 
                 if account.get(
                     "signer"
                 ):
-                    return account.get(
-                        "pubkey"
-                    )
+                    return pubkey or "unknown"
 
-            elif isinstance(account, str):
-
+            elif isinstance(
+                account,
+                str,
+            ):
                 return account
+
+        loaded_addresses = (
+            transaction
+            .get("meta", {})
+            .get("loadedAddresses", {})
+        )
+
+        writable = loaded_addresses.get(
+            "writable",
+            [],
+        )
+
+        if writable:
+            return writable[0]
+
+        readonly = loaded_addresses.get(
+            "readonly",
+            [],
+        )
+
+        if readonly:
+            return readonly[0]
 
         return "unknown"

@@ -1,0 +1,267 @@
+from datetime import UTC, datetime
+
+from fastapi.testclient import TestClient
+
+from app.api.app import create_app
+from app.api.dependencies import get_analytics_service, get_read_service
+from app.core.analytics import TokenAnalytics, TokenPosition, WalletAnalytics
+from app.infrastructure.models import Token, Trade, Wallet
+
+
+class FakeReadService:
+    def __init__(self) -> None:
+        now = datetime.now(UTC)
+        self.token = Token(
+            id=1,
+            address="mint",
+            creator="creator",
+            symbol="TKN",
+            name="Token",
+            decimals=6,
+            supply=1_000_000,
+            created_at=now,
+        )
+        self.wallet = Wallet(id=2, address="wallet", first_seen=now)
+        self.trade = Trade(
+            id=3,
+            token_id=1,
+            wallet_id=2,
+            signature="signature",
+            side="buy",
+            amount=10,
+            price=0.1,
+            sol_change=-1,
+            timestamp=now,
+            token=self.token,
+            wallet=self.wallet,
+        )
+        self.trade_filters: tuple | None = None
+
+    async def list_tokens(
+        self,
+        limit: int,
+        offset: int,
+        creator: str | None,
+    ) -> tuple[list[Token], int]:
+        assert (limit, offset, creator) == (10, 5, "creator")
+        return [self.token], 1
+
+    async def get_token(self, address: str) -> Token | None:
+        return self.token if address == self.token.address else None
+
+    async def list_wallets(
+        self,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[Wallet], int]:
+        return [self.wallet], 1
+
+    async def get_wallet(self, address: str) -> Wallet | None:
+        return self.wallet if address == self.wallet.address else None
+
+    async def list_trades(
+        self,
+        limit: int,
+        offset: int,
+        token_address: str | None,
+        wallet_address: str | None,
+        side: str | None,
+    ) -> tuple[list[Trade], int]:
+        self.trade_filters = (
+            limit,
+            offset,
+            token_address,
+            wallet_address,
+            side,
+        )
+        return [self.trade], 1
+
+
+class FakeAnalyticsService:
+    def __init__(self) -> None:
+        now = datetime.now(UTC)
+        self.wallet = WalletAnalytics(
+            address="wallet",
+            total_trades=3,
+            buy_count=2,
+            sell_count=1,
+            unique_tokens=2,
+            sol_spent=2.5,
+            sol_received=1.0,
+            net_sol_change=-1.5,
+            first_trade_at=now,
+            last_trade_at=now,
+        )
+        self.token = TokenAnalytics(
+            address="mint",
+            total_trades=3,
+            buy_count=2,
+            sell_count=1,
+            unique_wallets=2,
+            buy_volume=20,
+            sell_volume=5,
+            net_token_flow=15,
+            net_wallet_sol_change=-1.5,
+            first_trade_at=now,
+            last_trade_at=now,
+        )
+        self.include_closed: bool | None = None
+
+    async def get_wallet(self, address: str) -> WalletAnalytics | None:
+        return self.wallet if address == self.wallet.address else None
+
+    async def get_token(self, address: str) -> TokenAnalytics | None:
+        return self.token if address == self.token.address else None
+
+    async def get_wallet_positions(
+        self,
+        address: str,
+        include_closed: bool = False,
+    ) -> list[TokenPosition] | None:
+        self.include_closed = include_closed
+        if address != self.wallet.address:
+            return None
+
+        return [
+            TokenPosition(
+                token_address="mint",
+                quantity=10,
+                cost_basis_sol=1,
+                average_entry_price_sol=0.1,
+                realized_pnl_sol=0.25,
+                total_bought=15,
+                total_sold=5,
+                sol_spent=1.5,
+                sol_received=0.75,
+                unmatched_sell_quantity=0,
+                trade_count=2,
+            )
+        ]
+
+
+def create_client() -> tuple[TestClient, FakeReadService]:
+    application = create_app()
+    service = FakeReadService()
+    analytics = FakeAnalyticsService()
+    application.dependency_overrides[get_read_service] = lambda: service
+    application.dependency_overrides[get_analytics_service] = lambda: analytics
+    return TestClient(application), service
+
+
+def test_health() -> None:
+    client, _ = create_client()
+
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
+def test_list_tokens_returns_paginated_response() -> None:
+    client, _ = create_client()
+
+    response = client.get(
+        "/api/v1/tokens",
+        params={"limit": 10, "offset": 5, "creator": "creator"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    assert payload["limit"] == 10
+    assert payload["offset"] == 5
+    assert payload["items"][0]["address"] == "mint"
+
+
+def test_missing_token_returns_404() -> None:
+    client, _ = create_client()
+
+    response = client.get("/api/v1/tokens/missing")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Token not found"}
+
+
+def test_list_trades_applies_filters_and_flattens_relations() -> None:
+    client, service = create_client()
+
+    response = client.get(
+        "/api/v1/trades",
+        params={
+            "token_address": "mint",
+            "wallet_address": "wallet",
+            "side": "buy",
+        },
+    )
+
+    assert response.status_code == 200
+    assert service.trade_filters == (50, 0, "mint", "wallet", "buy")
+    assert response.json()["items"][0] == {
+        "id": 3,
+        "signature": "signature",
+        "token_address": "mint",
+        "wallet_address": "wallet",
+        "side": "buy",
+        "amount": 10.0,
+        "price": 0.1,
+        "sol_change": -1.0,
+        "timestamp": service.trade.timestamp.isoformat().replace("+00:00", "Z"),
+    }
+
+
+def test_trade_side_validation() -> None:
+    client, _ = create_client()
+
+    response = client.get("/api/v1/trades", params={"side": "hold"})
+
+    assert response.status_code == 422
+
+
+def test_get_wallet_analytics() -> None:
+    client, _ = create_client()
+
+    response = client.get("/api/v1/analytics/wallets/wallet")
+
+    assert response.status_code == 200
+    assert response.json()["total_trades"] == 3
+    assert response.json()["unique_tokens"] == 2
+    assert response.json()["sol_spent"] == 2.5
+    assert response.json()["net_sol_change"] == -1.5
+
+
+def test_get_token_analytics() -> None:
+    client, _ = create_client()
+
+    response = client.get("/api/v1/analytics/tokens/mint")
+
+    assert response.status_code == 200
+    assert response.json()["unique_wallets"] == 2
+    assert response.json()["buy_volume"] == 20.0
+    assert response.json()["net_token_flow"] == 15.0
+
+
+def test_missing_analytics_entity_returns_404() -> None:
+    client, _ = create_client()
+
+    wallet_response = client.get("/api/v1/analytics/wallets/missing")
+    token_response = client.get("/api/v1/analytics/tokens/missing")
+
+    assert wallet_response.status_code == 404
+    assert token_response.status_code == 404
+
+
+def test_get_wallet_positions() -> None:
+    client, _ = create_client()
+
+    response = client.get(
+        "/api/v1/analytics/wallets/wallet/positions",
+        params={"include_closed": True},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["wallet_address"] == "wallet"
+    assert payload["total"] == 1
+    assert payload["items"][0]["quantity"] == 10.0
+    assert payload["items"][0]["realized_pnl_sol"] == 0.25
+    assert payload["items"][0]["has_incomplete_history"] is False

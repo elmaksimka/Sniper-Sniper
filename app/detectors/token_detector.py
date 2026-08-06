@@ -1,56 +1,50 @@
 from __future__ import annotations
 
+from collections import defaultdict
 from typing import Any
 
 
-IGNORED_TOKENS = {
-    "So11111111111111111111111111111111111111112",  # Wrapped SOL
-    "EPjFWdd5AufqSSqeM2q7E2bJdJvZ3vM9Qy5k4GvYzQ",  # USDC
-    "Es9vMFrzaCERmJfrF4H2FYD7Y3Y3Y3Y3Y3Y3Y3Y3Y3",  # USDT placeholder
-}
-
-
 class TokenDetector:
-    """
-    Detects interesting token mints from Solana transactions.
-    """
+    """Calculate token balance changes for one wallet."""
 
     def detect(
         self,
-        transaction: dict[str, Any],
-    ) -> list[str]:
-        """
-        Extract token mint addresses.
-
-        Filters common base tokens.
-        """
-
-        result: list[str] = []
-
-        meta = transaction.get(
-            "meta",
-            {},
+        meta: dict[str, Any],
+        wallet: str,
+    ) -> list[dict[str, float | str]]:
+        changes: dict[str, dict[str, float]] = defaultdict(
+            lambda: {"before": 0.0, "after": 0.0}
         )
 
-        balances = meta.get(
-            "postTokenBalances",
-            [],
-        )
+        for state, field in (
+            ("before", "preTokenBalances"),
+            ("after", "postTokenBalances"),
+        ):
+            for token in meta.get(field, []):
+                if token.get("owner") != wallet:
+                    continue
 
-        for balance in balances:
-            mint = balance.get(
-                "mint",
+                mint = token.get("mint")
+                if not mint:
+                    continue
+
+                amount = token.get("uiTokenAmount", {}).get("uiAmount")
+                changes[mint][state] += float(amount or 0)
+
+        detected: list[dict[str, float | str]] = []
+
+        for mint, amounts in changes.items():
+            difference = amounts["after"] - amounts["before"]
+            if difference == 0:
+                continue
+
+            detected.append(
+                {
+                    "mint": mint,
+                    "before": amounts["before"],
+                    "after": amounts["after"],
+                    "change": difference,
+                }
             )
 
-            if not mint:
-                continue
-
-            if mint in IGNORED_TOKENS:
-                continue
-
-            if mint not in result:
-                result.append(
-                    mint
-                )
-
-        return result
+        return detected

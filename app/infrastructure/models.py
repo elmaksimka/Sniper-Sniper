@@ -5,6 +5,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     String,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import (
     DeclarativeBase,
@@ -90,6 +91,14 @@ class Wallet(Base):
 
 class Trade(Base):
     __tablename__ = "trades"
+    __table_args__ = (
+        UniqueConstraint(
+            "signature",
+            "token_id",
+            "wallet_id",
+            name="uq_trades_signature_token_wallet",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(
         primary_key=True,
@@ -109,6 +118,22 @@ class Trade(Base):
 
     amount: Mapped[float] = mapped_column(
         Float,
+    )
+
+    price: Mapped[float] = mapped_column(
+        Float,
+        default=0,
+    )
+
+    sol_change: Mapped[float] = mapped_column(
+        Float,
+        default=0,
+    )
+
+    signature: Mapped[str | None] = mapped_column(
+        String(128),
+        nullable=True,
+        index=True,
     )
 
     timestamp: Mapped[datetime] = mapped_column(
