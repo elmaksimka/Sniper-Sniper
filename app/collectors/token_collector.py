@@ -4,11 +4,6 @@ from app.services.token_service import TokenService
 
 
 class TokenCollector:
-    """
-    Handles token creation events.
-
-    Persists discovered tokens.
-    """
 
     def __init__(
         self,
@@ -18,11 +13,14 @@ class TokenCollector:
         self.event_bus = event_bus
         self.token_service = token_service
 
+
     def register(self) -> None:
+
         self.event_bus.subscribe(
             TokenCreated,
             self.handle_token_created,
         )
+
 
     async def handle_token_created(
         self,
@@ -34,8 +32,10 @@ class TokenCollector:
             event.token_address,
         )
 
+
         await self.token_service.create_token(
             address=event.token_address,
+            creator=event.creator,
             symbol=event.symbol,
             name=event.name,
         )

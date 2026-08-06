@@ -7,7 +7,7 @@ class HeliusListener:
     """
     Listens for Solana blockchain events.
 
-    Uses Helius API to detect and enrich token data.
+    Detects new tokens and extracts creator wallet.
     """
 
     def __init__(
@@ -24,83 +24,179 @@ class HeliusListener:
         """
 
         print(
-            "Helius listener started"
+            "Starting token detection..."
         )
 
-        health = await self.client.get_health()
-
-        print(
-            "Helius health:",
-            health,
+        signatures_response = await self.client.get_signatures(
+            address="11111111111111111111111111111111",
+            limit=10,
         )
 
-        token_address = (
-            "So11111111111111111111111111111111111111112"
+        signatures = (
+            signatures_response
+            .get("result", [])
         )
 
-        asset_response = await self.client.get_asset(
-            token_address,
-        )
+        for item in signatures:
 
-        if "error" in asset_response:
-            print(
-                "Helius asset error:",
-                asset_response["error"],
+            signature = item.get(
+                "signature"
             )
-            return
 
-        asset = asset_response.get(
+            if not signature:
+                continue
+
+            transaction = await self.client.get_transaction(
+                signature
+            )
+
+            result = transaction.get(
+                "result"
+            )
+
+            if not result:
+                continue
+
+            tokens = self.extract_tokens(
+                result
+            )
+
+            for token_address in tokens:
+
+                metadata = await self.get_metadata(
+                    token_address
+                )
+
+                symbol = metadata.get(
+                    "symbol"
+                )
+
+                name = metadata.get(
+                    "name"
+                )
+
+                creator = self.extract_creator(
+                    result
+                )
+
+                print(
+                    "New token detected:",
+                    token_address,
+                    symbol,
+                    name,
+                    "creator:",
+                    creator,
+                )
+
+                await self.event_bus.publish(
+                    TokenCreated(
+                        token_address=token_address,
+                        creator=creator,
+                        symbol=symbol,
+                        name=name,
+                    )
+                )
+
+    async def get_metadata(
+        self,
+        address: str,
+    ) -> dict:
+
+        response = await self.client.get_asset(
+            address
+        )
+
+        result = response.get(
             "result",
             {},
         )
 
-        content = asset.get(
-            "content",
+        metadata = (
+            result
+            .get("content", {})
+            .get("metadata", {})
+        )
+
+        return {
+            "symbol": metadata.get(
+                "symbol"
+            ),
+            "name": metadata.get(
+                "name"
+            ),
+        }
+
+    def extract_tokens(
+        self,
+        transaction: dict,
+    ) -> list[str]:
+        """
+        Extract token mint addresses
+        from transaction.
+        """
+
+        tokens = set()
+
+        meta = transaction.get(
+            "meta",
             {},
         )
 
-        metadata = content.get(
-            "metadata",
-            {},
+        pre = meta.get(
+            "preTokenBalances",
+            []
         )
 
-        token_info = asset.get(
-            "token_info",
-            {},
+        post = meta.get(
+            "postTokenBalances",
+            []
         )
 
-        symbol = metadata.get(
-            "symbol",
-        )
+        for balance in pre + post:
 
-        name = metadata.get(
-            "name",
-        )
-
-        decimals = token_info.get(
-            "decimals",
-        )
-
-        supply = token_info.get(
-            "supply",
-        )
-
-        print(
-            "Token discovered:",
-            token_address,
-            symbol,
-            name,
-            decimals,
-            supply,
-        )
-
-        await self.event_bus.publish(
-            TokenCreated(
-                token_address=token_address,
-                creator="HeliusListener",
-                symbol=symbol,
-                name=name,
-                decimals=decimals,
-                supply=supply,
+            mint = balance.get(
+                "mint"
             )
+
+            if mint:
+                tokens.add(
+                    mint
+                )
+
+        return list(tokens)
+
+    def extract_creator(
+        self,
+        transaction: dict,
+    ) -> str:
+        """
+        Extract first signer wallet.
+        """
+
+        message = (
+            transaction
+            .get("transaction", {})
+            .get("message", {})
         )
+
+        accounts = message.get(
+            "accountKeys",
+            []
+        )
+
+        for account in accounts:
+
+            if isinstance(account, dict):
+
+                if account.get(
+                    "signer"
+                ):
+                    return account.get(
+                        "pubkey"
+                    )
+
+            elif isinstance(account, str):
+
+                return account
+
+        return "unknown"

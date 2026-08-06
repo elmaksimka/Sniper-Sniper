@@ -27,10 +27,6 @@ class TokenDetectionService:
         wallet: str,
         limit: int = 5,
     ) -> None:
-        """
-        Scan wallet transactions and publish
-        TokenCreated events.
-        """
 
         transactions = await self.scanner.scan_address(
             wallet,
@@ -40,53 +36,61 @@ class TokenDetectionService:
         discovered: set[str] = set()
 
         for transaction in transactions:
+
             tokens = transaction.get(
                 "tokens",
                 [],
             )
 
             for token_address in tokens:
+
                 if token_address in discovered:
                     continue
 
                 discovered.add(
-                    token_address,
+                    token_address
                 )
 
                 metadata = await self.get_metadata(
                     token_address,
                 )
 
-                symbol = metadata.get(
-                    "symbol",
-                )
-
-                name = metadata.get(
-                    "name",
-                )
-
                 print(
                     "New token detected:",
                     token_address,
-                    symbol,
-                    name,
+                    metadata.get("symbol"),
+                    metadata.get("name"),
                 )
 
                 await self.event_bus.publish(
                     TokenCreated(
                         token_address=token_address,
-                        creator="TokenDetectionService",
-                        symbol=symbol,
-                        name=name,
+                        creator=metadata.get(
+                            "creator",
+                            "unknown",
+                        ),
+                        symbol=metadata.get(
+                            "symbol",
+                        ),
+                        name=metadata.get(
+                            "name",
+                        ),
+                        decimals=metadata.get(
+                            "decimals",
+                        ),
+                        supply=metadata.get(
+                            "supply",
+                        ),
                     )
                 )
+
 
     async def get_metadata(
         self,
         token_address: str,
     ) -> dict:
         """
-        Fetch token metadata from Helius.
+        Fetch token metadata from Helius DAS API.
         """
 
         response = await self.client.get_asset(
@@ -94,6 +98,7 @@ class TokenDetectionService:
         )
 
         if "error" in response:
+
             print(
                 "Metadata error:",
                 response["error"],
@@ -106,17 +111,48 @@ class TokenDetectionService:
             {},
         )
 
-        metadata = (
-            asset
-            .get("content", {})
-            .get("metadata", {})
+
+        content = asset.get(
+            "content",
+            {},
         )
+
+        metadata = content.get(
+            "metadata",
+            {}
+        )
+
+
+        token_info = asset.get(
+            "token_info",
+            {}
+        )
+
+
+        ownership = asset.get(
+            "ownership",
+            {}
+        )
+
 
         return {
             "symbol": metadata.get(
                 "symbol",
             ),
+
             "name": metadata.get(
                 "name",
+            ),
+
+            "creator": ownership.get(
+                "owner",
+            ),
+
+            "decimals": token_info.get(
+                "decimals",
+            ),
+
+            "supply": token_info.get(
+                "supply",
             ),
         }

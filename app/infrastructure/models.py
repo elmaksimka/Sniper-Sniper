@@ -31,6 +31,12 @@ class Token(Base):
         index=True,
     )
 
+    creator: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        index=True,
+    )
+
     symbol: Mapped[str | None] = mapped_column(
         String(32),
         nullable=True,
@@ -41,21 +47,11 @@ class Token(Base):
         nullable=True,
     )
 
-    creator: Mapped[str | None] = mapped_column(
-        String(64),
-        nullable=True,
-    )
-
     decimals: Mapped[int | None] = mapped_column(
         nullable=True,
     )
 
     supply: Mapped[int | None] = mapped_column(
-        nullable=True,
-    )
-
-    first_seen_tx: Mapped[str | None] = mapped_column(
-        String(128),
         nullable=True,
     )
 
