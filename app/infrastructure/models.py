@@ -41,6 +41,24 @@ class Token(Base):
         nullable=True,
     )
 
+    creator: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+    )
+
+    decimals: Mapped[int | None] = mapped_column(
+        nullable=True,
+    )
+
+    supply: Mapped[int | None] = mapped_column(
+        nullable=True,
+    )
+
+    first_seen_tx: Mapped[str | None] = mapped_column(
+        String(128),
+        nullable=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=datetime.utcnow,
