@@ -34,7 +34,9 @@ standby replicas poll for leadership and take over after the leader releases or
 loses its database connection. The leader verifies the connection before every
 poll so a stale process cannot continue ingesting after losing the lock.
 
-## Remaining production work
+## Verification
 
-- add integration tests against a real PostgreSQL instance and recorded RPC
-  responses
+The test suite includes saved Helius JSON-RPC page fixtures that exercise the
+HTTP client and pagination scanner together. PostgreSQL integration tests run
+inside a randomly named schema and verify monitor persistence plus advisory-lock
+failover without modifying application tables.

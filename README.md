@@ -71,6 +71,20 @@ poetry run uvicorn app.api.app:app --reload
 
 The OpenAPI UI is available at `http://127.0.0.1:8000/docs`.
 
+Run the default test suite:
+
+```powershell
+poetry run pytest -q
+```
+
+PostgreSQL integration tests require an explicit test URL. They create and drop
+only a randomly named `alpha_test_*` schema:
+
+```powershell
+$env:TEST_DATABASE_URL="postgresql+asyncpg://alpha:alpha@localhost:5432/alpha_engine"
+poetry run pytest tests/integration -q
+```
+
 Read endpoints:
 
 - `GET /health`

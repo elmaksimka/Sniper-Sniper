@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import (
     DateTime,
@@ -18,6 +18,14 @@ from sqlalchemy.orm import (
 
 class Base(DeclarativeBase):
     pass
+
+
+def utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+def utc_now_naive() -> datetime:
+    return utc_now().replace(tzinfo=None)
 
 
 class Token(Base):
@@ -59,7 +67,7 @@ class Token(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=utc_now_naive,
     )
 
     trades: Mapped[list["Trade"]] = relationship(
@@ -82,7 +90,7 @@ class Wallet(Base):
 
     first_seen: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=utc_now_naive,
     )
 
     trades: Mapped[list["Trade"]] = relationship(
@@ -151,7 +159,7 @@ class Trade(Base):
 
     timestamp: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
+        default=utc_now_naive,
     )
 
     token: Mapped["Token"] = relationship(
@@ -184,8 +192,8 @@ class WalletScoreSnapshot(Base):
     unmatched_sell_ratio: Mapped[float] = mapped_column(Float)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now,
+        onupdate=utc_now,
     )
 
     wallet: Mapped["Wallet"] = relationship(back_populates="score_snapshot")
@@ -207,7 +215,7 @@ class Alert(Base):
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=datetime.utcnow,
+        default=utc_now,
         index=True,
     )
     acknowledged_at: Mapped[datetime | None] = mapped_column(
@@ -236,12 +244,12 @@ class WalletMonitor(Base):
     last_error: Mapped[str | None] = mapped_column(String(512), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=datetime.utcnow,
+        default=utc_now,
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow,
+        default=utc_now,
+        onupdate=utc_now,
     )
 
     wallet: Mapped["Wallet"] = relationship(back_populates="monitor")

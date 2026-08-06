@@ -1,0 +1,57 @@
+{
+  "jsonrpc": "2.0",
+  "id": "alpha-engine",
+  "result": {
+    "data": [
+      {
+        "slot": 300,
+        "blockTime": 1700000300,
+        "transaction": {
+          "signatures": ["sig-3"],
+          "message": {"accountKeys": ["wallet"]}
+        },
+        "meta": {
+          "fee": 5000,
+          "preBalances": [1000000000],
+          "postBalances": [899995000],
+          "preTokenBalances": [],
+          "postTokenBalances": [
+            {
+              "mint": "mint",
+              "owner": "wallet",
+              "uiTokenAmount": {"uiAmount": 10}
+            }
+          ]
+        }
+      },
+      {
+        "slot": 200,
+        "blockTime": 1700000200,
+        "transaction": {
+          "signatures": ["sig-2"],
+          "message": {"accountKeys": ["wallet"]}
+        },
+        "meta": {
+          "fee": 5000,
+          "preBalances": [899995000],
+          "postBalances": [949990000],
+          "preTokenBalances": [
+            {
+              "mint": "mint",
+              "owner": "wallet",
+              "uiTokenAmount": {"uiAmount": 10}
+            }
+          ],
+          "postTokenBalances": [
+            {
+              "mint": "mint",
+              "owner": "wallet",
+              "uiTokenAmount": {"uiAmount": 5}
+            }
+          ]
+        }
+      }
+    ],
+    "paginationToken": "page-2"
+  }
+}

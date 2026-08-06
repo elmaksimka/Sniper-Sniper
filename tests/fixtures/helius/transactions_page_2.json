@@ -1,0 +1,30 @@
+{
+  "jsonrpc": "2.0",
+  "id": "alpha-engine",
+  "result": {
+    "data": [
+      {
+        "slot": 100,
+        "blockTime": 1700000100,
+        "transaction": {
+          "signatures": ["sig-1"],
+          "message": {"accountKeys": ["wallet"]}
+        },
+        "meta": {
+          "fee": 5000,
+          "preBalances": [949990000],
+          "postBalances": [999985000],
+          "preTokenBalances": [
+            {
+              "mint": "mint",
+              "owner": "wallet",
+              "uiTokenAmount": {"uiAmount": 5}
+            }
+          ],
+          "postTokenBalances": []
+        }
+      }
+    ],
+    "paginationToken": null
+  }
+}
