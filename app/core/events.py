@@ -80,9 +80,14 @@ class TradeObserved(Event):
 class ScoreUpdated(Event):
     entity: str
     score: float
+    grade: str
+    methodology_version: str
 
 
 @dataclass(slots=True, kw_only=True)
 class AlertGenerated(Event):
+    entity: str
+    severity: str
+    dedupe_key: str
     message: str
     metadata: dict[str, Any]

@@ -107,3 +107,5 @@ async def test_trade_persistence_triggers_score_snapshot_pipeline() -> None:
     assert len(score_events) == 1
     assert score_events[0].entity == "wallet"
     assert score_events[0].score == 75
+    assert score_events[0].grade == "B"
+    assert score_events[0].methodology_version == "wallet-v1"

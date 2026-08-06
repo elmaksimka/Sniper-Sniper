@@ -5,9 +5,10 @@ from fastapi.testclient import TestClient
 from app.api.app import create_app
 from app.api.dependencies import get_analytics_service, get_read_service
 from app.api.dependencies import get_score_snapshot_service, get_scoring_service
+from app.api.dependencies import get_alert_service
 from app.core.analytics import TokenAnalytics, TokenPosition, WalletAnalytics
 from app.core.scoring import WalletScore
-from app.infrastructure.models import Token, Trade, Wallet, WalletScoreSnapshot
+from app.infrastructure.models import Alert, Token, Trade, Wallet, WalletScoreSnapshot
 
 
 class FakeReadService:
@@ -194,18 +195,60 @@ class FakeScoreSnapshotService:
         return [self.snapshot], 1
 
 
+class FakeAlertService:
+    def __init__(self) -> None:
+        self.alert = Alert(
+            id=1,
+            entity_type="wallet",
+            entity_address="wallet",
+            alert_type="wallet_score_grade",
+            severity="high",
+            message="Wallet reached grade B",
+            details={"score": 72.5, "grade": "B"},
+            dedupe_key="wallet:wallet-v1:B",
+            created_at=datetime.now(UTC),
+            acknowledged_at=None,
+        )
+        self.filters: tuple | None = None
+
+    async def list_alerts(
+        self,
+        limit: int,
+        offset: int,
+        entity_address: str | None,
+        severity: str | None,
+        acknowledged: bool | None,
+    ) -> tuple[list[Alert], int]:
+        self.filters = (
+            limit,
+            offset,
+            entity_address,
+            severity,
+            acknowledged,
+        )
+        return [self.alert], 1
+
+    async def acknowledge(self, alert_id: int) -> Alert | None:
+        if alert_id != self.alert.id:
+            return None
+        self.alert.acknowledged_at = datetime.now(UTC)
+        return self.alert
+
+
 def create_client() -> tuple[TestClient, FakeReadService]:
     application = create_app()
     service = FakeReadService()
     analytics = FakeAnalyticsService()
     scoring = FakeScoringService()
     snapshots = FakeScoreSnapshotService()
+    alerts = FakeAlertService()
     application.dependency_overrides[get_read_service] = lambda: service
     application.dependency_overrides[get_analytics_service] = lambda: analytics
     application.dependency_overrides[get_scoring_service] = lambda: scoring
     application.dependency_overrides[get_score_snapshot_service] = (
         lambda: snapshots
     )
+    application.dependency_overrides[get_alert_service] = lambda: alerts
     return TestClient(application), service
 
 
@@ -372,3 +415,34 @@ def test_wallet_score_leaderboard_validates_grade() -> None:
     response = client.get("/api/v1/scores/wallets", params={"grade": "Z"})
 
     assert response.status_code == 422
+
+
+def test_list_alerts_with_filters() -> None:
+    client, _ = create_client()
+
+    response = client.get(
+        "/api/v1/alerts",
+        params={
+            "entity_address": "wallet",
+            "severity": "high",
+            "acknowledged": False,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    assert payload["items"][0]["entity_address"] == "wallet"
+    assert payload["items"][0]["metadata"] == {"score": 72.5, "grade": "B"}
+    assert payload["items"][0]["acknowledged_at"] is None
+
+
+def test_acknowledge_alert() -> None:
+    client, _ = create_client()
+
+    response = client.post("/api/v1/alerts/1/acknowledge")
+    missing = client.post("/api/v1/alerts/999/acknowledge")
+
+    assert response.status_code == 200
+    assert response.json()["acknowledged_at"] is not None
+    assert missing.status_code == 404

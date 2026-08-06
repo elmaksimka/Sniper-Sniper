@@ -5,12 +5,15 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.api.dependencies import (
+    AlertServiceDependency,
     AnalyticsServiceDependency,
     ReadServiceDependency,
     ScoreSnapshotServiceDependency,
     ScoringServiceDependency,
 )
 from app.api.schemas import (
+    AlertPage,
+    AlertRead,
     TokenAnalyticsRead,
     TokenPage,
     TokenRead,
@@ -215,3 +218,45 @@ async def list_wallet_scores(
         limit=limit,
         offset=offset,
     )
+
+
+@router.get("/alerts", response_model=AlertPage)
+async def list_alerts(
+    service: AlertServiceDependency,
+    limit: Limit = 50,
+    offset: Offset = 0,
+    entity_address: str | None = None,
+    severity: Literal["high", "critical"] | None = None,
+    acknowledged: bool | None = None,
+) -> AlertPage:
+    alerts, total = await service.list_alerts(
+        limit,
+        offset,
+        entity_address,
+        severity,
+        acknowledged,
+    )
+    return AlertPage(
+        items=[AlertRead.from_alert(alert) for alert in alerts],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.post(
+    "/alerts/{alert_id}/acknowledge",
+    response_model=AlertRead,
+)
+async def acknowledge_alert(
+    alert_id: int,
+    service: AlertServiceDependency,
+) -> AlertRead:
+    alert = await service.acknowledge(alert_id)
+    if alert is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Alert not found",
+        )
+
+    return AlertRead.from_alert(alert)

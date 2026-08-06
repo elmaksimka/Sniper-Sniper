@@ -4,6 +4,7 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.database import get_session
+from app.services.alert_service import AlertService
 from app.services.analytics_service import AnalyticsService
 from app.services.read_service import ReadService
 from app.services.score_snapshot_service import ScoreSnapshotService
@@ -50,3 +51,10 @@ ScoreSnapshotServiceDependency = Annotated[
     ScoreSnapshotService,
     Depends(get_score_snapshot_service),
 ]
+
+
+def get_alert_service(session: SessionDependency) -> AlertService:
+    return AlertService(session)
+
+
+AlertServiceDependency = Annotated[AlertService, Depends(get_alert_service)]

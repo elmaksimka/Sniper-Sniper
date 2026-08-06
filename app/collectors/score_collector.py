@@ -33,5 +33,10 @@ class ScoreCollector:
         wallet = await self.wallet_service.create_wallet(event.wallet)
         await self.snapshot_service.save(wallet.id, score)
         await self.event_bus.publish(
-            ScoreUpdated(entity=event.wallet, score=score.score)
+            ScoreUpdated(
+                entity=event.wallet,
+                score=score.score,
+                grade=score.grade,
+                methodology_version=score.methodology_version,
+            )
         )

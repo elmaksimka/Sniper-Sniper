@@ -4,6 +4,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    JSON,
     String,
     UniqueConstraint,
 )
@@ -182,3 +183,28 @@ class WalletScoreSnapshot(Base):
     )
 
     wallet: Mapped["Wallet"] = relationship(back_populates="score_snapshot")
+
+
+class Alert(Base):
+    __tablename__ = "alerts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    entity_type: Mapped[str] = mapped_column(String(32), index=True)
+    entity_address: Mapped[str] = mapped_column(String(64), index=True)
+    alert_type: Mapped[str] = mapped_column(String(64), index=True)
+    severity: Mapped[str] = mapped_column(String(16), index=True)
+    message: Mapped[str] = mapped_column(String(512))
+    details: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
+    dedupe_key: Mapped[str] = mapped_column(
+        String(255),
+        unique=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        index=True,
+    )
+    acknowledged_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )

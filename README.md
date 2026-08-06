@@ -73,6 +73,8 @@ Read endpoints:
 - `GET /api/v1/analytics/tokens/{address}`
 - `GET /api/v1/scores/wallets/{address}`
 - `GET /api/v1/scores/wallets`
+- `GET /api/v1/alerts`
+- `POST /api/v1/alerts/{alert_id}/acknowledge`
 
 ### Wallet score v1
 

@@ -30,6 +30,13 @@ class Settings(BaseSettings):
         description="Helius RPC endpoint",
     )
 
+    wallet_score_alert_threshold: float = Field(
+        default=65,
+        ge=0,
+        le=100,
+        description="Minimum wallet score that produces an alert",
+    )
+
     # Database
     database_url: str = Field(
         default="",

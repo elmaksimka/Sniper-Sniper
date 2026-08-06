@@ -4,7 +4,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from app.infrastructure.models import Trade, WalletScoreSnapshot
+from app.infrastructure.models import Alert, Trade, WalletScoreSnapshot
 
 
 class TokenRead(BaseModel):
@@ -173,6 +173,41 @@ class WalletScoreSnapshotRead(WalletScoreRead):
 
 class WalletScoreLeaderboardPage(BaseModel):
     items: list[WalletScoreSnapshotRead]
+    total: int
+    limit: int
+    offset: int
+
+
+class AlertRead(BaseModel):
+    id: int
+    entity_type: str
+    entity_address: str
+    alert_type: str
+    severity: str
+    message: str
+    metadata: dict
+    dedupe_key: str
+    created_at: datetime
+    acknowledged_at: datetime | None
+
+    @classmethod
+    def from_alert(cls, alert: Alert) -> AlertRead:
+        return cls(
+            id=alert.id,
+            entity_type=alert.entity_type,
+            entity_address=alert.entity_address,
+            alert_type=alert.alert_type,
+            severity=alert.severity,
+            message=alert.message,
+            metadata=alert.details,
+            dedupe_key=alert.dedupe_key,
+            created_at=alert.created_at,
+            acknowledged_at=alert.acknowledged_at,
+        )
+
+
+class AlertPage(BaseModel):
+    items: list[AlertRead]
     total: int
     limit: int
     offset: int

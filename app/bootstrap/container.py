@@ -6,10 +6,13 @@ from app.analyzer import TokenAnalyzer
 from app.collectors.token_collector import TokenCollector
 from app.collectors.trade_collector import TradeCollector
 from app.collectors.score_collector import ScoreCollector
+from app.collectors.alert_collector import AlertCollector
+from app.core.config import get_settings
 from app.core.event_bus import EventBus
 from app.listeners.helius_client import HeliusClient
 from app.listeners.transaction_scanner import TransactionScanner
 from app.services.metadata_service import MetadataService
+from app.services.alert_service import AlertService
 from app.services.score_snapshot_service import ScoreSnapshotService
 from app.services.scoring_service import ScoringService
 from app.services.token_detection_service import TokenDetectionService
@@ -22,6 +25,7 @@ from app.services.wallet_service import WalletService
 
 class Container:
     def __init__(self, session: AsyncSession) -> None:
+        settings = get_settings()
         self.event_bus = EventBus()
 
         self.token_service = TokenService(session)
@@ -29,6 +33,7 @@ class Container:
         self.trade_service = TradeService(session)
         self.scoring_service = ScoringService(session)
         self.score_snapshot_service = ScoreSnapshotService(session)
+        self.alert_service = AlertService(session)
 
         self.token_collector = TokenCollector(
             event_bus=self.event_bus,
@@ -45,6 +50,11 @@ class Container:
             scoring_service=self.scoring_service,
             snapshot_service=self.score_snapshot_service,
             wallet_service=self.wallet_service,
+        )
+        self.alert_collector = AlertCollector(
+            event_bus=self.event_bus,
+            alert_service=self.alert_service,
+            minimum_score=settings.wallet_score_alert_threshold,
         )
 
         self.helius_client = HeliusClient()
@@ -69,3 +79,4 @@ class Container:
         self.token_collector.register()
         self.trade_collector.register()
         self.score_collector.register()
+        self.alert_collector.register()
