@@ -4,6 +4,7 @@ from app.collectors.token_collector import TokenCollector
 from app.core.event_bus import EventBus
 from app.listeners.helius_client import HeliusClient
 from app.listeners.helius_listener import HeliusListener
+from app.listeners.transaction_scanner import TransactionScanner
 from app.services.token_service import TokenService
 
 
@@ -33,6 +34,10 @@ class Container:
         )
 
         self.helius_client = HeliusClient()
+
+        self.transaction_scanner = TransactionScanner(
+            client=self.helius_client,
+        )
 
         self.helius_listener = HeliusListener(
             event_bus=self.event_bus,
