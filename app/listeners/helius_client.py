@@ -63,9 +63,7 @@ class HeliusClient:
         return await self._request(
             "getAsset",
             [
-                {
-                    "id": address,
-                }
+                address,
             ],
         )
 
@@ -75,7 +73,7 @@ class HeliusClient:
         limit: int = 10,
     ) -> dict:
         """
-        Get recent transaction signatures for address.
+        Get recent transaction signatures.
         """
 
         return await self._request(

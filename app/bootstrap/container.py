@@ -47,6 +47,7 @@ class Container:
         self.token_detection_service = TokenDetectionService(
             scanner=self.transaction_scanner,
             event_bus=self.event_bus,
+            client=self.helius_client,
         )
 
         self.helius_listener = HeliusListener(

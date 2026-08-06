@@ -35,6 +35,10 @@ class TokenService:
         print(
             "Creating new token:",
             address,
+            "|",
+            symbol,
+            "|",
+            name,
         )
 
         token = Token(
