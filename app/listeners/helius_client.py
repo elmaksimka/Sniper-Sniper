@@ -16,7 +16,7 @@ class HeliusClient:
     async def _request(
         self,
         method: str,
-        params: dict | None = None,
+        params: list | None = None,
     ) -> dict:
         """
         Generic JSON RPC request.
@@ -34,7 +34,7 @@ class HeliusClient:
                     "jsonrpc": "2.0",
                     "id": "alpha-engine",
                     "method": method,
-                    "params": params or {},
+                    "params": params or [],
                 },
                 timeout=10,
             )
@@ -62,9 +62,11 @@ class HeliusClient:
 
         return await self._request(
             "getAsset",
-            {
-                "id": address,
-            },
+            [
+                {
+                    "id": address,
+                }
+            ],
         )
 
     async def get_signatures(
@@ -78,8 +80,29 @@ class HeliusClient:
 
         return await self._request(
             "getSignaturesForAddress",
-            {
-                "address": address,
-                "limit": limit,
-            },
+            [
+                address,
+                {
+                    "limit": limit,
+                },
+            ],
+        )
+
+    async def get_transaction(
+        self,
+        signature: str,
+    ) -> dict:
+        """
+        Get parsed Solana transaction.
+        """
+
+        return await self._request(
+            "getTransaction",
+            [
+                signature,
+                {
+                    "encoding": "jsonParsed",
+                    "maxSupportedTransactionVersion": 0,
+                },
+            ],
         )

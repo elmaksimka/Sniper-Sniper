@@ -1,22 +1,30 @@
+from __future__ import annotations
+
 from app.core.event_bus import EventBus
 from app.core.events import TokenCreated
-from app.services.token_discovery import TokenDiscovery
+from app.listeners.helius_client import HeliusClient
+from app.services.token_detector import TokenDetector
+from app.services.transaction_scanner import TransactionScanner
 
 
 class HeliusListener:
     """
     Listens for Solana blockchain events.
 
-    Uses Helius API to discover tokens.
+    Uses Helius API to discover token creation.
     """
 
     def __init__(
         self,
         event_bus: EventBus,
-        discovery: TokenDiscovery,
+        client: HeliusClient,
+        detector: TokenDetector,
+        scanner: TransactionScanner,
     ):
         self.event_bus = event_bus
-        self.discovery = discovery
+        self.client = client
+        self.detector = detector
+        self.scanner = scanner
 
     async def start(self) -> None:
         """
@@ -27,29 +35,48 @@ class HeliusListener:
             "Helius listener started"
         )
 
-        token_address = (
-            "So11111111111111111111111111111111111111112"
-        )
-
-        token = await self.discovery.discover(
-            token_address,
-        )
-
-        if not token:
-            return
+        health = await self.client.get_health()
 
         print(
-            "Token discovered:",
-            token["address"],
-            token["symbol"],
-            token["name"],
+            "Helius health:",
+            health,
         )
 
-        await self.event_bus.publish(
-            TokenCreated(
-                token_address=token["address"],
-                creator="HeliusListener",
-                symbol=token["symbol"],
-                name=token["name"],
-            )
+        signatures_response = await self.client.get_signatures(
+            address="So11111111111111111111111111111111111111112",
+            limit=5,
         )
+
+        signatures = [
+            item["signature"]
+            for item in signatures_response.get(
+                "result",
+                [],
+            )
+        ]
+
+        for signature in signatures:
+            transaction = await self.client.get_transaction(
+                signature,
+            )
+
+            token_address = self.detector.detect(
+                transaction,
+            )
+
+            if not token_address:
+                continue
+
+            print(
+                "Token detected:",
+                token_address,
+            )
+
+            await self.event_bus.publish(
+                TokenCreated(
+                    token_address=token_address,
+                    creator="HeliusListener",
+                )
+            )
+
+            break
