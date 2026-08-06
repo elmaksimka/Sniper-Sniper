@@ -5,9 +5,9 @@ from app.services.token_service import TokenService
 
 class TokenCollector:
     """
-    Handles token-related events.
+    Handles token creation events.
 
-    Converts incoming events into domain actions.
+    Persists discovered tokens.
     """
 
     def __init__(
@@ -36,6 +36,6 @@ class TokenCollector:
 
         await self.token_service.create_token(
             address=event.token_address,
-            symbol=None,
-            name=None,
+            symbol=event.symbol,
+            name=event.name,
         )
