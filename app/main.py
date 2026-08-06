@@ -15,7 +15,7 @@ async def run() -> None:
 
         container.setup()
 
-        print("Testing transaction scanner...")
+        print("Testing token detection...")
 
         wallet_address = (
             "So11111111111111111111111111111111111111112"
@@ -23,7 +23,7 @@ async def run() -> None:
 
         transactions = await container.transaction_scanner.scan_address(
             wallet_address,
-            limit=3,
+            limit=5,
         )
 
         print(
@@ -33,8 +33,13 @@ async def run() -> None:
 
         for tx in transactions:
             print(
-                "Signature:",
+                "\nSignature:",
                 tx["signature"],
+            )
+
+            print(
+                "Detected tokens:",
+                tx["tokens"],
             )
 
     finally:
