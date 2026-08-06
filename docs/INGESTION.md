@@ -21,8 +21,15 @@ wallet. Each poll walks newest-first pages until it finds that signature, then
 processes the new batch oldest-first. An incomplete catch-up never advances the
 checkpoint.
 
+The shared Helius client keeps a reusable HTTP connection pool, limits
+concurrent requests, and retries transport failures, HTTP `408`/`429` and
+selected `5xx` responses with bounded exponential backoff. `Retry-After` is
+honored when Helius provides it. Transient JSON-RPC rate-limit and availability
+errors use the same retry policy; permanent RPC errors are surfaced to the
+worker and recorded on the affected monitor.
+
 ## Remaining production work
 
-- add retry and rate-limit handling
 - add integration tests against a real PostgreSQL instance and recorded RPC
   responses
+- add worker leader election before running multiple replicas

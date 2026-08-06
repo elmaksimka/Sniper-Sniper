@@ -24,7 +24,11 @@ from app.services.wallet_service import WalletService
 
 
 class Container:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        helius_client: HeliusClient | None = None,
+    ) -> None:
         settings = get_settings()
         self.event_bus = EventBus()
 
@@ -57,7 +61,7 @@ class Container:
             minimum_score=settings.wallet_score_alert_threshold,
         )
 
-        self.helius_client = HeliusClient()
+        self.helius_client = helius_client or HeliusClient()
         self.token_parser = TokenParser()
         self.token_analyzer = TokenAnalyzer()
         self.metadata_service = MetadataService(self.helius_client)

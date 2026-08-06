@@ -1,8 +1,10 @@
+import asyncio
 from typing import Any
 
+import httpx
 import pytest
 
-from app.listeners.helius_client import HeliusClient
+from app.listeners.helius_client import HeliusClient, HeliusRPCError
 
 
 class StubHeliusClient(HeliusClient):
@@ -62,3 +64,109 @@ async def test_get_transactions_for_address_handles_rpc_error_shape() -> None:
 
     assert page.transactions == []
     assert page.pagination_token is None
+
+
+@pytest.mark.asyncio
+async def test_request_retries_rate_limit_using_retry_after(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+    delays: list[float] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(
+                429,
+                headers={"Retry-After": "0.25"},
+                request=request,
+            )
+        return httpx.Response(200, json={"result": "ok"}, request=request)
+
+    async def fake_sleep(delay: float) -> None:
+        delays.append(delay)
+
+    monkeypatch.setattr("app.listeners.helius_client.asyncio.sleep", fake_sleep)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        client = HeliusClient(http_client=http)
+        client.rpc_url = "https://rpc.test"
+        client.max_retries = 1
+
+        response = await client.get_health()
+
+    assert response == {"result": "ok"}
+    assert calls == 2
+    assert delays == [0.25]
+
+
+@pytest.mark.asyncio
+async def test_request_retries_transient_rpc_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(
+                200,
+                json={"error": {"code": -32005, "message": "rate limited"}},
+                request=request,
+            )
+        return httpx.Response(200, json={"result": []}, request=request)
+
+    async def fake_sleep(delay: float) -> None:
+        return None
+
+    monkeypatch.setattr("app.listeners.helius_client.asyncio.sleep", fake_sleep)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        client = HeliusClient(http_client=http)
+        client.rpc_url = "https://rpc.test"
+        client.max_retries = 1
+
+        response = await client.get_signatures("wallet")
+
+    assert response == {"result": []}
+    assert calls == 2
+
+
+@pytest.mark.asyncio
+async def test_request_raises_non_retryable_rpc_error() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"error": {"code": -32602, "message": "invalid params"}},
+            request=request,
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        client = HeliusClient(http_client=http)
+        client.rpc_url = "https://rpc.test"
+
+        with pytest.raises(HeliusRPCError, match="invalid params"):
+            await client.get_health()
+
+
+@pytest.mark.asyncio
+async def test_request_limits_concurrency() -> None:
+    active = 0
+    peak = 0
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal active, peak
+        active += 1
+        peak = max(peak, active)
+        await asyncio.sleep(0.01)
+        active -= 1
+        return httpx.Response(200, json={"result": "ok"}, request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        client = HeliusClient(http_client=http)
+        client.rpc_url = "https://rpc.test"
+        client._semaphore = asyncio.Semaphore(2)
+
+        await asyncio.gather(*(client.get_health() for _ in range(6)))
+
+    assert peak == 2

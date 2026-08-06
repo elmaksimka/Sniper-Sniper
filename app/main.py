@@ -15,6 +15,8 @@ async def run() -> None:
         container.setup()
         await container.token_detection_service.scan_wallet(WALLET)
     finally:
+        if "container" in locals():
+            await container.helius_client.aclose()
         await session.close()
         await engine.dispose()
 

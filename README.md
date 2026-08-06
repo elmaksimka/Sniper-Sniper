@@ -58,6 +58,9 @@ Run the continuous monitored-wallet worker:
 poetry run python -m app.worker
 ```
 
+Helius timeout, retry backoff, and maximum concurrency are configurable through
+the `HELIUS_*` variables listed in `.env.example`.
+
 Run the read API:
 
 ```powershell

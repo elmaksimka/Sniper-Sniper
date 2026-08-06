@@ -30,6 +30,12 @@ class Settings(BaseSettings):
         description="Helius RPC endpoint",
     )
 
+    helius_timeout_seconds: float = Field(default=10, gt=0)
+    helius_max_retries: int = Field(default=3, ge=0, le=10)
+    helius_retry_base_seconds: float = Field(default=0.5, ge=0)
+    helius_retry_max_seconds: float = Field(default=10, gt=0)
+    helius_max_concurrency: int = Field(default=5, ge=1, le=100)
+
     wallet_score_alert_threshold: float = Field(
         default=65,
         ge=0,
