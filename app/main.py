@@ -15,7 +15,27 @@ async def run() -> None:
 
         container.setup()
 
-        await container.helius_listener.start()
+        print("Testing transaction scanner...")
+
+        wallet_address = (
+            "So11111111111111111111111111111111111111112"
+        )
+
+        transactions = await container.transaction_scanner.scan_address(
+            wallet_address,
+            limit=3,
+        )
+
+        print(
+            "Transactions found:",
+            len(transactions),
+        )
+
+        for tx in transactions:
+            print(
+                "Signature:",
+                tx["signature"],
+            )
 
     finally:
         await session.close()
