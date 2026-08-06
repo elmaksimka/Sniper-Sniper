@@ -6,6 +6,7 @@ from app.detectors.token_detector import TokenDetector
 from app.listeners.helius_client import HeliusClient
 from app.listeners.helius_listener import HeliusListener
 from app.listeners.transaction_scanner import TransactionScanner
+from app.services.token_detection_service import TokenDetectionService
 from app.services.token_service import TokenService
 
 
@@ -41,6 +42,11 @@ class Container:
         self.transaction_scanner = TransactionScanner(
             client=self.helius_client,
             detector=self.token_detector,
+        )
+
+        self.token_detection_service = TokenDetectionService(
+            scanner=self.transaction_scanner,
+            event_bus=self.event_bus,
         )
 
         self.helius_listener = HeliusListener(

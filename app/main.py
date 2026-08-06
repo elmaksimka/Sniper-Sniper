@@ -15,32 +15,16 @@ async def run() -> None:
 
         container.setup()
 
-        print("Testing token detection...")
-
-        wallet_address = (
-            "So11111111111111111111111111111111111111112"
+        print(
+            "Starting token detection..."
         )
 
-        transactions = await container.transaction_scanner.scan_address(
-            wallet_address,
+        await container.token_detection_service.scan_wallet(
+            wallet=(
+                "So11111111111111111111111111111111111111112"
+            ),
             limit=5,
         )
-
-        print(
-            "Transactions found:",
-            len(transactions),
-        )
-
-        for tx in transactions:
-            print(
-                "\nSignature:",
-                tx["signature"],
-            )
-
-            print(
-                "Detected tokens:",
-                tx["tokens"],
-            )
 
     finally:
         await session.close()
