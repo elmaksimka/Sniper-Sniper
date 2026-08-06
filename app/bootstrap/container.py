@@ -4,15 +4,13 @@ from app.collectors.token_collector import TokenCollector
 from app.core.event_bus import EventBus
 from app.listeners.helius_client import HeliusClient
 from app.listeners.helius_listener import HeliusListener
+from app.services.token_discovery import TokenDiscovery
 from app.services.token_service import TokenService
 
 
 class Container:
     """
     Application dependency container.
-
-    Responsible for creating and connecting
-    application components.
     """
 
     def __init__(
@@ -23,6 +21,12 @@ class Container:
 
         self.event_bus = EventBus()
 
+        self.helius_client = HeliusClient()
+
+        self.token_discovery = TokenDiscovery(
+            client=self.helius_client,
+        )
+
         self.token_service = TokenService(
             session=session,
         )
@@ -32,11 +36,9 @@ class Container:
             token_service=self.token_service,
         )
 
-        self.helius_client = HeliusClient()
-
         self.helius_listener = HeliusListener(
             event_bus=self.event_bus,
-            client=self.helius_client,
+            discovery=self.token_discovery,
         )
 
     def setup(self) -> None:

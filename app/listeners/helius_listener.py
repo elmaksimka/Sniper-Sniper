@@ -1,22 +1,22 @@
 from app.core.event_bus import EventBus
 from app.core.events import TokenCreated
-from app.listeners.helius_client import HeliusClient
+from app.services.token_discovery import TokenDiscovery
 
 
 class HeliusListener:
     """
     Listens for Solana blockchain events.
 
-    Uses Helius API to enrich token data.
+    Uses Helius API to discover tokens.
     """
 
     def __init__(
         self,
         event_bus: EventBus,
-        client: HeliusClient,
+        discovery: TokenDiscovery,
     ):
         self.event_bus = event_bus
-        self.client = client
+        self.discovery = discovery
 
     async def start(self) -> None:
         """
@@ -27,59 +27,29 @@ class HeliusListener:
             "Helius listener started"
         )
 
-        health = await self.client.get_health()
-
-        print(
-            "Helius health:",
-            health,
-        )
-
         token_address = (
             "So11111111111111111111111111111111111111112"
         )
 
-        asset_response = await self.client.get_asset(
+        token = await self.discovery.discover(
             token_address,
         )
 
-        if "error" in asset_response:
-            print(
-                "Helius asset error:",
-                asset_response["error"],
-            )
+        if not token:
             return
-
-        asset = asset_response.get(
-            "result",
-            {},
-        )
-
-        metadata = (
-            asset
-            .get("content", {})
-            .get("metadata", {})
-        )
-
-        symbol = metadata.get(
-            "symbol"
-        )
-
-        name = metadata.get(
-            "name"
-        )
 
         print(
             "Token discovered:",
-            token_address,
-            symbol,
-            name,
+            token["address"],
+            token["symbol"],
+            token["name"],
         )
 
         await self.event_bus.publish(
             TokenCreated(
-                token_address=token_address,
+                token_address=token["address"],
                 creator="HeliusListener",
-                symbol=symbol,
-                name=name,
+                symbol=token["symbol"],
+                name=token["name"],
             )
         )
