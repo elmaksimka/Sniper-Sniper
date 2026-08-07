@@ -66,6 +66,8 @@ Wallet and token score alert thresholds are independently configurable with
 `WALLET_SCORE_ALERT_THRESHOLD` and `TOKEN_SCORE_ALERT_THRESHOLD`.
 In production, monitor mutations and alert acknowledgement require the
 `X-API-Key` header configured by `ADMIN_API_KEY`.
+Production also requires an explicit `ALLOWED_HOSTS` list and disables the
+interactive API documentation endpoints.
 Multiple worker replicas are safe: PostgreSQL advisory-lock leader election
 keeps exactly one replica active while the others wait for failover.
 

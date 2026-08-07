@@ -63,6 +63,10 @@ class Settings(BaseSettings):
         default="",
         description="API key required by administrative endpoints in production",
     )
+    allowed_hosts: str = Field(
+        default="*",
+        description="Comma-separated HTTP Host allowlist",
+    )
 
     # Database
     database_url: str = Field(
@@ -92,6 +96,13 @@ class Settings(BaseSettings):
             missing.append("HELIUS_API_KEY or HELIUS_RPC_URL")
         if len(self.admin_api_key) < 32:
             missing.append("ADMIN_API_KEY (at least 32 characters)")
+        allowed_hosts = {
+            host.strip()
+            for host in self.allowed_hosts.split(",")
+            if host.strip()
+        }
+        if not allowed_hosts or "*" in allowed_hosts:
+            missing.append("ALLOWED_HOSTS (explicit host allowlist)")
         if missing:
             raise ValueError(
                 "Missing or invalid production configuration: "

@@ -23,6 +23,11 @@ In production, all endpoints that change monitor state or acknowledge alerts
 require `X-API-Key: <ADMIN_API_KEY>`. Missing or invalid credentials return
 `401`; read-only endpoints and health probes remain available without the key.
 
+Every HTTP response includes `X-Request-ID` and defensive browser headers. A
+safe caller-provided request ID is preserved; otherwise the API generates one.
+Completed and failed requests are logged with their request ID, path, status,
+and duration. Query strings are intentionally excluded from logs.
+
 ## Deployment order
 
 1. Apply migrations with `poetry run alembic upgrade head`.

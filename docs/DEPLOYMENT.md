@@ -32,6 +32,10 @@ fast when the database URL, Helius configuration, or admin key is missing. Send
 the key in the `X-API-Key` header when acknowledging alerts or changing wallet
 monitors. Read-only analytics endpoints do not require this key.
 
+Set `ALLOWED_HOSTS` to the public API hostname plus internal probe hostnames
+(`localhost` and `127.0.0.1` for the provided Compose healthcheck). Wildcard
+hosts are rejected in production. OpenAPI and ReDoc are disabled in production.
+
 `FORWARDED_ALLOW_IPS` defaults to loopback. When a trusted reverse proxy sits in
 front of the API, set it to that proxy's address or CIDR; do not use `*` on a
 publicly reachable service.

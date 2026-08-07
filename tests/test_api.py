@@ -510,10 +510,30 @@ def create_client() -> tuple[TestClient, FakeReadService]:
 def test_health() -> None:
     client, _ = create_client()
 
-    response = client.get("/health")
+    response = client.get(
+        "/health",
+        headers={"X-Request-ID": "health-check-1"},
+    )
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+    assert response.headers["X-Request-ID"] == "health-check-1"
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["X-Frame-Options"] == "DENY"
+    assert response.headers["Referrer-Policy"] == "no-referrer"
+
+
+def test_invalid_request_id_is_replaced() -> None:
+    client, _ = create_client()
+
+    response = client.get(
+        "/health",
+        headers={"X-Request-ID": "invalid request id"},
+    )
+
+    request_id = response.headers["X-Request-ID"]
+    assert request_id != "invalid request id"
+    assert len(request_id) == 32
 
 
 def test_liveness_and_readiness() -> None:
@@ -926,6 +946,7 @@ def test_production_mutations_require_admin_api_key(monkeypatch) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://alpha:test@db/test")
     monkeypatch.setenv("HELIUS_API_KEY", "helius-key")
     monkeypatch.setenv("ADMIN_API_KEY", "a" * 32)
+    monkeypatch.setenv("ALLOWED_HOSTS", "testserver,localhost,127.0.0.1")
     get_settings.cache_clear()
     try:
         client, _ = create_client()
@@ -950,5 +971,13 @@ def test_production_mutations_require_admin_api_key(monkeypatch) -> None:
         assert missing_key.status_code == 401
         assert wrong_key.status_code == 401
         assert authorized.status_code == 201
+        assert client.get("/docs").status_code == 404
+        assert client.get(
+            "/health",
+            headers={"Host": "untrusted.example"},
+        ).status_code == 400
+        assert authorized.headers["Content-Security-Policy"] == (
+            "default-src 'none'; frame-ancestors 'none'"
+        )
     finally:
         get_settings.cache_clear()
