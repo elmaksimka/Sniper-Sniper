@@ -60,6 +60,13 @@ def test_alpha_signal_defaults_require_confirmed_activity() -> None:
     assert settings.alpha_market_min_liquidity_usd == 15_000
     assert settings.alpha_market_min_volume_5m_usd == 5_000
     assert settings.alpha_market_min_transactions_5m == 10
+    assert settings.alpha_market_max_pair_age_minutes == 60
+    assert settings.alpha_trader_min_history_trades == 10
+    assert settings.alpha_trader_min_hold_minutes == 30
+    assert settings.alpha_trader_max_trades_60s == 5
+    assert settings.alpha_trader_max_trades_per_token == 4
+    assert settings.alpha_trader_rapid_round_trip_seconds == 120
+    assert settings.alpha_trader_max_rapid_round_trips == 0
 
 
 def test_discovery_requires_at_least_one_program() -> None:

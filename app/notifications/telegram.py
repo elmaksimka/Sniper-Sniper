@@ -228,6 +228,12 @@ class TelegramNotifier:
                     f"{event.observed_wallet_count} wallets"
                 ),
                 f"Top traders in token: {event.observed_top_trader_count}",
+                (
+                    "Trader style: holder — "
+                    f"{event.trader_long_hold_positions} proven 30m+ holds / "
+                    f"max {event.trader_max_trades_60s} trades per 60s / "
+                    f"{event.trader_rapid_round_trips} rapid round trips"
+                ),
                 f"Buy size: {sol_size}",
                 f"Estimated buy value: {usd_size}",
                 (

@@ -9,6 +9,7 @@ from app.core.scoring import EarlyTokenScore
 from app.infrastructure.models import Alert, WalletScoreSnapshot
 from app.repositories.alert_repository import AlertRepository
 from app.services.dexscreener_client import TokenMarketQuote
+from app.core.trader_style import TraderStyleProfile
 
 
 class AlertService:
@@ -49,6 +50,7 @@ class AlertService:
         token_score: EarlyTokenScore,
         market: TokenMarketQuote | None = None,
         top_trader_count: int = 1,
+        trader_style: TraderStyleProfile | None = None,
     ) -> Alert | None:
         if not event.signature:
             return None
@@ -80,6 +82,18 @@ class AlertService:
                     "market_volume_5m_usd": market.volume_5m_usd,
                     "market_buys_5m": market.buys_5m,
                     "market_sells_5m": market.sells_5m,
+                }
+            )
+        if trader_style is not None:
+            details.update(
+                {
+                    "trader_long_hold_positions": (
+                        trader_style.long_hold_positions
+                    ),
+                    "trader_max_trades_60s": trader_style.max_trades_60s,
+                    "trader_rapid_round_trips": (
+                        trader_style.rapid_round_trips
+                    ),
                 }
             )
         return await self.repository.create_if_absent(

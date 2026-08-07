@@ -14,6 +14,7 @@ class TokenMarketQuote:
     volume_5m_usd: float = 0.0
     buys_5m: int = 0
     sells_5m: int = 0
+    pair_created_at_ms: int | None = None
 
     @property
     def transactions_5m(self) -> int:
@@ -84,6 +85,7 @@ class DexScreenerClient:
                 volume_5m_usd=volume_5m_usd,
                 buys_5m=buys_5m,
                 sells_5m=sells_5m,
+                pair_created_at_ms=self._positive_int(item.get("pairCreatedAt")),
             )
             if best is None or liquidity_usd > best[0]:
                 best = (liquidity_usd, quote)
@@ -112,3 +114,11 @@ class DexScreenerClient:
         except (TypeError, ValueError):
             return 0
         return max(parsed, 0)
+
+    @staticmethod
+    def _positive_int(value: Any) -> int | None:
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            return None
+        return parsed if parsed > 0 else None

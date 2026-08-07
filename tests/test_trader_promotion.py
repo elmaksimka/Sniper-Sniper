@@ -5,6 +5,7 @@ import pytest
 from app.collectors.trader_promotion_collector import TraderPromotionCollector
 from app.core.event_bus import EventBus
 from app.core.events import ScoreUpdated
+from app.core.trader_style import TraderStyleProfile
 
 
 class FakeMonitors:
@@ -36,6 +37,20 @@ class FakeScores:
                 wallet=SimpleNamespace(address="persisted-wallet"),
             )
         ]
+
+
+class RejectedStyle:
+    async def evaluate(self, address: str) -> TraderStyleProfile:
+        return TraderStyleProfile(
+            eligible=False,
+            reason="rapid_round_trip",
+            total_trades=20,
+            unique_tokens=5,
+            max_trades_60s=4,
+            max_trades_per_token=4,
+            rapid_round_trips=1,
+            long_hold_positions=2,
+        )
 
 
 def wallet_score(score: float, grade: str = "B") -> ScoreUpdated:
@@ -81,6 +96,25 @@ async def test_low_score_or_full_capacity_is_not_promoted() -> None:
 
     await event_bus.publish(wallet_score(64, "C"))
     await event_bus.publish(wallet_score(90, "A"))
+
+    assert service.added == []
+
+
+@pytest.mark.asyncio
+async def test_high_score_bot_style_is_not_promoted() -> None:
+    event_bus = EventBus()
+    service = FakeMonitorService()
+    collector = TraderPromotionCollector(
+        event_bus,
+        FakeMonitors(),  # type: ignore[arg-type]
+        service,  # type: ignore[arg-type]
+        minimum_score=65,
+        maximum_monitors=100,
+        trader_style=RejectedStyle(),  # type: ignore[arg-type]
+    )
+    collector.register()
+
+    await event_bus.publish(wallet_score(80, "A"))
 
     assert service.added == []
 

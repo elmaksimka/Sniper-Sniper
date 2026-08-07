@@ -14,6 +14,10 @@ meets all of these conditions:
   `ALPHA_MARKET_MIN_LIQUIDITY_USD` liquidity,
   `ALPHA_MARKET_MIN_VOLUME_5M_USD` five-minute volume, and
   `ALPHA_MARKET_MIN_TRANSACTIONS_5M` five-minute transactions;
+- the selected pair is no older than `ALPHA_MARKET_MAX_PAIR_AGE_MINUTES`;
+- the wallet passes the holder-style gate: sufficient history, at least one
+  observed 30-minute hold, no rapid round trips, and no high-frequency burst or
+  excessive per-token churn;
 - an alert with the same transaction, wallet, and token has not already been
   stored.
 
@@ -30,6 +34,20 @@ If at least two currently qualifying A/B wallets have observed buys in the same
 token, the Telegram heading changes to `STRONG CONSENSUS` and the message shows
 the top-trader count. A single qualifying top trader can still produce the
 standard confirmed signal.
+
+Wallet score and trader style are deliberately separate. Score measures
+observed performance, while the hard style gate rejects arbitrage and churn
+bots even when their short-cycle activity produces a high score. The default
+style limits are five trades in any rolling 60 seconds, four trades per token,
+and zero buy-to-sell round trips within two minutes. At least one prior position
+must have remained open for 30 minutes or longer.
+
+After enabling or changing the style thresholds, stop the worker and audit
+existing monitors once:
+
+```powershell
+poetry run python -m app.audit_trader_styles
+```
 
 Before an alert is created, the collector asks the free Dexscreener token
 endpoint for the highest-liquidity pair where the detected mint is the base

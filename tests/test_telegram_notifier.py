@@ -26,6 +26,9 @@ def alpha_signal() -> AlphaSignalGenerated:
         severity="high",
         message="alpha",
         observed_top_trader_count=2,
+        trader_long_hold_positions=2,
+        trader_max_trades_60s=3,
+        trader_rapid_round_trips=0,
     )
 
 
@@ -66,6 +69,7 @@ async def test_alpha_signal_is_sent_to_each_unique_recipient() -> None:
     assert all("$20,000 liquidity / $7,500 5m volume" in payload["text"] for payload in payloads)
     assert all("8 buys / 4 sells" in payload["text"] for payload in payloads)
     assert all("Top traders in token: 2" in payload["text"] for payload in payloads)
+    assert all("2 proven 30m+ holds" in payload["text"] for payload in payloads)
     assert all("solscan.io/tx/transaction-signature" in payload["text"] for payload in payloads)
     assert all(
         "dexscreener.com/solana/pair-address" in payload["text"]

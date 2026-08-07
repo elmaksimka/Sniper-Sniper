@@ -9,6 +9,7 @@ from app.repositories.wallet_repository import WalletRepository
 from app.services.alert_service import AlertService
 from app.services.dexscreener_client import DexScreenerClient, TokenMarketQuote
 from app.services.scoring_service import ScoringService
+from app.services.trader_style_service import TraderStyleService
 
 
 class AlphaSignalCollector:
@@ -30,6 +31,8 @@ class AlphaSignalCollector:
         market_min_liquidity_usd: float,
         market_min_volume_5m_usd: float,
         market_min_transactions_5m: int,
+        market_max_pair_age_minutes: float,
+        trader_style: TraderStyleService,
     ) -> None:
         self.event_bus = event_bus
         self.wallets = wallets
@@ -45,6 +48,8 @@ class AlphaSignalCollector:
         self.market_min_liquidity_usd = market_min_liquidity_usd
         self.market_min_volume_5m_usd = market_min_volume_5m_usd
         self.market_min_transactions_5m = market_min_transactions_5m
+        self.market_max_pair_age_minutes = market_max_pair_age_minutes
+        self.trader_style = trader_style
 
     def register(self) -> None:
         self.event_bus.subscribe(TradeScored, self.handle_trade_scored)
@@ -78,13 +83,26 @@ class AlphaSignalCollector:
         ):
             return
 
+        trader_style = await self.trader_style.evaluate(event.wallet)
+        if not trader_style.eligible:
+            return
+
         market = await self._qualifying_market(event.token_address)
         if market is None:
             return
-        top_trader_count = await self.wallet_scores.count_top_buyers_for_token(
+        top_buyers = await self.wallet_scores.list_top_buyers_for_token(
             event.token_address,
             self.wallet_threshold,
         )
+        top_trader_count = 0
+        for address in top_buyers:
+            profile = (
+                trader_style
+                if address == event.wallet
+                else await self.trader_style.evaluate(address)
+            )
+            if profile.eligible:
+                top_trader_count += 1
 
         alert = await self.alerts.create_alpha_signal(
             event,
@@ -92,6 +110,7 @@ class AlphaSignalCollector:
             token_score,
             market,
             top_trader_count,
+            trader_style,
         )
         if alert is None:
             return
@@ -119,6 +138,9 @@ class AlphaSignalCollector:
                 market_buys_5m=market.buys_5m,
                 market_sells_5m=market.sells_5m,
                 observed_top_trader_count=top_trader_count,
+                trader_long_hold_positions=trader_style.long_hold_positions,
+                trader_max_trades_60s=trader_style.max_trades_60s,
+                trader_rapid_round_trips=trader_style.rapid_round_trips,
             )
         )
 
@@ -132,10 +154,18 @@ class AlphaSignalCollector:
             return None
         if market is None:
             return None
+        if market.pair_created_at_ms is None:
+            return None
+        pair_created_at = datetime.fromtimestamp(
+            market.pair_created_at_ms / 1000,
+            tz=UTC,
+        )
+        pair_age = datetime.now(UTC) - pair_created_at
         if (
             market.liquidity_usd < self.market_min_liquidity_usd
             or market.volume_5m_usd < self.market_min_volume_5m_usd
             or market.transactions_5m < self.market_min_transactions_5m
+            or pair_age > timedelta(minutes=self.market_max_pair_age_minutes)
         ):
             return None
         return market

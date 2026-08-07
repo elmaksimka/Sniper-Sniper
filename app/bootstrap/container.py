@@ -35,6 +35,7 @@ from app.services.token_score_snapshot_service import TokenScoreSnapshotService
 from app.services.dex_discovery_service import DexDiscoveryService
 from app.services.dexscreener_client import DexScreenerClient
 from app.services.monitor_service import MonitorService
+from app.services.trader_style_service import TraderStyleService
 
 
 class Container:
@@ -56,6 +57,19 @@ class Container:
         self.funding_service = FundingService(session)
         self.monitor_service = MonitorService(session)
         self.market_data_client = DexScreenerClient()
+        self.trader_style_service = TraderStyleService(
+            session,
+            min_history_trades=settings.alpha_trader_min_history_trades,
+            min_hold_minutes=settings.alpha_trader_min_hold_minutes,
+            max_trades_60s=settings.alpha_trader_max_trades_60s,
+            max_trades_per_token=settings.alpha_trader_max_trades_per_token,
+            rapid_round_trip_seconds=(
+                settings.alpha_trader_rapid_round_trip_seconds
+            ),
+            max_rapid_round_trips=(
+                settings.alpha_trader_max_rapid_round_trips
+            ),
+        )
         self.telegram_notifier = TelegramNotifier(
             settings.telegram_bot_token,
             settings.telegram_recipients,
@@ -108,6 +122,10 @@ class Container:
             market_min_transactions_5m=(
                 settings.alpha_market_min_transactions_5m
             ),
+            market_max_pair_age_minutes=(
+                settings.alpha_market_max_pair_age_minutes
+            ),
+            trader_style=self.trader_style_service,
         )
         self.trader_promotion_collector = TraderPromotionCollector(
             event_bus=self.event_bus,
@@ -116,6 +134,7 @@ class Container:
             minimum_score=settings.auto_promote_wallet_score,
             maximum_monitors=settings.auto_promote_max_monitors,
             scores=ScoreSnapshotRepository(session),
+            trader_style=self.trader_style_service,
         )
 
         self.helius_client = helius_client or HeliusClient()

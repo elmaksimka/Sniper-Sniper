@@ -61,6 +61,13 @@ class Settings(BaseSettings):
     alpha_market_min_liquidity_usd: float = Field(default=15_000, ge=0)
     alpha_market_min_volume_5m_usd: float = Field(default=5_000, ge=0)
     alpha_market_min_transactions_5m: int = Field(default=10, ge=0)
+    alpha_market_max_pair_age_minutes: float = Field(default=60, gt=0)
+    alpha_trader_min_history_trades: int = Field(default=10, ge=1)
+    alpha_trader_min_hold_minutes: float = Field(default=30, gt=0)
+    alpha_trader_max_trades_60s: int = Field(default=5, ge=1)
+    alpha_trader_max_trades_per_token: int = Field(default=4, ge=1)
+    alpha_trader_rapid_round_trip_seconds: float = Field(default=120, gt=0)
+    alpha_trader_max_rapid_round_trips: int = Field(default=0, ge=0)
     alpha_signal_max_age_seconds: float = Field(default=300, gt=0)
     discovery_enabled: bool = False
     discovery_program_ids: str = ""

@@ -22,6 +22,7 @@ async def test_quote_uses_highest_liquidity_pair_for_requested_base_token() -> N
                     "liquidity": {"usd": 500},
                     "volume": {"m5": 7500},
                     "txns": {"m5": {"buys": 8, "sells": 4}},
+                    "pairCreatedAt": 1_700_000_000_000,
                     "url": "https://dexscreener.com/solana/best",
                 },
                 {
@@ -44,6 +45,7 @@ async def test_quote_uses_highest_liquidity_pair_for_requested_base_token() -> N
     assert quote.buys_5m == 8
     assert quote.sells_5m == 4
     assert quote.transactions_5m == 12
+    assert quote.pair_created_at_ms == 1_700_000_000_000
 
 
 @pytest.mark.asyncio

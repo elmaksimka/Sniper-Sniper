@@ -7,6 +7,7 @@ import pytest
 from app.collectors.alpha_signal_collector import AlphaSignalCollector
 from app.core.event_bus import EventBus
 from app.core.events import AlphaSignalGenerated, TradeScored
+from app.core.trader_style import TraderStyleProfile
 from app.infrastructure.models import Alert
 from app.services.dexscreener_client import TokenMarketQuote
 
@@ -29,12 +30,12 @@ class ScoreRepository:
     async def get_by_token_id(self, entity_id: int) -> object:
         return self.snapshot
 
-    async def count_top_buyers_for_token(
+    async def list_top_buyers_for_token(
         self,
         token_address: str,
         minimum_score: float,
-    ) -> int:
-        return 2
+    ) -> list[str]:
+        return ["wallet", "second-holder"]
 
 
 class EarlyScoring:
@@ -70,6 +71,20 @@ class FakeMarketData:
         return self.quote
 
 
+class FakeTraderStyle:
+    async def evaluate(self, wallet_address: str) -> TraderStyleProfile:
+        return TraderStyleProfile(
+            eligible=True,
+            reason=None,
+            total_trades=20,
+            unique_tokens=8,
+            max_trades_60s=3,
+            max_trades_per_token=3,
+            rapid_round_trips=0,
+            long_hold_positions=2,
+        )
+
+
 def qualifying_market() -> FakeMarketData:
     return FakeMarketData(
         TokenMarketQuote(
@@ -79,6 +94,7 @@ def qualifying_market() -> FakeMarketData:
             volume_5m_usd=7_500,
             buys_5m=8,
             sells_5m=4,
+            pair_created_at_ms=int(datetime.now(UTC).timestamp() * 1000),
         )
     )
 
@@ -102,6 +118,8 @@ async def test_qualifying_buy_emits_alpha_signal() -> None:
         market_min_liquidity_usd=15_000,
         market_min_volume_5m_usd=5_000,
         market_min_transactions_5m=10,
+        market_max_pair_age_minutes=60,
+        trader_style=FakeTraderStyle(),  # type: ignore[arg-type]
     )
     generated: list[AlphaSignalGenerated] = []
 
@@ -164,6 +182,8 @@ async def test_non_qualifying_trade_is_filtered(
         market_min_liquidity_usd=15_000,
         market_min_volume_5m_usd=5_000,
         market_min_transactions_5m=10,
+        market_max_pair_age_minutes=60,
+        trader_style=FakeTraderStyle(),  # type: ignore[arg-type]
     )
     collector.register()
 
@@ -204,6 +224,8 @@ async def test_insufficient_early_evidence_is_filtered(
         market_min_liquidity_usd=15_000,
         market_min_volume_5m_usd=5_000,
         market_min_transactions_5m=10,
+        market_max_pair_age_minutes=60,
+        trader_style=FakeTraderStyle(),  # type: ignore[arg-type]
     )
     collector.register()
 
@@ -240,6 +262,8 @@ async def test_historical_buy_does_not_emit_alpha_signal() -> None:
         market_min_liquidity_usd=15_000,
         market_min_volume_5m_usd=5_000,
         market_min_transactions_5m=10,
+        market_max_pair_age_minutes=60,
+        trader_style=FakeTraderStyle(),  # type: ignore[arg-type]
     )
     collector.register()
 
@@ -284,6 +308,16 @@ async def test_historical_buy_does_not_emit_alpha_signal() -> None:
             buys_5m=6,
             sells_5m=3,
         ),
+        TokenMarketQuote(
+            price_usd=0.01,
+            pair_url=None,
+            liquidity_usd=20_000,
+            volume_5m_usd=10_000,
+            buys_5m=10,
+            pair_created_at_ms=int(
+                (datetime.now(UTC) - timedelta(hours=2)).timestamp() * 1000
+            ),
+        ),
         None,
     ],
 )
@@ -307,6 +341,8 @@ async def test_weak_or_missing_market_is_filtered(
         market_min_liquidity_usd=15_000,
         market_min_volume_5m_usd=5_000,
         market_min_transactions_5m=10,
+        market_max_pair_age_minutes=60,
+        trader_style=FakeTraderStyle(),  # type: ignore[arg-type]
     )
     collector.register()
 

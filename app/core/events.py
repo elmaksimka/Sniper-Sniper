@@ -143,3 +143,6 @@ class AlphaSignalGenerated(Event):
     market_buys_5m: int | None = None
     market_sells_5m: int | None = None
     observed_top_trader_count: int = 1
+    trader_long_hold_positions: int = 0
+    trader_max_trades_60s: int = 0
+    trader_rapid_round_trips: int = 0
