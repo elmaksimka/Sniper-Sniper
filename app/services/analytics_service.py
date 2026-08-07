@@ -6,6 +6,7 @@ from app.core.analytics import (
     ObservedTokenHolder,
     CreatorAnalytics,
     TokenAnalytics,
+    TokenHolderSummary,
     TokenPosition,
     WalletAnalytics,
 )
@@ -67,3 +68,9 @@ class AnalyticsService:
         token_limit: int = 10,
     ) -> CreatorAnalytics | None:
         return await self.analytics.get_creator_metrics(address, token_limit)
+
+    async def get_token_holder_summary(
+        self,
+        address: str,
+    ) -> TokenHolderSummary:
+        return await self.analytics.get_token_holder_summary(address)

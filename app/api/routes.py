@@ -38,6 +38,7 @@ from app.api.schemas import (
     ObservedTokenHolderPage,
     ObservedTokenHolderRead,
     CreatorAnalyticsRead,
+    TokenScoreRead,
 )
 
 
@@ -298,6 +299,23 @@ async def get_wallet_score(
         )
 
     return WalletScoreRead.model_validate(score)
+
+
+@router.get(
+    "/scores/tokens/{address}",
+    response_model=TokenScoreRead,
+)
+async def get_token_score(
+    address: str,
+    service: ScoringServiceDependency,
+) -> TokenScoreRead:
+    score = await service.score_token(address)
+    if score is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Token not found",
+        )
+    return TokenScoreRead.model_validate(score)
 
 
 @router.get(

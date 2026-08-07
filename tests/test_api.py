@@ -16,7 +16,7 @@ from app.core.analytics import (
     TokenPosition,
     WalletAnalytics,
 )
-from app.core.scoring import WalletScore
+from app.core.scoring import TokenScore, WalletScore
 from app.core.funding import FundingCounterparty, WalletFundingAnalytics
 from app.infrastructure.models import (
     Alert,
@@ -238,6 +238,25 @@ class FakeScoringService:
             realized_pnl_sol=2,
             realized_roi=0.2,
             unmatched_sell_ratio=0.25,
+        )
+
+    async def score_token(self, address: str) -> TokenScore | None:
+        if address != "mint":
+            return None
+        return TokenScore(
+            token_address=address,
+            score=72.5,
+            grade="B",
+            methodology_version="token-v1",
+            activity_score=15,
+            participation_score=10,
+            holder_distribution_score=18,
+            flow_balance_score=10,
+            creator_history_score=12,
+            data_quality_score=7.5,
+            observed_holder_count=8,
+            top_holder_share=0.25,
+            incomplete_holder_ratio=0.1,
         )
 
 
@@ -723,6 +742,29 @@ def test_missing_wallet_score_returns_404() -> None:
     response = client.get("/api/v1/scores/wallets/missing")
 
     assert response.status_code == 404
+
+
+def test_get_token_score() -> None:
+    client, _ = create_client()
+
+    response = client.get("/api/v1/scores/tokens/mint")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["score"] == 72.5
+    assert payload["grade"] == "B"
+    assert payload["methodology_version"] == "token-v1"
+    assert payload["holder_distribution_score"] == 18.0
+    assert payload["top_holder_share"] == 0.25
+
+
+def test_missing_token_score_returns_404() -> None:
+    client, _ = create_client()
+
+    response = client.get("/api/v1/scores/tokens/missing")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Token not found"}
 
 
 def test_wallet_score_leaderboard() -> None:

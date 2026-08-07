@@ -103,6 +103,7 @@ Read endpoints:
 - `GET /api/v1/analytics/tokens/{address}/holders`
 - `GET /api/v1/analytics/creators/{address}`
 - `GET /api/v1/scores/wallets/{address}`
+- `GET /api/v1/scores/tokens/{address}`
 - `GET /api/v1/scores/wallets`
 - `GET /api/v1/alerts`
 - `POST /api/v1/alerts/{alert_id}/acknowledge`
@@ -125,6 +126,20 @@ The API returns every component, the methodology version, realized ROI, and
 the unmatched-sell ratio. It is an analytics heuristic, not a prediction or
 financial advice.
 
+### Token score v1
+
+The observed token score is an explainable 0-100 heuristic composed of:
+
+- activity: 20 points
+- wallet participation: 15 points
+- observed holder distribution: 25 points
+- buy/sell flow balance: 15 points
+- creator launch history: 15 points
+- data quality: 10 points
+
+It uses only ingested trades, observed holders, and stored creator metadata. It
+is not a complete on-chain holder snapshot, price forecast, or financial advice.
+
 Transaction normalization and conservative SOL allocation are documented in
 [`docs/ACCOUNTING.md`](docs/ACCOUNTING.md).
 Native SOL funding extraction is documented in
@@ -133,6 +148,8 @@ Observed holder analytics is documented in
 [`docs/HOLDERS.md`](docs/HOLDERS.md).
 Creator-level launch analytics is documented in
 [`docs/CREATORS.md`](docs/CREATORS.md).
+The observed token scoring methodology is documented in
+[`docs/TOKEN_SCORING.md`](docs/TOKEN_SCORING.md).
 Wallet history pagination is documented in
 [`docs/INGESTION.md`](docs/INGESTION.md).
 Production probes and startup ordering are documented in

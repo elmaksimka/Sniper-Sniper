@@ -260,6 +260,24 @@ class WalletScoreRead(BaseModel):
     unmatched_sell_ratio: float
 
 
+class TokenScoreRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    token_address: str
+    score: float
+    grade: str
+    methodology_version: str
+    activity_score: float
+    participation_score: float
+    holder_distribution_score: float
+    flow_balance_score: float
+    creator_history_score: float
+    data_quality_score: float
+    observed_holder_count: int
+    top_holder_share: float
+    incomplete_holder_ratio: float
+
+
 class WalletScoreSnapshotRead(WalletScoreRead):
     updated_at: datetime
 

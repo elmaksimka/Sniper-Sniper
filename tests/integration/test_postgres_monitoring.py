@@ -17,6 +17,7 @@ from app.services.wallet_service import WalletService
 from app.services.analytics_service import AnalyticsService
 from app.services.token_service import TokenService
 from app.services.trade_service import TradeService
+from app.services.scoring_service import ScoringService
 
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
@@ -68,6 +69,9 @@ async def test_creator_analytics_aggregate_launches_and_sol_activity(
             token_limit=1,
         )
         missing = await AnalyticsService(session).get_creator("missing-creator")
+        token_score = await ScoringService(session).score_token(
+            "creator-traded-mint"
+        )
 
         assert analytics is not None
         assert analytics.token_count == 2
@@ -81,6 +85,11 @@ async def test_creator_analytics_aggregate_launches_and_sol_activity(
         assert analytics.tokens[0].total_trades == 2
         assert analytics.tokens[0].unique_traders == 2
         assert missing is None
+        assert token_score is not None
+        assert token_score.methodology_version == "token-v1"
+        assert token_score.observed_holder_count == 1
+        assert token_score.top_holder_share == 1
+        assert token_score.incomplete_holder_ratio == 0.5
 
 
 async def test_observed_token_holders_are_aggregated_and_paginated(
@@ -143,6 +152,9 @@ async def test_observed_token_holders_are_aggregated_and_paginated(
         second_page = await service.get_token_holders(
             "holder-test-mint", 1, 1
         )
+        holder_summary = await service.get_token_holder_summary(
+            "holder-test-mint"
+        )
 
         assert active_page is not None
         active_holders, active_total = active_page
@@ -174,6 +186,13 @@ async def test_observed_token_holders_are_aggregated_and_paginated(
         assert incomplete_holder.quantity == 0
         assert incomplete_holder.unmatched_sell_quantity == 5
         assert incomplete_holder.has_incomplete_history is True
+        assert holder_summary.observed_wallet_count == 4
+        assert holder_summary.active_holder_count == 3
+        assert holder_summary.total_observed_quantity == 21
+        assert holder_summary.top_holder_quantity == 10
+        assert holder_summary.top_holder_share == pytest.approx(10 / 21)
+        assert holder_summary.incomplete_holder_count == 2
+        assert holder_summary.incomplete_holder_ratio == 0.5
 
 
 async def test_funding_transfer_round_trips_and_filters_by_direction(

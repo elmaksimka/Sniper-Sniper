@@ -93,3 +93,14 @@ class CreatorAnalytics:
     first_token_created_at: datetime
     latest_token_created_at: datetime
     tokens: list[CreatorTokenAnalytics]
+
+
+@dataclass(frozen=True, slots=True)
+class TokenHolderSummary:
+    observed_wallet_count: int
+    active_holder_count: int
+    total_observed_quantity: float
+    top_holder_quantity: float
+    top_holder_share: float
+    incomplete_holder_count: int
+    incomplete_holder_ratio: float
