@@ -1,0 +1,74 @@
+services:
+  - type: web
+    name: alpha-engine-api
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    branch: main
+    dockerfilePath: ./Dockerfile
+    dockerCommand: >-
+      /bin/sh -c 'exec uvicorn app.api.app:app --host 0.0.0.0
+      --port "${PORT:-10000}" --proxy-headers --forwarded-allow-ips="*"'
+    preDeployCommand: alembic upgrade head
+    healthCheckPath: /health/ready
+    autoDeployTrigger: checksPass
+    maxShutdownDelaySeconds: 60
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: APP_VERSION
+        value: 0.1.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: alpha-engine-postgres
+          property: connectionString
+      - key: HELIUS_API_KEY
+        sync: false
+      - key: ADMIN_API_KEY
+        generateValue: true
+      - key: ALLOWED_HOSTS
+        fromService:
+          type: web
+          name: alpha-engine-api
+          envVarKey: RENDER_EXTERNAL_HOSTNAME
+
+  - type: worker
+    name: alpha-engine-worker
+    runtime: docker
+    plan: starter
+    region: frankfurt
+    branch: main
+    dockerfilePath: ./Dockerfile
+    dockerCommand: python -m app.worker
+    autoDeployTrigger: checksPass
+    maxShutdownDelaySeconds: 60
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: APP_VERSION
+        value: 0.1.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: alpha-engine-postgres
+          property: connectionString
+      - key: HELIUS_API_KEY
+        fromService:
+          type: web
+          name: alpha-engine-api
+          envVarKey: HELIUS_API_KEY
+      - key: ADMIN_API_KEY
+        fromService:
+          type: web
+          name: alpha-engine-api
+          envVarKey: ADMIN_API_KEY
+      - key: ALLOWED_HOSTS
+        value: worker.internal
+
+databases:
+  - name: alpha-engine-postgres
+    plan: basic-256mb
+    region: frankfurt
+    postgresMajorVersion: "17"
+    databaseName: alpha_engine
+    user: alpha_engine
+    ipAllowList: []

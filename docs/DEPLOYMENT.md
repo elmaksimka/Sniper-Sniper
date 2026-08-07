@@ -5,6 +5,10 @@ and worker. `docker-compose.prod.yml` starts PostgreSQL, applies Alembic
 migrations once, then starts the worker and API. The API becomes healthy only
 after its full readiness probe passes.
 
+The selected managed staging target is Render. Its Blueprint and provisioning
+instructions are documented in [`RENDER.md`](RENDER.md). The Compose deployment
+remains the portable self-hosted and local-rehearsal path.
+
 ## Release gate
 
 The CI workflow must pass before deployment. It validates formatting and types,

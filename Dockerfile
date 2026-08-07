@@ -16,7 +16,8 @@ RUN poetry install --only main --no-root --no-ansi
 FROM python:3.12-slim AS runtime
 
 ARG APP_VERSION=0.1.0
-ARG GIT_SHA=development
+ARG RENDER_GIT_COMMIT=development
+ARG GIT_SHA=${RENDER_GIT_COMMIT}
 
 ENV PATH="/app/.venv/bin:${PATH}" \
     PYTHONDONTWRITEBYTECODE=1 \

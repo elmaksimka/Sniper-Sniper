@@ -2,6 +2,14 @@
 
 All notable changes to Alpha Engine are documented here.
 
+## [Unreleased]
+
+### Added
+
+- Render staging Blueprint for the API, background worker, and private managed
+  PostgreSQL 17 database.
+- Managed PostgreSQL URL normalization for async SQLAlchemy connections.
+
 ## [0.1.0-rc.1] - 2026-08-07
 
 First backend MVP release candidate.

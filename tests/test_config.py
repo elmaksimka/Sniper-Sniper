@@ -23,6 +23,18 @@ def test_production_settings_accept_complete_configuration() -> None:
     assert settings.environment == "production"
 
 
+@pytest.mark.parametrize("scheme", ["postgres", "postgresql"])
+def test_managed_postgres_urls_use_asyncpg(scheme: str) -> None:
+    settings = Settings(
+        _env_file=None,
+        database_url=f"{scheme}://alpha:secret@postgres/alpha_engine",
+    )
+
+    assert settings.database_url == (
+        "postgresql+asyncpg://alpha:secret@postgres/alpha_engine"
+    )
+
+
 @pytest.mark.parametrize(
     ("overrides", "expected"),
     [

@@ -175,6 +175,8 @@ Container image and production Compose deployment are documented in
 Release acceptance is documented in
 [`docs/RELEASE.md`](docs/RELEASE.md), with changes listed in
 [`CHANGELOG.md`](CHANGELOG.md).
+Managed staging on Render is documented in
+[`docs/RENDER.md`](docs/RENDER.md).
 
 ## Status
 
