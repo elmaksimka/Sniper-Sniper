@@ -33,6 +33,7 @@ from app.services.wallet_service import WalletService
 from app.services.funding_service import FundingService
 from app.services.token_score_snapshot_service import TokenScoreSnapshotService
 from app.services.dex_discovery_service import DexDiscoveryService
+from app.services.dexscreener_client import DexScreenerClient
 from app.services.monitor_service import MonitorService
 
 
@@ -54,9 +55,11 @@ class Container:
         self.alert_service = AlertService(session)
         self.funding_service = FundingService(session)
         self.monitor_service = MonitorService(session)
+        self.market_data_client = DexScreenerClient()
         self.telegram_notifier = TelegramNotifier(
             settings.telegram_bot_token,
             settings.telegram_recipients,
+            market_data_client=self.market_data_client,
         )
 
         self.token_collector = TokenCollector(
@@ -99,6 +102,12 @@ class Container:
             token_min_trades=settings.alpha_early_token_min_trades,
             token_min_wallets=settings.alpha_early_token_min_wallets,
             maximum_trade_age_seconds=settings.alpha_signal_max_age_seconds,
+            market_data=self.market_data_client,
+            market_min_liquidity_usd=settings.alpha_market_min_liquidity_usd,
+            market_min_volume_5m_usd=settings.alpha_market_min_volume_5m_usd,
+            market_min_transactions_5m=(
+                settings.alpha_market_min_transactions_5m
+            ),
         )
         self.trader_promotion_collector = TraderPromotionCollector(
             event_bus=self.event_bus,

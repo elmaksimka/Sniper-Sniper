@@ -20,6 +20,8 @@ async def test_quote_uses_highest_liquidity_pair_for_requested_base_token() -> N
                     "baseToken": {"address": "mint"},
                     "priceUsd": "0.02",
                     "liquidity": {"usd": 500},
+                    "volume": {"m5": 7500},
+                    "txns": {"m5": {"buys": 8, "sells": 4}},
                     "url": "https://dexscreener.com/solana/best",
                 },
                 {
@@ -37,6 +39,11 @@ async def test_quote_uses_highest_liquidity_pair_for_requested_base_token() -> N
     assert quote is not None
     assert quote.price_usd == 0.02
     assert quote.pair_url == "https://dexscreener.com/solana/best"
+    assert quote.liquidity_usd == 500
+    assert quote.volume_5m_usd == 7500
+    assert quote.buys_5m == 8
+    assert quote.sells_5m == 4
+    assert quote.transactions_5m == 12
 
 
 @pytest.mark.asyncio

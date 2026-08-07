@@ -45,6 +45,12 @@ All notable changes to Alpha Engine are documented here.
   trades, wallet/token scoring, alpha eligibility, and activity totals; added a
   maintenance command to clean legacy rows and recalculate scores.
 
+### Changed
+
+- Raised alpha evidence defaults to ten observed trades and five wallets, and
+  require free Dexscreener confirmation of liquidity, five-minute volume, and
+  five-minute transaction activity before creating a Telegram signal.
+
 ## [0.1.0-rc.1] - 2026-08-07
 
 First backend MVP release candidate.

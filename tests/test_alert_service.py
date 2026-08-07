@@ -123,4 +123,5 @@ async def test_alpha_signal_has_transaction_scoped_dedupe_key() -> None:
         "token_amount": 1200,
         "sol_amount": 3.5,
         "signature": "signature",
+        "observed_top_trader_count": 1,
     }

@@ -10,6 +10,14 @@ import httpx
 class TokenMarketQuote:
     price_usd: float
     pair_url: str | None
+    liquidity_usd: float = 0.0
+    volume_5m_usd: float = 0.0
+    buys_5m: int = 0
+    sells_5m: int = 0
+
+    @property
+    def transactions_5m(self) -> int:
+        return self.buys_5m + self.sells_5m
 
 
 class DexScreenerClient:
@@ -48,10 +56,34 @@ class DexScreenerClient:
                 if isinstance(liquidity, dict)
                 else None
             ) or 0.0
+            volume = item.get("volume")
+            volume_5m_usd = (
+                self._nonnegative_float(volume.get("m5"))
+                if isinstance(volume, dict)
+                else None
+            ) or 0.0
+            transactions = item.get("txns")
+            transactions_5m = (
+                transactions.get("m5") if isinstance(transactions, dict) else None
+            )
+            buys_5m = self._nonnegative_int(
+                transactions_5m.get("buys")
+                if isinstance(transactions_5m, dict)
+                else None
+            )
+            sells_5m = self._nonnegative_int(
+                transactions_5m.get("sells")
+                if isinstance(transactions_5m, dict)
+                else None
+            )
             pair_url = item.get("url")
             quote = TokenMarketQuote(
                 price_usd=price_usd,
                 pair_url=pair_url if isinstance(pair_url, str) else None,
+                liquidity_usd=liquidity_usd,
+                volume_5m_usd=volume_5m_usd,
+                buys_5m=buys_5m,
+                sells_5m=sells_5m,
             )
             if best is None or liquidity_usd > best[0]:
                 best = (liquidity_usd, quote)
@@ -64,3 +96,19 @@ class DexScreenerClient:
         except (TypeError, ValueError):
             return None
         return parsed if parsed > 0 else None
+
+    @staticmethod
+    def _nonnegative_float(value: Any) -> float | None:
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            return None
+        return parsed if parsed >= 0 else None
+
+    @staticmethod
+    def _nonnegative_int(value: Any) -> int:
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            return 0
+        return max(parsed, 0)

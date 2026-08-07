@@ -33,15 +33,29 @@ class TelegramNotifier:
     async def handle_alpha_signal(self, event: AlphaSignalGenerated) -> None:
         if not self.enabled:
             return
-        quote: TokenMarketQuote | None = None
-        try:
-            quote = await self.market_data.get_token_quote(event.token_address)
-        except Exception:
-            self.logger.warning(
-                "dexscreener_quote_failed",
-                token_address=event.token_address,
-            )
+        quote = self._event_quote(event)
+        if quote is None:
+            try:
+                quote = await self.market_data.get_token_quote(event.token_address)
+            except Exception:
+                self.logger.warning(
+                    "dexscreener_quote_failed",
+                    token_address=event.token_address,
+                )
         await self.send_text(self.format_alpha_signal(event, quote))
+
+    @staticmethod
+    def _event_quote(event: AlphaSignalGenerated) -> TokenMarketQuote | None:
+        if event.market_price_usd is None:
+            return None
+        return TokenMarketQuote(
+            price_usd=event.market_price_usd,
+            pair_url=event.market_pair_url,
+            liquidity_usd=event.market_liquidity_usd or 0,
+            volume_5m_usd=event.market_volume_5m_usd or 0,
+            buys_5m=event.market_buys_5m or 0,
+            sells_5m=event.market_sells_5m or 0,
+        )
 
     async def send_text(self, text: str) -> dict[str, bool]:
         if not self.enabled:
@@ -198,7 +212,11 @@ class TelegramNotifier:
         )
         return "\n".join(
             (
-                "🚨 ALPHA SIGNAL — TOP TRADER BUY",
+                (
+                    "🔥 ALPHA SIGNAL — STRONG CONSENSUS"
+                    if event.observed_top_trader_count >= 2
+                    else "🚨 ALPHA SIGNAL — TOP TRADER BUY"
+                ),
                 "",
                 f"Trader: {event.wallet}",
                 f"Trader score: {event.wallet_score:.2f} ({event.wallet_grade})",
@@ -209,8 +227,20 @@ class TelegramNotifier:
                     f"{event.observed_trade_count} trades / "
                     f"{event.observed_wallet_count} wallets"
                 ),
+                f"Top traders in token: {event.observed_top_trader_count}",
                 f"Buy size: {sol_size}",
                 f"Estimated buy value: {usd_size}",
+                (
+                    "Market: "
+                    f"{TelegramNotifier._format_usd_amount(quote.liquidity_usd)} "
+                    "liquidity / "
+                    f"{TelegramNotifier._format_usd_amount(quote.volume_5m_usd)} "
+                    "5m volume"
+                ) if quote is not None else "Market: unavailable",
+                (
+                    f"5m transactions: {quote.buys_5m} buys / "
+                    f"{quote.sells_5m} sells"
+                ) if quote is not None else "5m transactions: unavailable",
                 f"Token amount: {event.token_amount:.6f}",
                 "",
                 f"Dexscreener: {dex_url}",
@@ -226,3 +256,7 @@ class TelegramNotifier:
         if value >= 1:
             return f"~${value:,.2f} (current DEX price)"
         return f"~${value:.6f} (current DEX price)"
+
+    @staticmethod
+    def _format_usd_amount(value: float) -> str:
+        return f"${value:,.0f}"

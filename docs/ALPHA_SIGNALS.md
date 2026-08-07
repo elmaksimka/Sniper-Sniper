@@ -10,18 +10,30 @@ meets all of these conditions:
 - the wallet has grade A or B;
 - the token has at least `ALPHA_EARLY_TOKEN_MIN_TRADES` observed trades and
   `ALPHA_EARLY_TOKEN_MIN_WALLETS` independent observed wallets;
+- the highest-liquidity Dexscreener pair has at least
+  `ALPHA_MARKET_MIN_LIQUIDITY_USD` liquidity,
+  `ALPHA_MARKET_MIN_VOLUME_5M_USD` five-minute volume, and
+  `ALPHA_MARKET_MIN_TRANSACTIONS_5M` five-minute transactions;
 - an alert with the same transaction, wallet, and token has not already been
   stored.
 
 The wallet threshold defaults to 65 and the early-token threshold to 45. The
-evidence minimums default to three trades and two wallets. Scores are calculated
-after the trade is persisted, so the signal uses the latest available data. The
+local evidence minimums default to ten trades and five wallets. Market defaults
+are $15,000 liquidity, $5,000 five-minute volume, and ten five-minute
+transactions. Scores are calculated after the trade is persisted, so the signal
+uses the latest available data. Tokens below these thresholds remain stored and
+scored as watchlist candidates but do not produce Telegram noise. The
 Telegram message includes both scores and grades, the evidence counts, observed
-SOL and token amounts, a direct Dexscreener chart link, and Solscan links for
-the token and transaction.
+SOL and token amounts, current market evidence, a direct Dexscreener chart link,
+and Solscan links for the token and transaction.
+If at least two currently qualifying A/B wallets have observed buys in the same
+token, the Telegram heading changes to `STRONG CONSENSUS` and the message shows
+the top-trader count. A single qualifying top trader can still produce the
+standard confirmed signal.
 
-Before delivery, the notifier asks the free Dexscreener token endpoint for the
-highest-liquidity pair where the detected mint is the base token. It multiplies
+Before an alert is created, the collector asks the free Dexscreener token
+endpoint for the highest-liquidity pair where the detected mint is the base
+token and applies the market thresholds. The notifier reuses that response and multiplies
 the observed token amount by that pair's current USD price and labels the result
 as an estimate. This is not the historical execution price. When no indexed
 pair or positive USD price is available, the message says the estimate is

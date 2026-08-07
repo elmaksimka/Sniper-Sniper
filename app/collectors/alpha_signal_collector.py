@@ -7,6 +7,7 @@ from app.core.events import AlphaSignalGenerated, TradeScored
 from app.repositories.score_snapshot_repository import ScoreSnapshotRepository
 from app.repositories.wallet_repository import WalletRepository
 from app.services.alert_service import AlertService
+from app.services.dexscreener_client import DexScreenerClient, TokenMarketQuote
 from app.services.scoring_service import ScoringService
 
 
@@ -25,6 +26,10 @@ class AlphaSignalCollector:
         token_min_trades: int,
         token_min_wallets: int,
         maximum_trade_age_seconds: float,
+        market_data: DexScreenerClient,
+        market_min_liquidity_usd: float,
+        market_min_volume_5m_usd: float,
+        market_min_transactions_5m: int,
     ) -> None:
         self.event_bus = event_bus
         self.wallets = wallets
@@ -36,6 +41,10 @@ class AlphaSignalCollector:
         self.token_min_trades = token_min_trades
         self.token_min_wallets = token_min_wallets
         self.maximum_trade_age_seconds = maximum_trade_age_seconds
+        self.market_data = market_data
+        self.market_min_liquidity_usd = market_min_liquidity_usd
+        self.market_min_volume_5m_usd = market_min_volume_5m_usd
+        self.market_min_transactions_5m = market_min_transactions_5m
 
     def register(self) -> None:
         self.event_bus.subscribe(TradeScored, self.handle_trade_scored)
@@ -69,10 +78,20 @@ class AlphaSignalCollector:
         ):
             return
 
+        market = await self._qualifying_market(event.token_address)
+        if market is None:
+            return
+        top_trader_count = await self.wallet_scores.count_top_buyers_for_token(
+            event.token_address,
+            self.wallet_threshold,
+        )
+
         alert = await self.alerts.create_alpha_signal(
             event,
             wallet_score,
             token_score,
+            market,
+            top_trader_count,
         )
         if alert is None:
             return
@@ -93,5 +112,30 @@ class AlphaSignalCollector:
                 signature=event.signature,
                 severity=alert.severity,
                 message=alert.message,
+                market_price_usd=market.price_usd,
+                market_pair_url=market.pair_url,
+                market_liquidity_usd=market.liquidity_usd,
+                market_volume_5m_usd=market.volume_5m_usd,
+                market_buys_5m=market.buys_5m,
+                market_sells_5m=market.sells_5m,
+                observed_top_trader_count=top_trader_count,
             )
         )
+
+    async def _qualifying_market(
+        self,
+        token_address: str,
+    ) -> TokenMarketQuote | None:
+        try:
+            market = await self.market_data.get_token_quote(token_address)
+        except Exception:
+            return None
+        if market is None:
+            return None
+        if (
+            market.liquidity_usd < self.market_min_liquidity_usd
+            or market.volume_5m_usd < self.market_min_volume_5m_usd
+            or market.transactions_5m < self.market_min_transactions_5m
+        ):
+            return None
+        return market

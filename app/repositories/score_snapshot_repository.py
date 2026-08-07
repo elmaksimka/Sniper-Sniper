@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.scoring import WalletScore
-from app.infrastructure.models import WalletScoreSnapshot
+from app.infrastructure.models import Token, Trade, WalletScoreSnapshot
 
 
 class ScoreSnapshotRepository:
@@ -81,6 +81,27 @@ class ScoreSnapshotRepository:
 
         result = await self.session.execute(statement)
         return result.scalar_one()
+
+    async def count_top_buyers_for_token(
+        self,
+        token_address: str,
+        minimum_score: float,
+    ) -> int:
+        result = await self.session.execute(
+            select(func.count(func.distinct(Trade.wallet_id)))
+            .join(Token, Token.id == Trade.token_id)
+            .join(
+                WalletScoreSnapshot,
+                WalletScoreSnapshot.wallet_id == Trade.wallet_id,
+            )
+            .where(
+                Token.address == token_address,
+                Trade.side == "buy",
+                WalletScoreSnapshot.score >= minimum_score,
+                WalletScoreSnapshot.grade.in_(("A", "B")),
+            )
+        )
+        return int(result.scalar_one())
 
     @staticmethod
     def _values(wallet_id: int, score: WalletScore) -> dict[str, object]:

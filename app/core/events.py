@@ -136,3 +136,10 @@ class AlphaSignalGenerated(Event):
     signature: str
     severity: str
     message: str
+    market_price_usd: float | None = None
+    market_pair_url: str | None = None
+    market_liquidity_usd: float | None = None
+    market_volume_5m_usd: float | None = None
+    market_buys_5m: int | None = None
+    market_sells_5m: int | None = None
+    observed_top_trader_count: int = 1

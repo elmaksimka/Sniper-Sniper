@@ -25,6 +25,7 @@ def alpha_signal() -> AlphaSignalGenerated:
         signature="transaction-signature",
         severity="high",
         message="alpha",
+        observed_top_trader_count=2,
     )
 
 
@@ -33,6 +34,10 @@ class FakeMarketData:
         return TokenMarketQuote(
             price_usd=0.01,
             pair_url="https://dexscreener.com/solana/pair-address",
+            liquidity_usd=20_000,
+            volume_5m_usd=7_500,
+            buys_5m=8,
+            sells_5m=4,
         )
 
 
@@ -54,10 +59,13 @@ async def test_alpha_signal_is_sent_to_each_unique_recipient() -> None:
         await notifier.handle_alpha_signal(alpha_signal())
 
     assert [payload["chat_id"] for payload in payloads] == ["100", "200"]
-    assert all("TOP TRADER BUY" in payload["text"] for payload in payloads)
+    assert all("STRONG CONSENSUS" in payload["text"] for payload in payloads)
     assert all("2.750000 SOL" in payload["text"] for payload in payloads)
     assert all("~$12.35 (current DEX price)" in payload["text"] for payload in payloads)
     assert all("5 trades / 3 wallets" in payload["text"] for payload in payloads)
+    assert all("$20,000 liquidity / $7,500 5m volume" in payload["text"] for payload in payloads)
+    assert all("8 buys / 4 sells" in payload["text"] for payload in payloads)
+    assert all("Top traders in token: 2" in payload["text"] for payload in payloads)
     assert all("solscan.io/tx/transaction-signature" in payload["text"] for payload in payloads)
     assert all(
         "dexscreener.com/solana/pair-address" in payload["text"]

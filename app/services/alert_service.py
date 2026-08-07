@@ -8,6 +8,7 @@ from app.core.events import ScoreUpdated, TradeScored
 from app.core.scoring import EarlyTokenScore
 from app.infrastructure.models import Alert, WalletScoreSnapshot
 from app.repositories.alert_repository import AlertRepository
+from app.services.dexscreener_client import TokenMarketQuote
 
 
 class AlertService:
@@ -46,6 +47,8 @@ class AlertService:
         event: TradeScored,
         wallet_score: WalletScoreSnapshot,
         token_score: EarlyTokenScore,
+        market: TokenMarketQuote | None = None,
+        top_trader_count: int = 1,
     ) -> Alert | None:
         if not event.signature:
             return None
@@ -54,6 +57,31 @@ class AlertService:
             if wallet_score.grade == "A" and token_score.grade == "A"
             else "high"
         )
+        details = {
+            "wallet": event.wallet,
+            "wallet_score": wallet_score.score,
+            "wallet_grade": wallet_score.grade,
+            "token_score": token_score.score,
+            "token_grade": token_score.grade,
+            "token_score_methodology": token_score.methodology_version,
+            "observed_trade_count": token_score.observed_trade_count,
+            "observed_wallet_count": token_score.observed_wallet_count,
+            "token_amount": event.amount,
+            "sol_amount": abs(event.sol_change),
+            "signature": event.signature,
+            "observed_top_trader_count": top_trader_count,
+        }
+        if market is not None:
+            details.update(
+                {
+                    "market_price_usd": market.price_usd,
+                    "market_pair_url": market.pair_url,
+                    "market_liquidity_usd": market.liquidity_usd,
+                    "market_volume_5m_usd": market.volume_5m_usd,
+                    "market_buys_5m": market.buys_5m,
+                    "market_sells_5m": market.sells_5m,
+                }
+            )
         return await self.repository.create_if_absent(
             {
                 "entity_type": "token",
@@ -66,19 +94,7 @@ class AlertService:
                     f"({wallet_score.grade}), token {token_score.score:.2f} "
                     f"({token_score.grade})"
                 ),
-                "details": {
-                    "wallet": event.wallet,
-                    "wallet_score": wallet_score.score,
-                    "wallet_grade": wallet_score.grade,
-                    "token_score": token_score.score,
-                    "token_grade": token_score.grade,
-                    "token_score_methodology": token_score.methodology_version,
-                    "observed_trade_count": token_score.observed_trade_count,
-                    "observed_wallet_count": token_score.observed_wallet_count,
-                    "token_amount": event.amount,
-                    "sol_amount": abs(event.sol_change),
-                    "signature": event.signature,
-                },
+                "details": details,
                 "dedupe_key": (
                     f"alpha-buy:{event.signature}:"
                     f"{event.wallet}:{event.token_address}"
@@ -86,6 +102,7 @@ class AlertService:
                 "created_at": datetime.now(UTC),
             }
         )
+
     async def list_alerts(
         self,
         limit: int,

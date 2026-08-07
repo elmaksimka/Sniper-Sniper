@@ -52,6 +52,16 @@ def test_telegram_recipient_list_is_trimmed_and_deduplicated() -> None:
     assert settings.telegram_recipients == ("100", "200", "300")
 
 
+def test_alpha_signal_defaults_require_confirmed_activity() -> None:
+    settings = Settings(_env_file=None)
+
+    assert settings.alpha_early_token_min_trades == 10
+    assert settings.alpha_early_token_min_wallets == 5
+    assert settings.alpha_market_min_liquidity_usd == 15_000
+    assert settings.alpha_market_min_volume_5m_usd == 5_000
+    assert settings.alpha_market_min_transactions_5m == 10
+
+
 def test_discovery_requires_at_least_one_program() -> None:
     with pytest.raises(ValidationError, match="DISCOVERY_PROGRAM_IDS"):
         Settings(

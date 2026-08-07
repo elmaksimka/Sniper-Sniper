@@ -56,8 +56,11 @@ class Settings(BaseSettings):
     )
     alpha_wallet_score_threshold: float = Field(default=65, ge=0, le=100)
     alpha_early_token_score_threshold: float = Field(default=45, ge=0, le=100)
-    alpha_early_token_min_trades: int = Field(default=3, ge=1, le=100)
-    alpha_early_token_min_wallets: int = Field(default=2, ge=1, le=100)
+    alpha_early_token_min_trades: int = Field(default=10, ge=1, le=100)
+    alpha_early_token_min_wallets: int = Field(default=5, ge=1, le=100)
+    alpha_market_min_liquidity_usd: float = Field(default=15_000, ge=0)
+    alpha_market_min_volume_5m_usd: float = Field(default=5_000, ge=0)
+    alpha_market_min_transactions_5m: int = Field(default=10, ge=0)
     alpha_signal_max_age_seconds: float = Field(default=300, gt=0)
     discovery_enabled: bool = False
     discovery_program_ids: str = ""
