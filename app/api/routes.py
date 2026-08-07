@@ -41,6 +41,7 @@ from app.api.schemas import (
     ObservedTokenHolderRead,
     CreatorAnalyticsRead,
     TokenScoreRead,
+    EarlyTokenScoreRead,
     TokenScoreLeaderboardPage,
     TokenScoreSnapshotRead,
 )
@@ -320,6 +321,23 @@ async def get_token_score(
             detail="Token not found",
         )
     return TokenScoreRead.model_validate(score)
+
+
+@router.get(
+    "/scores/tokens/{address}/early",
+    response_model=EarlyTokenScoreRead,
+)
+async def get_early_token_score(
+    address: str,
+    service: ScoringServiceDependency,
+) -> EarlyTokenScoreRead:
+    score = await service.score_early_token(address)
+    if score is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Token not found",
+        )
+    return EarlyTokenScoreRead.model_validate(score)
 
 
 @router.get(

@@ -17,10 +17,6 @@ from app.listeners.helius_client import HeliusClient
 from app.listeners.transaction_scanner import TransactionScanner
 from app.notifications.telegram import TelegramNotifier
 from app.repositories.score_snapshot_repository import ScoreSnapshotRepository
-from app.repositories.token_repository import TokenRepository
-from app.repositories.token_score_snapshot_repository import (
-    TokenScoreSnapshotRepository,
-)
 from app.repositories.wallet_repository import WalletRepository
 from app.repositories.heartbeat_repository import HeartbeatRepository
 from app.repositories.monitor_repository import MonitorRepository
@@ -95,12 +91,13 @@ class Container:
         self.alpha_signal_collector = AlphaSignalCollector(
             event_bus=self.event_bus,
             wallets=WalletRepository(session),
-            tokens=TokenRepository(session),
             wallet_scores=ScoreSnapshotRepository(session),
-            token_scores=TokenScoreSnapshotRepository(session),
+            scoring=self.scoring_service,
             alerts=self.alert_service,
             wallet_threshold=settings.alpha_wallet_score_threshold,
-            token_threshold=settings.alpha_token_score_threshold,
+            token_threshold=settings.alpha_early_token_score_threshold,
+            token_min_trades=settings.alpha_early_token_min_trades,
+            token_min_wallets=settings.alpha_early_token_min_wallets,
         )
         self.trader_promotion_collector = TraderPromotionCollector(
             event_bus=self.event_bus,

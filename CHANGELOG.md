@@ -6,12 +6,14 @@ All notable changes to Alpha Engine are documented here.
 
 ### Added
 
+- On-demand early-token scoring and evidence gates for faster top-trader buy
+  signals without waiting for a mature token-score snapshot.
 - Free on-demand Pump and PumpSwap transaction sampling with persistent source
   cursors for automatic wallet/token database bootstrapping.
 - Automatic promotion of observed grade A/B wallets into continuous monitoring,
   with configurable score and capacity limits.
-- Deduplicated top-trader token-buy signals requiring both wallet and token
-  scores to meet configurable A/B thresholds.
+- Deduplicated top-trader token-buy signals requiring a top-wallet score and a
+  configurable early-token score with minimum trade and wallet evidence.
 - Multi-recipient Telegram Bot API delivery for alpha signals, with a separate
   non-trading delivery test command.
 - Fully free on-demand local stack backed by the public Solana RPC, with no

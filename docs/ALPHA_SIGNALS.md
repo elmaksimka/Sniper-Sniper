@@ -5,19 +5,23 @@ meets all of these conditions:
 
 - the transaction has a signature;
 - the wallet score is at least `ALPHA_WALLET_SCORE_THRESHOLD`;
-- the token score is at least `ALPHA_TOKEN_SCORE_THRESHOLD`;
-- both the wallet and token have grade A or B;
+- the early-token score is at least `ALPHA_EARLY_TOKEN_SCORE_THRESHOLD`;
+- the wallet has grade A or B;
+- the token has at least `ALPHA_EARLY_TOKEN_MIN_TRADES` observed trades and
+  `ALPHA_EARLY_TOKEN_MIN_WALLETS` independent observed wallets;
 - an alert with the same transaction, wallet, and token has not already been
   stored.
 
-Both thresholds default to 65. Scores are recalculated after the trade is
-persisted, so the signal uses the latest available wallet and token snapshots.
-The Telegram message includes both scores and grades, the observed SOL and token
-amounts, and Solscan links for the token and transaction.
+The wallet threshold defaults to 65 and the early-token threshold to 45. The
+evidence minimums default to three trades and two wallets. Scores are calculated
+after the trade is persisted, so the signal uses the latest available data. The
+Telegram message includes both scores and grades, the evidence counts, observed
+SOL and token amounts, and Solscan links for the token and transaction.
 
 This is a decision-support signal, not an automatic order or financial advice.
-Public Solana RPC data can be delayed or incomplete, and the token score covers
-only activity observed by Alpha Engine.
+Public Solana RPC data can be delayed or incomplete, and the score covers only
+activity observed by Alpha Engine. See
+[`EARLY_TOKEN_SCORING.md`](EARLY_TOKEN_SCORING.md) for the methodology.
 
 ## Telegram configuration
 

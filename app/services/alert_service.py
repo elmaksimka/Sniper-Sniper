@@ -5,7 +5,8 @@ from datetime import UTC, datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.events import ScoreUpdated, TradeScored
-from app.infrastructure.models import Alert, TokenScoreSnapshot, WalletScoreSnapshot
+from app.core.scoring import EarlyTokenScore
+from app.infrastructure.models import Alert, WalletScoreSnapshot
 from app.repositories.alert_repository import AlertRepository
 
 
@@ -44,7 +45,7 @@ class AlertService:
         self,
         event: TradeScored,
         wallet_score: WalletScoreSnapshot,
-        token_score: TokenScoreSnapshot,
+        token_score: EarlyTokenScore,
     ) -> Alert | None:
         if not event.signature:
             return None
@@ -71,6 +72,9 @@ class AlertService:
                     "wallet_grade": wallet_score.grade,
                     "token_score": token_score.score,
                     "token_grade": token_score.grade,
+                    "token_score_methodology": token_score.methodology_version,
+                    "observed_trade_count": token_score.observed_trade_count,
+                    "observed_wallet_count": token_score.observed_wallet_count,
                     "token_amount": event.amount,
                     "sol_amount": abs(event.sol_change),
                     "signature": event.signature,

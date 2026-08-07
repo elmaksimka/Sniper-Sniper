@@ -16,6 +16,9 @@ def alpha_signal() -> AlphaSignalGenerated:
         wallet_grade="A",
         token_score=71.25,
         token_grade="B",
+        token_score_methodology="early-token-v1",
+        observed_trade_count=5,
+        observed_wallet_count=3,
         token_amount=1234.5,
         sol_amount=2.75,
         signature="transaction-signature",
@@ -43,6 +46,7 @@ async def test_alpha_signal_is_sent_to_each_unique_recipient() -> None:
     assert [payload["chat_id"] for payload in payloads] == ["100", "200"]
     assert all("TOP TRADER BUY" in payload["text"] for payload in payloads)
     assert all("2.750000 SOL" in payload["text"] for payload in payloads)
+    assert all("5 trades / 3 wallets" in payload["text"] for payload in payloads)
     assert all("solscan.io/tx/transaction-signature" in payload["text"] for payload in payloads)
 
 

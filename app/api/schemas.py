@@ -286,6 +286,24 @@ class TokenScoreRead(BaseModel):
     incomplete_holder_ratio: float
 
 
+class EarlyTokenScoreRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    token_address: str
+    score: float
+    grade: str
+    methodology_version: str
+    activity_score: float
+    participation_score: float
+    buy_pressure_score: float
+    holder_distribution_score: float
+    data_quality_score: float
+    observed_trade_count: int
+    observed_wallet_count: int
+    top_holder_share: float
+    incomplete_holder_ratio: float
+
+
 class TokenScoreSnapshotRead(TokenScoreRead):
     updated_at: datetime
 

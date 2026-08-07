@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.scoring import TokenScore, WalletScore
+from app.core.scoring import EarlyTokenScore, TokenScore, WalletScore
 from app.repositories.token_repository import TokenRepository
 from app.services.analytics_service import AnalyticsService
 from app.services.wallet_score_calculator import WalletScoreCalculator
 from app.services.token_score_calculator import TokenScoreCalculator
+from app.services.early_token_score_calculator import EarlyTokenScoreCalculator
 
 
 class ScoringService:
@@ -15,6 +16,7 @@ class ScoringService:
         self.tokens = TokenRepository(session)
         self.calculator = WalletScoreCalculator()
         self.token_calculator = TokenScoreCalculator()
+        self.early_token_calculator = EarlyTokenScoreCalculator()
 
     async def score_wallet(self, address: str) -> WalletScore | None:
         analytics = await self.analytics.get_wallet(address)
@@ -51,3 +53,14 @@ class ScoringService:
             creator,
             creator_known,
         )
+
+    async def score_early_token(self, address: str) -> EarlyTokenScore | None:
+        token = await self.tokens.get_by_address(address)
+        if token is None:
+            return None
+
+        analytics = await self.analytics.get_token(address)
+        if analytics is None:
+            return None
+        holders = await self.analytics.get_token_holder_summary(address)
+        return self.early_token_calculator.calculate(analytics, holders)

@@ -28,6 +28,20 @@ class ScoreRepository:
         return self.snapshot
 
 
+class EarlyScoring:
+    def __init__(self, score: float, trades: int = 3, wallets: int = 2) -> None:
+        self.score = SimpleNamespace(
+            score=score,
+            grade="C",
+            methodology_version="early-token-v1",
+            observed_trade_count=trades,
+            observed_wallet_count=wallets,
+        )
+
+    async def score_early_token(self, address: str) -> object:
+        return self.score
+
+
 class FakeAlerts:
     def __init__(self) -> None:
         self.calls = 0
@@ -44,12 +58,13 @@ async def test_qualifying_buy_emits_alpha_signal() -> None:
     collector = AlphaSignalCollector(
         event_bus=event_bus,
         wallets=AddressRepository(SimpleNamespace(id=1)),  # type: ignore[arg-type]
-        tokens=AddressRepository(SimpleNamespace(id=2)),  # type: ignore[arg-type]
         wallet_scores=ScoreRepository(82, "A"),  # type: ignore[arg-type]
-        token_scores=ScoreRepository(70, "B"),  # type: ignore[arg-type]
+        scoring=EarlyScoring(70),  # type: ignore[arg-type]
         alerts=alerts,  # type: ignore[arg-type]
         wallet_threshold=65,
-        token_threshold=65,
+        token_threshold=45,
+        token_min_trades=3,
+        token_min_wallets=2,
     )
     generated: list[AlphaSignalGenerated] = []
 
@@ -82,7 +97,7 @@ async def test_qualifying_buy_emits_alpha_signal() -> None:
     [
         ("sell", 90, 90, "signature"),
         ("buy", 64, 90, "signature"),
-        ("buy", 90, 64, "signature"),
+        ("buy", 90, 44, "signature"),
         ("buy", 90, 90, None),
     ],
 )
@@ -97,12 +112,13 @@ async def test_non_qualifying_trade_is_filtered(
     collector = AlphaSignalCollector(
         event_bus=event_bus,
         wallets=AddressRepository(SimpleNamespace(id=1)),  # type: ignore[arg-type]
-        tokens=AddressRepository(SimpleNamespace(id=2)),  # type: ignore[arg-type]
         wallet_scores=ScoreRepository(wallet_score, "B"),  # type: ignore[arg-type]
-        token_scores=ScoreRepository(token_score, "B"),  # type: ignore[arg-type]
+        scoring=EarlyScoring(token_score),  # type: ignore[arg-type]
         alerts=alerts,  # type: ignore[arg-type]
         wallet_threshold=65,
-        token_threshold=65,
+        token_threshold=45,
+        token_min_trades=3,
+        token_min_wallets=2,
     )
     collector.register()
 
@@ -114,6 +130,41 @@ async def test_non_qualifying_trade_is_filtered(
             amount=100,
             sol_change=-2.5,
             signature=signature,
+        )
+    )
+
+    assert alerts.calls == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("trades", "wallets"), [(2, 2), (3, 1)])
+async def test_insufficient_early_evidence_is_filtered(
+    trades: int,
+    wallets: int,
+) -> None:
+    event_bus = EventBus()
+    alerts = FakeAlerts()
+    collector = AlphaSignalCollector(
+        event_bus=event_bus,
+        wallets=AddressRepository(SimpleNamespace(id=1)),  # type: ignore[arg-type]
+        wallet_scores=ScoreRepository(82, "A"),  # type: ignore[arg-type]
+        scoring=EarlyScoring(80, trades, wallets),  # type: ignore[arg-type]
+        alerts=alerts,  # type: ignore[arg-type]
+        wallet_threshold=65,
+        token_threshold=45,
+        token_min_trades=3,
+        token_min_wallets=2,
+    )
+    collector.register()
+
+    await event_bus.publish(
+        TradeScored(
+            token_address="token",
+            wallet="wallet",
+            side="buy",
+            amount=100,
+            sol_change=-2.5,
+            signature="signature",
         )
     )
 

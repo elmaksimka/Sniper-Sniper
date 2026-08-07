@@ -18,7 +18,7 @@ from app.core.analytics import (
     TokenPosition,
     WalletAnalytics,
 )
-from app.core.scoring import TokenScore, WalletScore
+from app.core.scoring import EarlyTokenScore, TokenScore, WalletScore
 from app.core.funding import FundingCounterparty, WalletFundingAnalytics
 from app.infrastructure.models import (
     Alert,
@@ -263,6 +263,25 @@ class FakeScoringService:
             observed_holder_count=8,
             top_holder_share=0.25,
             incomplete_holder_ratio=0.1,
+        )
+
+    async def score_early_token(self, address: str) -> EarlyTokenScore | None:
+        if address != "mint":
+            return None
+        return EarlyTokenScore(
+            token_address=address,
+            score=50.5,
+            grade="C",
+            methodology_version="early-token-v1",
+            activity_score=4.5,
+            participation_score=8,
+            buy_pressure_score=18,
+            holder_distribution_score=8,
+            data_quality_score=12,
+            observed_trade_count=3,
+            observed_wallet_count=2,
+            top_holder_share=0.6,
+            incomplete_holder_ratio=0,
         )
 
 
@@ -843,6 +862,27 @@ def test_missing_token_score_returns_404() -> None:
 
     assert response.status_code == 404
     assert response.json() == {"detail": "Token not found"}
+
+
+def test_get_early_token_score() -> None:
+    client, _ = create_client()
+
+    response = client.get("/api/v1/scores/tokens/mint/early")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["score"] == 50.5
+    assert payload["methodology_version"] == "early-token-v1"
+    assert payload["observed_trade_count"] == 3
+    assert payload["observed_wallet_count"] == 2
+
+
+def test_missing_early_token_score_returns_404() -> None:
+    client, _ = create_client()
+
+    response = client.get("/api/v1/scores/tokens/missing/early")
+
+    assert response.status_code == 404
 
 
 def test_token_score_leaderboard() -> None:

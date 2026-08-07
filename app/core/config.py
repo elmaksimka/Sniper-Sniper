@@ -55,7 +55,9 @@ class Settings(BaseSettings):
         description="Minimum token score that produces an alert",
     )
     alpha_wallet_score_threshold: float = Field(default=65, ge=0, le=100)
-    alpha_token_score_threshold: float = Field(default=65, ge=0, le=100)
+    alpha_early_token_score_threshold: float = Field(default=45, ge=0, le=100)
+    alpha_early_token_min_trades: int = Field(default=3, ge=1, le=100)
+    alpha_early_token_min_wallets: int = Field(default=2, ge=1, le=100)
     discovery_enabled: bool = False
     discovery_program_ids: str = ""
     discovery_page_size: int = Field(default=10, ge=1, le=40)

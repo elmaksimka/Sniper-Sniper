@@ -128,6 +128,9 @@ class AlphaSignalGenerated(Event):
     wallet_grade: str
     token_score: float
     token_grade: str
+    token_score_methodology: str
+    observed_trade_count: int
+    observed_wallet_count: int
     token_amount: float
     sol_amount: float
     signature: str

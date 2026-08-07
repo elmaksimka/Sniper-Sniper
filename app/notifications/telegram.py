@@ -70,7 +70,12 @@ class TelegramNotifier:
                 f"Trader: {event.wallet}",
                 f"Trader score: {event.wallet_score:.2f} ({event.wallet_grade})",
                 f"Token: {event.token_address}",
-                f"Token score: {event.token_score:.2f} ({event.token_grade})",
+                f"Early token score: {event.token_score:.2f} ({event.token_grade})",
+                (
+                    "Observed: "
+                    f"{event.observed_trade_count} trades / "
+                    f"{event.observed_wallet_count} wallets"
+                ),
                 f"Buy size: {event.sol_amount:.6f} SOL",
                 f"Token amount: {event.token_amount:.6f}",
                 "",

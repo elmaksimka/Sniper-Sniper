@@ -96,7 +96,13 @@ async def test_alpha_signal_has_transaction_scoped_dedupe_key() -> None:
             signature="signature",
         ),
         SimpleNamespace(score=85, grade="A"),  # type: ignore[arg-type]
-        SimpleNamespace(score=82, grade="A"),  # type: ignore[arg-type]
+        SimpleNamespace(  # type: ignore[arg-type]
+            score=82,
+            grade="A",
+            methodology_version="early-token-v1",
+            observed_trade_count=4,
+            observed_wallet_count=3,
+        ),
     )
 
     assert alert is not None
@@ -111,6 +117,9 @@ async def test_alpha_signal_has_transaction_scoped_dedupe_key() -> None:
         "wallet_grade": "A",
         "token_score": 82,
         "token_grade": "A",
+        "token_score_methodology": "early-token-v1",
+        "observed_trade_count": 4,
+        "observed_wallet_count": 3,
         "token_amount": 1200,
         "sol_amount": 3.5,
         "signature": "signature",

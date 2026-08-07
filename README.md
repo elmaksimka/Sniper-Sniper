@@ -127,6 +127,7 @@ Read endpoints:
 - `GET /api/v1/analytics/creators/{address}`
 - `GET /api/v1/scores/wallets/{address}`
 - `GET /api/v1/scores/tokens/{address}`
+- `GET /api/v1/scores/tokens/{address}/early`
 - `GET /api/v1/scores/tokens`
 - `GET /api/v1/scores/wallets`
 - `GET /api/v1/alerts`
@@ -178,6 +179,8 @@ Creator-level launch analytics is documented in
 [`docs/CREATORS.md`](docs/CREATORS.md).
 The observed token scoring methodology is documented in
 [`docs/TOKEN_SCORING.md`](docs/TOKEN_SCORING.md).
+The sparse-data score used for early Telegram signals is documented in
+[`docs/EARLY_TOKEN_SCORING.md`](docs/EARLY_TOKEN_SCORING.md).
 Wallet history pagination is documented in
 [`docs/INGESTION.md`](docs/INGESTION.md).
 Production probes and startup ordering are documented in
