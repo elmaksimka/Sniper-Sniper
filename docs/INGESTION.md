@@ -3,6 +3,11 @@
 Alpha Engine retrieves wallet history with the Helius
 `getTransactionsForAddress` RPC method.
 
+The fully free local mode instead uses the standard Solana
+`getSignaturesForAddress` and `getTransaction` methods. It needs no Helius key,
+but the shared public endpoint is rate-limited and Helius-only DAS metadata is
+stored as unknown. Select the implementation with `TRANSACTION_HISTORY_MODE`.
+
 ## Request contract
 
 - full transaction details

@@ -67,6 +67,67 @@ async def test_get_transactions_for_address_handles_rpc_error_shape() -> None:
 
 
 @pytest.mark.asyncio
+async def test_standard_history_uses_public_solana_rpc_methods() -> None:
+    calls: list[tuple[str, list[Any] | dict[str, Any] | None]] = []
+
+    class StandardClient(HeliusClient):
+        async def _request(
+            self,
+            method: str,
+            params: list[Any] | dict[str, Any] | None = None,
+        ) -> dict[str, Any]:
+            calls.append((method, params))
+            if method == "getSignaturesForAddress":
+                return {
+                    "result": [
+                        {"signature": "sig-ok", "err": None},
+                        {"signature": "sig-failed", "err": {"code": 1}},
+                    ]
+                }
+            return {
+                "result": {
+                    "blockTime": 1_700_000_000,
+                    "transaction": {"signatures": ["sig-ok"]},
+                    "meta": {"err": None},
+                }
+            }
+
+    client = StandardClient()
+    client.transaction_history_mode = "standard"
+    page = await client.get_transactions_for_address(
+        "wallet",
+        limit=2,
+        pagination_token="before-signature",
+    )
+
+    assert [call[0] for call in calls] == [
+        "getSignaturesForAddress",
+        "getTransaction",
+    ]
+    signature_params = calls[0][1]
+    assert isinstance(signature_params, list)
+    assert signature_params == [
+        "wallet",
+        {
+            "limit": 2,
+            "commitment": "finalized",
+            "before": "before-signature",
+        },
+    ]
+    assert len(page.transactions) == 1
+    assert page.pagination_token == "sig-failed"
+
+
+@pytest.mark.asyncio
+async def test_standard_history_skips_helius_only_metadata() -> None:
+    client = StubHeliusClient({"result": {"name": "should-not-be-used"}})
+    client.transaction_history_mode = "standard"
+
+    assert await client.get_asset("mint") == {"result": None}
+    assert client.method == ""
+
+
+@pytest.mark.asyncio
 async def test_request_retries_rate_limit_using_retry_after(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

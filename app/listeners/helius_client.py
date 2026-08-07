@@ -25,10 +25,16 @@ class HeliusClient:
     def __init__(self, http_client: httpx.AsyncClient | None = None) -> None:
         settings = get_settings()
         self.api_key = settings.helius_api_key
-        self.rpc_url = settings.helius_rpc_url or (
+        self.transaction_history_mode = settings.transaction_history_mode
+        helius_url = settings.helius_rpc_url or (
             f"https://mainnet.helius-rpc.com/?api-key={self.api_key}"
             if self.api_key
             else ""
+        )
+        self.rpc_url = (
+            settings.solana_rpc_url or helius_url
+            if self.transaction_history_mode == "standard"
+            else helius_url or settings.solana_rpc_url
         )
         self.max_retries = settings.helius_max_retries
         self.retry_base_seconds = settings.helius_retry_base_seconds
@@ -128,6 +134,8 @@ class HeliusClient:
         return await self._request("getHealth")
 
     async def get_asset(self, address: str) -> dict[str, Any]:
+        if self.transaction_history_mode == "standard":
+            return {"result": None}
         return await self._request("getAsset", {"id": address})
 
     async def get_signatures(
@@ -147,6 +155,7 @@ class HeliusClient:
                 signature,
                 {
                     "encoding": "jsonParsed",
+                    "commitment": "finalized",
                     "maxSupportedTransactionVersion": 0,
                 },
             ],
@@ -158,6 +167,27 @@ class HeliusClient:
         limit: int = 100,
         pagination_token: str | None = None,
         sort_order: Literal["asc", "desc"] = "desc",
+    ) -> HeliusTransactionPage:
+        if self.transaction_history_mode == "standard":
+            return await self._get_standard_transactions_for_address(
+                wallet,
+                limit,
+                pagination_token,
+            )
+
+        return await self._get_enhanced_transactions_for_address(
+            wallet,
+            limit,
+            pagination_token,
+            sort_order,
+        )
+
+    async def _get_enhanced_transactions_for_address(
+        self,
+        wallet: str,
+        limit: int,
+        pagination_token: str | None,
+        sort_order: Literal["asc", "desc"],
     ) -> HeliusTransactionPage:
         config: dict[str, Any] = {
             "transactionDetails": "full",
@@ -195,3 +225,53 @@ class HeliusClient:
                 next_token if isinstance(next_token, str) and next_token else None
             ),
         )
+
+    async def _get_standard_transactions_for_address(
+        self,
+        wallet: str,
+        limit: int,
+        before: str | None,
+    ) -> HeliusTransactionPage:
+        page_limit = min(max(limit, 1), 100)
+        config: dict[str, Any] = {
+            "limit": page_limit,
+            "commitment": "finalized",
+        }
+        if before:
+            config["before"] = before
+
+        response = await self._request(
+            "getSignaturesForAddress",
+            [wallet, config],
+        )
+        result = response.get("result")
+        rows = (
+            [row for row in result if isinstance(row, dict)]
+            if isinstance(result, list)
+            else []
+        )
+        signatures = [
+            signature
+            for row in rows
+            if row.get("err") is None
+            and isinstance((signature := row.get("signature")), str)
+            and signature
+        ]
+        responses = await asyncio.gather(
+            *(self.get_transaction(signature) for signature in signatures)
+        )
+        transactions = [
+            transaction
+            for item in responses
+            if isinstance((transaction := item.get("result")), dict)
+        ]
+
+        last_signature = rows[-1].get("signature") if rows else None
+        next_token = (
+            last_signature
+            if len(rows) == page_limit
+            and isinstance(last_signature, str)
+            and last_signature
+            else None
+        )
+        return HeliusTransactionPage(transactions, next_token)

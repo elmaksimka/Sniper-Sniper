@@ -38,6 +38,10 @@ It is an intelligence platform that analyzes wallets, creators, funding relation
 
 ## Running locally
 
+The simplest fully free option runs the whole system on demand in Docker, uses
+the public Solana RPC, and preserves its local database between runs. See
+[`docs/LOCAL_FREE.md`](docs/LOCAL_FREE.md).
+
 Start PostgreSQL and apply migrations:
 
 ```powershell
@@ -175,9 +179,10 @@ Container image and production Compose deployment are documented in
 Release acceptance is documented in
 [`docs/RELEASE.md`](docs/RELEASE.md), with changes listed in
 [`CHANGELOG.md`](CHANGELOG.md).
-Zero-cost self-hosted staging on Oracle Cloud Always Free is documented in
-[`docs/OCI_FREE.md`](docs/OCI_FREE.md). Optional paid managed staging on Render
-is documented in [`docs/RENDER.md`](docs/RENDER.md).
+Fully free on-demand local operation is documented in
+[`docs/LOCAL_FREE.md`](docs/LOCAL_FREE.md). Zero-cost eligible OCI staging is
+documented in [`docs/OCI_FREE.md`](docs/OCI_FREE.md), while optional paid
+managed staging on Render is covered by [`docs/RENDER.md`](docs/RENDER.md).
 
 ## Status
 

@@ -1,5 +1,6 @@
 from functools import lru_cache
 import re
+from typing import Literal
 
 from pydantic import Field, field_validator
 from pydantic import model_validator
@@ -39,6 +40,7 @@ class Settings(BaseSettings):
     helius_retry_base_seconds: float = Field(default=0.5, ge=0)
     helius_retry_max_seconds: float = Field(default=10, gt=0)
     helius_max_concurrency: int = Field(default=5, ge=1, le=100)
+    transaction_history_mode: Literal["enhanced", "standard"] = "enhanced"
 
     wallet_score_alert_threshold: float = Field(
         default=65,
@@ -106,8 +108,11 @@ class Settings(BaseSettings):
         missing: list[str] = []
         if not self.database_url:
             missing.append("DATABASE_URL")
-        if not (self.helius_api_key or self.helius_rpc_url):
-            missing.append("HELIUS_API_KEY or HELIUS_RPC_URL")
+        if self.transaction_history_mode == "enhanced":
+            if not (self.helius_api_key or self.helius_rpc_url):
+                missing.append("HELIUS_API_KEY or HELIUS_RPC_URL")
+        elif not (self.solana_rpc_url or self.helius_rpc_url or self.helius_api_key):
+            missing.append("SOLANA_RPC_URL or another standard RPC URL")
         if len(self.admin_api_key) < 32:
             missing.append("ADMIN_API_KEY (at least 32 characters)")
         allowed_hosts = {

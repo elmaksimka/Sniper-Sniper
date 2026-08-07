@@ -6,6 +6,12 @@ All notable changes to Alpha Engine are documented here.
 
 ### Added
 
+- Fully free on-demand local stack backed by the public Solana RPC, with no
+  Helius or cloud subscription requirement.
+- One-command PowerShell start and stop scripts that preserve the local
+  PostgreSQL volume between sessions.
+- Standard Solana transaction-history ingestion using
+  `getSignaturesForAddress` and `getTransaction`.
 - Oracle Cloud Always Free staging overlay with automatic Caddy HTTPS and a
   deployment runbook.
 - Loopback-only API port binding by default for reverse-proxy deployments.

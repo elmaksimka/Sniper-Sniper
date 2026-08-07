@@ -1,0 +1,87 @@
+name: alpha-engine-local
+
+x-local-app: &local-app
+  image: alpha-engine:local
+  build:
+    context: .
+    target: runtime
+  environment:
+    ENVIRONMENT: development
+    APP_VERSION: ${APP_VERSION:-0.1.0}
+    GIT_SHA: ${GIT_SHA:-local}
+    DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-alpha}:${POSTGRES_PASSWORD:-alpha-local-only}@postgres:5432/${POSTGRES_DB:-alpha_engine}
+    SOLANA_RPC_URL: ${SOLANA_RPC_URL:-https://api.mainnet.solana.com}
+    TRANSACTION_HISTORY_MODE: standard
+    HELIUS_API_KEY: ""
+    HELIUS_RPC_URL: ""
+    HELIUS_TIMEOUT_SECONDS: ${HELIUS_TIMEOUT_SECONDS:-15}
+    HELIUS_MAX_RETRIES: ${HELIUS_MAX_RETRIES:-4}
+    HELIUS_RETRY_BASE_SECONDS: ${HELIUS_RETRY_BASE_SECONDS:-1}
+    HELIUS_RETRY_MAX_SECONDS: ${HELIUS_RETRY_MAX_SECONDS:-30}
+    HELIUS_MAX_CONCURRENCY: ${HELIUS_MAX_CONCURRENCY:-2}
+    MONITOR_POLL_INTERVAL_SECONDS: ${MONITOR_POLL_INTERVAL_SECONDS:-300}
+    MONITOR_PAGE_SIZE: ${MONITOR_PAGE_SIZE:-20}
+    MONITOR_MAX_PAGES: ${MONITOR_MAX_PAGES:-3}
+    WORKER_HEARTBEAT_INTERVAL_SECONDS: ${WORKER_HEARTBEAT_INTERVAL_SECONDS:-15}
+    WORKER_HEARTBEAT_STALE_SECONDS: ${WORKER_HEARTBEAT_STALE_SECONDS:-360}
+    READINESS_CHECK_TIMEOUT_SECONDS: ${READINESS_CHECK_TIMEOUT_SECONDS:-10}
+    ADMIN_API_KEY: ""
+    ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+  restart: "no"
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-alpha}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-alpha-local-only}
+      POSTGRES_DB: ${POSTGRES_DB:-alpha_engine}
+    volumes:
+      - local_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: "no"
+
+  migrate:
+    <<: *local-app
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    <<: *local-app
+    command: ["python", "-m", "app.worker"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    stop_grace_period: 60s
+
+  api:
+    <<: *local-app
+    command: ["uvicorn", "app.api.app:app", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      worker:
+        condition: service_started
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=5)
+      interval: 15s
+      timeout: 6s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  local_postgres_data:

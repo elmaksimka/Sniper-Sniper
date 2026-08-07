@@ -23,6 +23,25 @@ def test_production_settings_accept_complete_configuration() -> None:
     assert settings.environment == "production"
 
 
+def test_production_settings_accept_standard_solana_rpc() -> None:
+    settings = production_settings(
+        helius_api_key="",
+        solana_rpc_url="https://api.mainnet.solana.com",
+        transaction_history_mode="standard",
+    )
+
+    assert settings.transaction_history_mode == "standard"
+
+
+def test_enhanced_history_rejects_plain_solana_rpc_only() -> None:
+    with pytest.raises(ValidationError, match="HELIUS_API_KEY"):
+        production_settings(
+            helius_api_key="",
+            solana_rpc_url="https://api.mainnet.solana.com",
+            transaction_history_mode="enhanced",
+        )
+
+
 @pytest.mark.parametrize("scheme", ["postgres", "postgresql"])
 def test_managed_postgres_urls_use_asyncpg(scheme: str) -> None:
     settings = Settings(

@@ -74,6 +74,13 @@ jobs:
           --profile operations
           config --quiet
 
+      - name: Validate free local Compose
+        run: >-
+          docker compose
+          --env-file .env.local.example
+          -f docker-compose.local.yml
+          config --quiet
+
       - name: Validate Oracle Always Free Compose
         run: >-
           docker compose
