@@ -91,8 +91,14 @@ class AlertService:
                         trader_style.long_hold_positions
                     ),
                     "trader_max_trades_60s": trader_style.max_trades_60s,
+                    "trader_max_distinct_tokens_60s": (
+                        trader_style.max_distinct_tokens_60s
+                    ),
                     "trader_rapid_round_trips": (
                         trader_style.rapid_round_trips
+                    ),
+                    "trader_max_side_switches_per_token": (
+                        trader_style.max_side_switches_per_token
                     ),
                 }
             )

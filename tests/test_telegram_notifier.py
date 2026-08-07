@@ -117,6 +117,10 @@ async def test_worker_status_notifications_are_delivered() -> None:
                 "candidate_wallets_enriched": 1,
                 "candidate_history_transactions": 20,
                 "candidate_wallets_promoted": 1,
+                "candidate_last_wallet": "candidate-wallet",
+                "candidate_last_score_before": 39.4,
+                "candidate_last_score_after": 42.1,
+                "candidate_history_limit": 20,
             }
         )
         await notifier.send_discovery_degraded(1, 240)
@@ -131,7 +135,8 @@ async def test_worker_status_notifications_are_delivered() -> None:
     assert "17 транзакцій / 9 активних токенів" in messages[1]
     assert "7 транзакцій" in messages[1]
     assert "Кандидатів оброблено: 1" in messages[1]
-    assert "Історичних транзакцій: 20" in messages[1]
+    assert "Останній кандидат: candidate-wallet (39.40 → 42.10)" in messages[1]
+    assert "Історію кандидата завантажено: 20 транзакцій (ліміт 20)" in messages[1]
     assert "Нових топ-гаманців: 1" in messages[1]
     assert "RPC перевантажений" in messages[2]
     assert "discovery відновлено" in messages[3]

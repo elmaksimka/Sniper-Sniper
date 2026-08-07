@@ -16,8 +16,8 @@ meets all of these conditions:
   `ALPHA_MARKET_MIN_TRANSACTIONS_5M` five-minute transactions;
 - the selected pair is no older than `ALPHA_MARKET_MAX_PAIR_AGE_MINUTES`;
 - the wallet passes the holder-style gate: sufficient history, at least one
-  observed 30-minute hold, no rapid round trips, and no high-frequency burst or
-  excessive per-token churn;
+  observed 30-minute hold, no rapid closed-position round trips, and no
+  multi-token high-frequency burst;
 - an alert with the same transaction, wallet, and token has not already been
   stored.
 
@@ -38,9 +38,11 @@ standard confirmed signal.
 Wallet score and trader style are deliberately separate. Score measures
 observed performance, while the hard style gate rejects arbitrage and churn
 bots even when their short-cycle activity produces a high score. The default
-style limits are five trades in any rolling 60 seconds, four trades per token,
-and zero buy-to-sell round trips within two minutes. At least one prior position
-must have remained open for 30 minutes or longer.
+style limit is four distinct tokens in any rolling 60 seconds and zero fully
+closed buy-to-sell position cycles within two minutes. Multiple staged buys and
+partial sells of the same position are allowed, but more than two direction
+switches per token (`buy→sell→buy→sell`) are rejected. At least one prior
+position must have remained open for 30 minutes or longer.
 
 After enabling or changing the style thresholds, stop the worker and audit
 existing monitors once:

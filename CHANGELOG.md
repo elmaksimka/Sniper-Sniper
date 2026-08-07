@@ -50,9 +50,9 @@ All notable changes to Alpha Engine are documented here.
 - Raised alpha evidence defaults to ten observed trades and five wallets, and
   require free Dexscreener confirmation of liquidity, five-minute volume, and
   five-minute transaction activity before creating a Telegram signal.
-- Added a holder-style eligibility gate that rejects burst trading, rapid
-  round trips, and excessive per-token churn; require a proven 30-minute hold
-  and a Dex pair no older than one hour for alpha signals.
+- Added a holder-style eligibility gate that rejects multi-token bursts and
+  rapid closed-position round trips while allowing staged buys; require a
+  proven 30-minute hold and a Dex pair no older than one hour for alpha signals.
 
 ## [0.1.0-rc.1] - 2026-08-07
 

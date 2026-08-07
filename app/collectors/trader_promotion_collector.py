@@ -103,7 +103,9 @@ class TraderPromotionCollector:
             wallet=address,
             reason=profile.reason,
             max_trades_60s=profile.max_trades_60s,
+            max_distinct_tokens_60s=profile.max_distinct_tokens_60s,
             max_trades_per_token=profile.max_trades_per_token,
+            max_side_switches_per_token=profile.max_side_switches_per_token,
             rapid_round_trips=profile.rapid_round_trips,
             long_hold_positions=profile.long_hold_positions,
         )

@@ -226,6 +226,18 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                                     candidate_wallets_promoted=(
                                         enrichment.wallets_promoted + reconciled
                                     ),
+                                    candidate_last_wallet=(
+                                        enrichment.last_wallet or ""
+                                    ),
+                                    candidate_last_score_before=(
+                                        enrichment.last_score_before
+                                    ),
+                                    candidate_last_score_after=(
+                                        enrichment.last_score_after
+                                    ),
+                                    candidate_history_limit=(
+                                        enrichment.history_limit
+                                    ),
                                 )
                             except Exception:
                                 logger.exception("candidate_enrichment_cycle_failed")

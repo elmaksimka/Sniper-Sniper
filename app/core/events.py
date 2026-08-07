@@ -145,4 +145,6 @@ class AlphaSignalGenerated(Event):
     observed_top_trader_count: int = 1
     trader_long_hold_positions: int = 0
     trader_max_trades_60s: int = 0
+    trader_max_distinct_tokens_60s: int = 0
     trader_rapid_round_trips: int = 0
+    trader_max_side_switches_per_token: int = 0

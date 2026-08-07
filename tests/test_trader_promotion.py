@@ -47,7 +47,9 @@ class RejectedStyle:
             total_trades=20,
             unique_tokens=5,
             max_trades_60s=4,
+            max_distinct_tokens_60s=3,
             max_trades_per_token=4,
+            max_side_switches_per_token=3,
             rapid_round_trips=1,
             long_hold_positions=2,
         )

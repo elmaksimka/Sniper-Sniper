@@ -83,6 +83,10 @@ async def test_candidate_history_is_ingested_oldest_first_and_promoted() -> None
     assert result.wallets_enriched == 1
     assert result.transactions_processed == 2
     assert result.wallets_promoted == 1
+    assert result.last_wallet == "candidate"
+    assert result.last_score_before == 43.2
+    assert result.last_score_after == 67
+    assert result.history_limit == 20
     assert cursors.saved is not None
     assert cursors.saved["state"] == "complete"
     assert cursors.saved["score_after"] == 67
@@ -99,4 +103,5 @@ async def test_completed_candidate_is_not_fetched_again() -> None:
     result = await service(FakeCursors(cursor), detection).run_once()
 
     assert result.wallets_enriched == 0
+    assert result.last_wallet is None
     assert detection.signatures == []

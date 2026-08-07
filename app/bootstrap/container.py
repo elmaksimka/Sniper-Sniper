@@ -61,8 +61,12 @@ class Container:
             session,
             min_history_trades=settings.alpha_trader_min_history_trades,
             min_hold_minutes=settings.alpha_trader_min_hold_minutes,
-            max_trades_60s=settings.alpha_trader_max_trades_60s,
-            max_trades_per_token=settings.alpha_trader_max_trades_per_token,
+            max_distinct_tokens_60s=(
+                settings.alpha_trader_max_distinct_tokens_60s
+            ),
+            max_side_switches_per_token=(
+                settings.alpha_trader_max_side_switches_per_token
+            ),
             rapid_round_trip_seconds=(
                 settings.alpha_trader_rapid_round_trip_seconds
             ),

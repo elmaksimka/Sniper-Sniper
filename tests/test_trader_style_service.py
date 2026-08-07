@@ -9,8 +9,8 @@ def service() -> TraderStyleService:
         None,  # type: ignore[arg-type]
         min_history_trades=10,
         min_hold_minutes=30,
-        max_trades_60s=5,
-        max_trades_per_token=4,
+        max_distinct_tokens_60s=4,
+        max_side_switches_per_token=2,
         rapid_round_trip_seconds=120,
         max_rapid_round_trips=0,
     )
@@ -49,6 +49,7 @@ def test_patient_holder_is_eligible() -> None:
     assert profile.reason is None
     assert profile.long_hold_positions == 10
     assert profile.max_trades_60s == 1
+    assert profile.max_distinct_tokens_60s == 1
 
 
 def test_high_frequency_multi_token_burst_is_rejected() -> None:
@@ -61,8 +62,9 @@ def test_high_frequency_multi_token_burst_is_rejected() -> None:
     profile = service().evaluate_trades(trades, started + timedelta(hours=1))
 
     assert profile.eligible is False
-    assert profile.reason == "high_frequency_burst"
+    assert profile.reason == "multi_token_burst"
     assert profile.max_trades_60s == 10
+    assert profile.max_distinct_tokens_60s == 10
 
 
 def test_rapid_buy_sell_round_trip_is_rejected() -> None:
@@ -88,7 +90,7 @@ def test_rapid_buy_sell_round_trip_is_rejected() -> None:
     assert profile.rapid_round_trips == 1
 
 
-def test_excessive_repeated_token_trading_is_rejected() -> None:
+def test_multiple_staged_buys_of_one_token_are_allowed() -> None:
     started = datetime(2026, 1, 1, tzinfo=UTC)
     trades = [
         observed_trade(index, "churned-token", "buy", started + timedelta(minutes=index * 2))
@@ -100,6 +102,41 @@ def test_excessive_repeated_token_trading_is_rejected() -> None:
 
     profile = service().evaluate_trades(trades, started + timedelta(hours=1))
 
-    assert profile.eligible is False
-    assert profile.reason == "excessive_token_churn"
+    assert profile.eligible is True
+    assert profile.reason is None
     assert profile.max_trades_per_token == 5
+    assert profile.max_side_switches_per_token == 0
+
+
+def test_repeated_buy_sell_switching_is_rejected_even_if_position_stays_open() -> None:
+    started = datetime(2026, 1, 1, tzinfo=UTC)
+    sides = ["buy", "sell", "buy", "sell", "buy", "sell"]
+    trades = [
+        Trade(
+            id=index,
+            token_id=1,
+            wallet_id=1,
+            token=Token(address="alternating-token"),
+            side=side,
+            amount=10 if index == 1 else 1,
+            price=0,
+            sol_change=-1 if side == "buy" else 1,
+            signature=f"alternating-{index}",
+            timestamp=started + timedelta(minutes=index * 3),
+        )
+        for index, side in enumerate(sides, start=1)
+    ] + [
+        observed_trade(
+            index + 10,
+            f"token-{index}",
+            "buy",
+            started + timedelta(minutes=20 + index * 3),
+        )
+        for index in range(4)
+    ]
+
+    profile = service().evaluate_trades(trades, started + timedelta(hours=1))
+
+    assert profile.eligible is False
+    assert profile.reason == "repeated_buy_sell_switching"
+    assert profile.max_side_switches_per_token == 5

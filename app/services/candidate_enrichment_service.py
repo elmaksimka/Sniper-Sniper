@@ -16,6 +16,10 @@ class CandidateEnrichmentResult:
     wallets_enriched: int
     transactions_processed: int
     wallets_promoted: int
+    last_wallet: str | None
+    last_score_before: float | None
+    last_score_after: float | None
+    history_limit: int
 
 
 class CandidateEnrichmentService:
@@ -52,6 +56,9 @@ class CandidateEnrichmentService:
         enriched = 0
         processed = 0
         promoted = 0
+        last_wallet: str | None = None
+        last_score_before: float | None = None
+        last_score_after: float | None = None
 
         for snapshot in candidates:
             if enriched >= self.maximum_candidates:
@@ -103,6 +110,9 @@ class CandidateEnrichmentService:
                 enriched += 1
                 processed += len(transactions)
                 promoted += int(was_promoted)
+                last_wallet = address
+                last_score_before = snapshot.score
+                last_score_after = updated.score if updated is not None else None
             except Exception as error:
                 await self.cursors.beat(
                     cursor_name,
@@ -118,7 +128,15 @@ class CandidateEnrichmentService:
                     wallet=address,
                 )
 
-        return CandidateEnrichmentResult(enriched, processed, promoted)
+        return CandidateEnrichmentResult(
+            enriched,
+            processed,
+            promoted,
+            last_wallet,
+            last_score_before,
+            last_score_after,
+            self.history_limit,
+        )
 
     def _ready(self, cursor: object | None) -> bool:
         if cursor is None:

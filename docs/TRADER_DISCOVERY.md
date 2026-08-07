@@ -74,3 +74,6 @@ CANDIDATE_ENRICHMENT_RETRY_SECONDS=1800
 
 Historical backfill never creates a stale trading alert: alpha signals reject
 buys older than `ALPHA_SIGNAL_MAX_AGE_SECONDS` (five minutes by default).
+The Telegram health message reports the candidate address, score before/after,
+and the configured history limit. `Кандидатів оброблено` is a per-cycle count,
+not the cumulative number of wallets examined since startup.

@@ -63,8 +63,8 @@ def test_alpha_signal_defaults_require_confirmed_activity() -> None:
     assert settings.alpha_market_max_pair_age_minutes == 60
     assert settings.alpha_trader_min_history_trades == 10
     assert settings.alpha_trader_min_hold_minutes == 30
-    assert settings.alpha_trader_max_trades_60s == 5
-    assert settings.alpha_trader_max_trades_per_token == 4
+    assert settings.alpha_trader_max_distinct_tokens_60s == 4
+    assert settings.alpha_trader_max_side_switches_per_token == 2
     assert settings.alpha_trader_rapid_round_trip_seconds == 120
     assert settings.alpha_trader_max_rapid_round_trips == 0
 

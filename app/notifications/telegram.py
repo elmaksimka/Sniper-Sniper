@@ -134,9 +134,12 @@ class TelegramNotifier:
                         "Кандидатів оброблено: "
                         f"{int(details.get('candidate_wallets_enriched', 0))}"
                     ),
+                    TelegramNotifier._candidate_status(details),
                     (
-                        "Історичних транзакцій: "
-                        f"{int(details.get('candidate_history_transactions', 0))}"
+                        "Історію кандидата завантажено: "
+                        f"{int(details.get('candidate_history_transactions', 0))} "
+                        "транзакцій "
+                        f"(ліміт {int(details.get('candidate_history_limit', 0))})"
                     ),
                     (
                         "Нових топ-гаманців: "
@@ -231,8 +234,9 @@ class TelegramNotifier:
                 (
                     "Trader style: holder — "
                     f"{event.trader_long_hold_positions} proven 30m+ holds / "
-                    f"max {event.trader_max_trades_60s} trades per 60s / "
-                    f"{event.trader_rapid_round_trips} rapid round trips"
+                    f"max {event.trader_max_distinct_tokens_60s} tokens per 60s / "
+                    f"{event.trader_rapid_round_trips} rapid round trips / "
+                    f"max {event.trader_max_side_switches_per_token} side switches"
                 ),
                 f"Buy size: {sol_size}",
                 f"Estimated buy value: {usd_size}",
@@ -266,3 +270,18 @@ class TelegramNotifier:
     @staticmethod
     def _format_usd_amount(value: float) -> str:
         return f"${value:,.0f}"
+
+    @staticmethod
+    def _candidate_status(details: dict[str, Any]) -> str:
+        wallet = str(details.get("candidate_last_wallet", "")).strip()
+        if not wallet:
+            return "Останній кандидат: немає в цьому циклі"
+        before = details.get("candidate_last_score_before")
+        after = details.get("candidate_last_score_after")
+        try:
+            if before is None or after is None:
+                raise ValueError
+            score_change = f"{float(before):.2f} → {float(after):.2f}"
+        except (TypeError, ValueError):
+            score_change = "score unavailable"
+        return f"Останній кандидат: {wallet} ({score_change})"

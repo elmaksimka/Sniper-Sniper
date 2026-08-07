@@ -19,16 +19,16 @@ class TraderStyleService:
         *,
         min_history_trades: int,
         min_hold_minutes: float,
-        max_trades_60s: int,
-        max_trades_per_token: int,
+        max_distinct_tokens_60s: int,
+        max_side_switches_per_token: int,
         rapid_round_trip_seconds: float,
         max_rapid_round_trips: int,
     ) -> None:
         self.analytics = AnalyticsRepository(session)
         self.min_history_trades = min_history_trades
         self.min_hold_seconds = min_hold_minutes * 60
-        self.max_trades_60s = max_trades_60s
-        self.max_trades_per_token = max_trades_per_token
+        self.max_distinct_tokens_60s = max_distinct_tokens_60s
+        self.max_side_switches_per_token = max_side_switches_per_token
         self.rapid_round_trip_seconds = rapid_round_trip_seconds
         self.max_rapid_round_trips = max_rapid_round_trips
 
@@ -49,37 +49,58 @@ class TraderStyleService:
                 per_token[trade.token.address].append(trade)
 
         burst = self._maximum_rolling_trades(ordered, 60)
+        distinct_token_burst = self._maximum_rolling_distinct_tokens(ordered, 60)
         max_per_token = max((len(items) for items in per_token.values()), default=0)
+        max_side_switches = max(
+            (
+                sum(
+                    left.side != right.side
+                    for left, right in zip(items, items[1:], strict=False)
+                )
+                for items in per_token.values()
+            ),
+            default=0,
+        )
         rapid_round_trips = 0
         long_holds = 0
         for items in per_token.values():
-            first_buy = next((item for item in items if item.side == "buy"), None)
-            if first_buy is None:
-                continue
-            first_sell = next(
-                (
-                    item
-                    for item in items
-                    if item.side == "sell" and item.timestamp >= first_buy.timestamp
-                ),
-                None,
-            )
-            held_until = first_sell.timestamp if first_sell is not None else observed_at
-            held_seconds = (
-                self._aware(held_until) - self._aware(first_buy.timestamp)
-            ).total_seconds()
-            if first_sell is not None and held_seconds <= self.rapid_round_trip_seconds:
-                rapid_round_trips += 1
-            if held_seconds >= self.min_hold_seconds:
-                long_holds += 1
+            position = 0.0
+            cycle_started_at: datetime | None = None
+            for item in items:
+                if item.side == "buy":
+                    if position <= 0:
+                        cycle_started_at = item.timestamp
+                        position = 0.0
+                    position += item.amount
+                    continue
+                if item.side != "sell" or position <= 0 or cycle_started_at is None:
+                    continue
+                position -= item.amount
+                if position > 1e-12:
+                    continue
+                held_seconds = (
+                    self._aware(item.timestamp) - self._aware(cycle_started_at)
+                ).total_seconds()
+                if held_seconds <= self.rapid_round_trip_seconds:
+                    rapid_round_trips += 1
+                if held_seconds >= self.min_hold_seconds:
+                    long_holds += 1
+                position = 0.0
+                cycle_started_at = None
+            if position > 0 and cycle_started_at is not None:
+                held_seconds = (
+                    self._aware(observed_at) - self._aware(cycle_started_at)
+                ).total_seconds()
+                if held_seconds >= self.min_hold_seconds:
+                    long_holds += 1
 
         reason: str | None = None
         if len(ordered) < self.min_history_trades:
             reason = "insufficient_history"
-        elif burst > self.max_trades_60s:
-            reason = "high_frequency_burst"
-        elif max_per_token > self.max_trades_per_token:
-            reason = "excessive_token_churn"
+        elif distinct_token_burst > self.max_distinct_tokens_60s:
+            reason = "multi_token_burst"
+        elif max_side_switches > self.max_side_switches_per_token:
+            reason = "repeated_buy_sell_switching"
         elif rapid_round_trips > self.max_rapid_round_trips:
             reason = "rapid_round_trip"
         elif long_holds < 1:
@@ -91,7 +112,9 @@ class TraderStyleService:
             total_trades=len(ordered),
             unique_tokens=len(per_token),
             max_trades_60s=burst,
+            max_distinct_tokens_60s=distinct_token_burst,
             max_trades_per_token=max_per_token,
+            max_side_switches_per_token=max_side_switches,
             rapid_round_trips=rapid_round_trips,
             long_hold_positions=long_holds,
         )
@@ -106,6 +129,25 @@ class TraderStyleService:
             ).total_seconds() > seconds:
                 left += 1
             maximum = max(maximum, right - left + 1)
+        return maximum
+
+    @classmethod
+    def _maximum_rolling_distinct_tokens(
+        cls,
+        trades: list[Trade],
+        seconds: float,
+    ) -> int:
+        maximum = 0
+        for left, first in enumerate(trades):
+            addresses: set[str] = set()
+            for trade in trades[left:]:
+                if (
+                    cls._aware(trade.timestamp) - cls._aware(first.timestamp)
+                ).total_seconds() > seconds:
+                    break
+                if trade.token is not None:
+                    addresses.add(trade.token.address)
+            maximum = max(maximum, len(addresses))
         return maximum
 
     @staticmethod
