@@ -4,8 +4,8 @@ from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.events import ScoreUpdated
-from app.infrastructure.models import Alert
+from app.core.events import ScoreUpdated, TradeScored
+from app.infrastructure.models import Alert, TokenScoreSnapshot, WalletScoreSnapshot
 from app.repositories.alert_repository import AlertRepository
 
 
@@ -40,6 +40,48 @@ class AlertService:
             }
         )
 
+    async def create_alpha_signal(
+        self,
+        event: TradeScored,
+        wallet_score: WalletScoreSnapshot,
+        token_score: TokenScoreSnapshot,
+    ) -> Alert | None:
+        if not event.signature:
+            return None
+        severity = (
+            "critical"
+            if wallet_score.grade == "A" and token_score.grade == "A"
+            else "high"
+        )
+        return await self.repository.create_if_absent(
+            {
+                "entity_type": "token",
+                "entity_address": event.token_address,
+                "alert_type": "top_trader_token_buy",
+                "severity": severity,
+                "message": (
+                    f"Top trader {event.wallet} bought token "
+                    f"{event.token_address}: wallet {wallet_score.score:.2f} "
+                    f"({wallet_score.grade}), token {token_score.score:.2f} "
+                    f"({token_score.grade})"
+                ),
+                "details": {
+                    "wallet": event.wallet,
+                    "wallet_score": wallet_score.score,
+                    "wallet_grade": wallet_score.grade,
+                    "token_score": token_score.score,
+                    "token_grade": token_score.grade,
+                    "token_amount": event.amount,
+                    "sol_amount": abs(event.sol_change),
+                    "signature": event.signature,
+                },
+                "dedupe_key": (
+                    f"alpha-buy:{event.signature}:"
+                    f"{event.wallet}:{event.token_address}"
+                ),
+                "created_at": datetime.now(UTC),
+            }
+        )
     async def list_alerts(
         self,
         limit: int,

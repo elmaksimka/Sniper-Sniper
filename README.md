@@ -68,6 +68,8 @@ Helius timeout, retry backoff, and maximum concurrency are configurable through
 the `HELIUS_*` variables listed in `.env.example`.
 Wallet and token score alert thresholds are independently configurable with
 `WALLET_SCORE_ALERT_THRESHOLD` and `TOKEN_SCORE_ALERT_THRESHOLD`.
+Top-trader token-buy convergence signals and Telegram delivery are documented
+in [`docs/ALPHA_SIGNALS.md`](docs/ALPHA_SIGNALS.md).
 In production, monitor mutations and alert acknowledgement require the
 `X-API-Key` header configured by `ADMIN_API_KEY`.
 Production also requires an explicit `ALLOWED_HOSTS` list and disables the
@@ -164,6 +166,8 @@ Transaction normalization and conservative SOL allocation are documented in
 [`docs/ACCOUNTING.md`](docs/ACCOUNTING.md).
 Native SOL funding extraction is documented in
 [`docs/FUNDING.md`](docs/FUNDING.md).
+Telegram alpha signals are documented in
+[`docs/ALPHA_SIGNALS.md`](docs/ALPHA_SIGNALS.md).
 Observed holder analytics is documented in
 [`docs/HOLDERS.md`](docs/HOLDERS.md).
 Creator-level launch analytics is documented in

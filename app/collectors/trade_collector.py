@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from app.core.event_bus import EventBus
-from app.core.events import TokenUpdated, TradeObserved, WalletUpdated
+from app.core.events import TradeScored, TokenUpdated, TradeObserved, WalletUpdated
 from app.services.token_service import TokenService
 from app.services.trade_service import TradeService
 from app.services.wallet_service import WalletService
@@ -42,3 +42,14 @@ class TradeCollector:
 
         await self.event_bus.publish(WalletUpdated(wallet=wallet.address))
         await self.event_bus.publish(TokenUpdated(token_address=token.address))
+        await self.event_bus.publish(
+            TradeScored(
+                token_address=token.address,
+                wallet=wallet.address,
+                side=event.side,
+                amount=event.amount,
+                sol_change=event.sol_change,
+                signature=event.signature,
+                transaction_at=event.transaction_at,
+            )
+        )

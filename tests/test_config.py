@@ -42,6 +42,16 @@ def test_enhanced_history_rejects_plain_solana_rpc_only() -> None:
         )
 
 
+def test_telegram_recipient_list_is_trimmed_and_deduplicated() -> None:
+    settings = Settings(
+        _env_file=None,
+        telegram_chat_id="100",
+        telegram_chat_ids="200, 100, ,300",
+    )
+
+    assert settings.telegram_recipients == ("100", "200", "300")
+
+
 @pytest.mark.parametrize("scheme", ["postgres", "postgresql"])
 def test_managed_postgres_urls_use_asyncpg(scheme: str) -> None:
     settings = Settings(

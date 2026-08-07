@@ -78,6 +78,17 @@ class TradeObserved(Event):
 
 
 @dataclass(slots=True, kw_only=True)
+class TradeScored(Event):
+    token_address: str
+    wallet: str
+    side: str
+    amount: float
+    sol_change: float
+    signature: str | None
+    transaction_at: datetime | None = None
+
+
+@dataclass(slots=True, kw_only=True)
 class NativeTransferObserved(Event):
     source: str
     destination: str
@@ -107,3 +118,18 @@ class AlertGenerated(Event):
     dedupe_key: str
     message: str
     metadata: dict[str, Any]
+
+
+@dataclass(slots=True, kw_only=True)
+class AlphaSignalGenerated(Event):
+    wallet: str
+    token_address: str
+    wallet_score: float
+    wallet_grade: str
+    token_score: float
+    token_grade: str
+    token_amount: float
+    sol_amount: float
+    signature: str
+    severity: str
+    message: str

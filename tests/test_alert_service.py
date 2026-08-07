@@ -1,8 +1,9 @@
+from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
 
-from app.core.events import ScoreUpdated
+from app.core.events import ScoreUpdated, TradeScored
 from app.infrastructure.models import Alert
 from app.services.alert_service import AlertService
 
@@ -76,3 +77,41 @@ async def test_token_alert_has_typed_key_and_message() -> None:
     assert repository.values["alert_type"] == "token_score_grade"
     assert repository.values["dedupe_key"] == "token-score:mint:token-v1:B"
     assert str(repository.values["message"]).startswith("Token mint reached")
+
+
+@pytest.mark.asyncio
+async def test_alpha_signal_has_transaction_scoped_dedupe_key() -> None:
+    service = AlertService(None)  # type: ignore[arg-type]
+    repository = CapturingRepository()
+    service_with_fake: Any = service
+    service_with_fake.repository = repository
+
+    alert = await service.create_alpha_signal(
+        TradeScored(
+            token_address="mint",
+            wallet="wallet",
+            side="buy",
+            amount=1200,
+            sol_change=-3.5,
+            signature="signature",
+        ),
+        SimpleNamespace(score=85, grade="A"),  # type: ignore[arg-type]
+        SimpleNamespace(score=82, grade="A"),  # type: ignore[arg-type]
+    )
+
+    assert alert is not None
+    assert repository.values["alert_type"] == "top_trader_token_buy"
+    assert repository.values["severity"] == "critical"
+    assert repository.values["dedupe_key"] == (
+        "alpha-buy:signature:wallet:mint"
+    )
+    assert repository.values["details"] == {
+        "wallet": "wallet",
+        "wallet_score": 85,
+        "wallet_grade": "A",
+        "token_score": 82,
+        "token_grade": "A",
+        "token_amount": 1200,
+        "sol_amount": 3.5,
+        "signature": "signature",
+    }

@@ -8,10 +8,19 @@ from app.collectors.trade_collector import TradeCollector
 from app.collectors.score_collector import ScoreCollector
 from app.collectors.alert_collector import AlertCollector
 from app.collectors.funding_collector import FundingCollector
+from app.collectors.alpha_signal_collector import AlphaSignalCollector
 from app.core.config import get_settings
 from app.core.event_bus import EventBus
+from app.core.events import AlphaSignalGenerated
 from app.listeners.helius_client import HeliusClient
 from app.listeners.transaction_scanner import TransactionScanner
+from app.notifications.telegram import TelegramNotifier
+from app.repositories.score_snapshot_repository import ScoreSnapshotRepository
+from app.repositories.token_repository import TokenRepository
+from app.repositories.token_score_snapshot_repository import (
+    TokenScoreSnapshotRepository,
+)
+from app.repositories.wallet_repository import WalletRepository
 from app.services.metadata_service import MetadataService
 from app.services.alert_service import AlertService
 from app.services.score_snapshot_service import ScoreSnapshotService
@@ -43,6 +52,10 @@ class Container:
         self.token_score_snapshot_service = TokenScoreSnapshotService(session)
         self.alert_service = AlertService(session)
         self.funding_service = FundingService(session)
+        self.telegram_notifier = TelegramNotifier(
+            settings.telegram_bot_token,
+            settings.telegram_recipients,
+        )
 
         self.token_collector = TokenCollector(
             event_bus=self.event_bus,
@@ -73,6 +86,16 @@ class Container:
             wallet_service=self.wallet_service,
             funding_service=self.funding_service,
         )
+        self.alpha_signal_collector = AlphaSignalCollector(
+            event_bus=self.event_bus,
+            wallets=WalletRepository(session),
+            tokens=TokenRepository(session),
+            wallet_scores=ScoreSnapshotRepository(session),
+            token_scores=TokenScoreSnapshotRepository(session),
+            alerts=self.alert_service,
+            wallet_threshold=settings.alpha_wallet_score_threshold,
+            token_threshold=settings.alpha_token_score_threshold,
+        )
 
         self.helius_client = helius_client or HeliusClient()
         self.token_parser = TokenParser()
@@ -98,3 +121,8 @@ class Container:
         self.score_collector.register()
         self.alert_collector.register()
         self.funding_collector.register()
+        self.alpha_signal_collector.register()
+        self.event_bus.subscribe(
+            AlphaSignalGenerated,
+            self.telegram_notifier.handle_alpha_signal,
+        )

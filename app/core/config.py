@@ -54,6 +54,8 @@ class Settings(BaseSettings):
         le=100,
         description="Minimum token score that produces an alert",
     )
+    alpha_wallet_score_threshold: float = Field(default=65, ge=0, le=100)
+    alpha_token_score_threshold: float = Field(default=65, ge=0, le=100)
 
     monitor_poll_interval_seconds: float = Field(default=30, gt=0)
     monitor_page_size: int = Field(default=100, ge=1, le=100)
@@ -82,6 +84,12 @@ class Settings(BaseSettings):
     # Telegram
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
+    telegram_chat_ids: str = ""
+
+    @property
+    def telegram_recipients(self) -> tuple[str, ...]:
+        values = [self.telegram_chat_id, *self.telegram_chat_ids.split(",")]
+        return tuple(dict.fromkeys(value.strip() for value in values if value.strip()))
 
     model_config = SettingsConfigDict(
         env_file=".env",

@@ -57,6 +57,17 @@ class TokenScoreSnapshotRepository:
         )
         return list(result.scalars().all())
 
+    async def get_by_token_id(
+        self,
+        token_id: int,
+    ) -> TokenScoreSnapshot | None:
+        result = await self.session.execute(
+            select(TokenScoreSnapshot).where(
+                TokenScoreSnapshot.token_id == token_id
+            )
+        )
+        return result.scalar_one_or_none()
+
     async def count(self, grade: str | None = None) -> int:
         statement = select(func.count(TokenScoreSnapshot.id))
         if grade:

@@ -16,6 +16,8 @@ def setup_logging() -> None:
         stream=sys.stdout,
         level=logging.INFO,
     )
+    # HTTP request URLs can contain credentials such as Telegram bot tokens.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
     structlog.configure(
         processors=[

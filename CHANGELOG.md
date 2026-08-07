@@ -6,6 +6,10 @@ All notable changes to Alpha Engine are documented here.
 
 ### Added
 
+- Deduplicated top-trader token-buy signals requiring both wallet and token
+  scores to meet configurable A/B thresholds.
+- Multi-recipient Telegram Bot API delivery for alpha signals, with a separate
+  non-trading delivery test command.
 - Fully free on-demand local stack backed by the public Solana RPC, with no
   Helius or cloud subscription requirement.
 - One-command PowerShell start and stop scripts that preserve the local
