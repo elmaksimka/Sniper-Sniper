@@ -44,6 +44,8 @@ All notable changes to Alpha Engine are documented here.
 - Excluded wrapped SOL, canonical USDC, and canonical USDT from normalized
   trades, wallet/token scoring, alpha eligibility, and activity totals; added a
   maintenance command to clean legacy rows and recalculate scores.
+- Force score snapshot refreshes after upserts so candidate-enrichment status
+  reports the actual post-backfill score instead of a stale session value.
 
 ### Changed
 

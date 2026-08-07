@@ -29,6 +29,7 @@ class TokenScoreSnapshotRepository:
                 set_={key: value for key, value in values.items() if key != "token_id"},
             )
             .returning(TokenScoreSnapshot)
+            .execution_options(populate_existing=True)
         )
         result = await self.session.execute(statement)
         snapshot = result.scalar_one()
@@ -41,8 +42,10 @@ class TokenScoreSnapshotRepository:
         offset: int,
         grade: str | None = None,
     ) -> list[TokenScoreSnapshot]:
-        statement = select(TokenScoreSnapshot).options(
-            selectinload(TokenScoreSnapshot.token)
+        statement = (
+            select(TokenScoreSnapshot)
+            .options(selectinload(TokenScoreSnapshot.token))
+            .execution_options(populate_existing=True)
         )
         if grade:
             statement = statement.where(TokenScoreSnapshot.grade == grade)
@@ -62,9 +65,9 @@ class TokenScoreSnapshotRepository:
         token_id: int,
     ) -> TokenScoreSnapshot | None:
         result = await self.session.execute(
-            select(TokenScoreSnapshot).where(
-                TokenScoreSnapshot.token_id == token_id
-            )
+            select(TokenScoreSnapshot)
+            .where(TokenScoreSnapshot.token_id == token_id)
+            .execution_options(populate_existing=True)
         )
         return result.scalar_one_or_none()
 

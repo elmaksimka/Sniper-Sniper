@@ -20,9 +20,11 @@ class CompilingSession:
     def __init__(self) -> None:
         self.sql = ""
         self.committed = False
+        self.execution_options: dict[str, Any] = {}
 
     async def execute(self, statement: Any) -> FakeResult:
         self.sql = str(statement.compile(dialect=postgresql.dialect()))
+        self.execution_options = dict(statement.get_execution_options())
         return FakeResult(WalletScoreSnapshot(wallet_id=1))
 
     async def commit(self) -> None:
@@ -57,3 +59,4 @@ async def test_snapshot_upsert_is_atomic_on_wallet_id() -> None:
     assert "RETURNING" in session.sql
     assert session.committed is True
     assert snapshot.wallet_id == 1
+    assert session.execution_options["populate_existing"] is True

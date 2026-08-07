@@ -33,6 +33,7 @@ class ScoreSnapshotRepository:
                 },
             )
             .returning(WalletScoreSnapshot)
+            .execution_options(populate_existing=True)
         )
         result = await self.session.execute(statement)
         snapshot = result.scalar_one()
@@ -44,9 +45,9 @@ class ScoreSnapshotRepository:
         wallet_id: int,
     ) -> WalletScoreSnapshot | None:
         result = await self.session.execute(
-            select(WalletScoreSnapshot).where(
-                WalletScoreSnapshot.wallet_id == wallet_id
-            )
+            select(WalletScoreSnapshot)
+            .where(WalletScoreSnapshot.wallet_id == wallet_id)
+            .execution_options(populate_existing=True)
         )
         return result.scalar_one_or_none()
 
@@ -56,8 +57,10 @@ class ScoreSnapshotRepository:
         offset: int,
         grade: str | None = None,
     ) -> list[WalletScoreSnapshot]:
-        statement = select(WalletScoreSnapshot).options(
-            selectinload(WalletScoreSnapshot.wallet)
+        statement = (
+            select(WalletScoreSnapshot)
+            .options(selectinload(WalletScoreSnapshot.wallet))
+            .execution_options(populate_existing=True)
         )
         if grade:
             statement = statement.where(WalletScoreSnapshot.grade == grade)
