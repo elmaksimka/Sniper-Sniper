@@ -42,6 +42,12 @@ class Settings(BaseSettings):
         le=100,
         description="Minimum wallet score that produces an alert",
     )
+    token_score_alert_threshold: float = Field(
+        default=65,
+        ge=0,
+        le=100,
+        description="Minimum token score that produces an alert",
+    )
 
     monitor_poll_interval_seconds: float = Field(default=30, gt=0)
     monitor_page_size: int = Field(default=100, ge=1, le=100)

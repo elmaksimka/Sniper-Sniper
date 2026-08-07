@@ -29,6 +29,9 @@ After deploying the snapshot migration, populate existing tokens and wallets:
 poetry run python -m app.backfill_scores
 ```
 
+Scores at or above `TOKEN_SCORE_ALERT_THRESHOLD` with grade A or B emit
+deduplicated token alerts. Token and wallet alert keys are namespaced separately.
+
 ## Limitations
 
 The score uses only data ingested by Alpha Engine. Observed holder concentration

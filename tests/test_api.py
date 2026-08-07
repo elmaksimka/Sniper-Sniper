@@ -350,6 +350,7 @@ class FakeAlertService:
         entity_address: str | None,
         severity: str | None,
         acknowledged: bool | None,
+        entity_type: str | None,
     ) -> tuple[list[Alert], int]:
         self.filters = (
             limit,
@@ -357,6 +358,7 @@ class FakeAlertService:
             entity_address,
             severity,
             acknowledged,
+            entity_type,
         )
         return [self.alert], 1
 
@@ -864,6 +866,7 @@ def test_list_alerts_with_filters() -> None:
             "entity_address": "wallet",
             "severity": "high",
             "acknowledged": False,
+            "entity_type": "wallet",
         },
     )
 
@@ -884,6 +887,14 @@ def test_acknowledge_alert() -> None:
     assert response.status_code == 200
     assert response.json()["acknowledged_at"] is not None
     assert missing.status_code == 404
+
+
+def test_alert_entity_type_validation() -> None:
+    client, _ = create_client()
+
+    response = client.get("/api/v1/alerts", params={"entity_type": "creator"})
+
+    assert response.status_code == 422
 
 
 def test_monitor_management_api() -> None:

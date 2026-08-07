@@ -66,6 +66,7 @@ class Container:
             event_bus=self.event_bus,
             alert_service=self.alert_service,
             minimum_score=settings.wallet_score_alert_threshold,
+            token_minimum_score=settings.token_score_alert_threshold,
         )
         self.funding_collector = FundingCollector(
             event_bus=self.event_bus,

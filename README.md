@@ -62,6 +62,8 @@ poetry run python -m app.worker
 
 Helius timeout, retry backoff, and maximum concurrency are configurable through
 the `HELIUS_*` variables listed in `.env.example`.
+Wallet and token score alert thresholds are independently configurable with
+`WALLET_SCORE_ALERT_THRESHOLD` and `TOKEN_SCORE_ALERT_THRESHOLD`.
 Multiple worker replicas are safe: PostgreSQL advisory-lock leader election
 keeps exactly one replica active while the others wait for failover.
 

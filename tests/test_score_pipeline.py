@@ -136,8 +136,12 @@ async def test_trade_persistence_triggers_score_snapshot_pipeline() -> None:
     assert token_snapshot_service.saved is not None
     assert token_snapshot_service.saved[0] == 1
     assert token_snapshot_service.saved[1].score == 70
-    assert len(score_events) == 1
+    assert len(score_events) == 2
+    assert score_events[0].entity_type == "wallet"
     assert score_events[0].entity == "wallet"
     assert score_events[0].score == 75
     assert score_events[0].grade == "B"
     assert score_events[0].methodology_version == "wallet-v1"
+    assert score_events[1].entity_type == "token"
+    assert score_events[1].entity == "mint"
+    assert score_events[1].methodology_version == "token-v1"

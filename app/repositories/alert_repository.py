@@ -49,8 +49,11 @@ class AlertRepository:
         entity_address: str | None = None,
         severity: str | None = None,
         acknowledged: bool | None = None,
+        entity_type: str | None = None,
     ) -> list[Alert]:
-        conditions = self._filters(entity_address, severity, acknowledged)
+        conditions = self._filters(
+            entity_address, severity, acknowledged, entity_type
+        )
         result = await self.session.execute(
             select(Alert)
             .where(*conditions)
@@ -65,8 +68,11 @@ class AlertRepository:
         entity_address: str | None = None,
         severity: str | None = None,
         acknowledged: bool | None = None,
+        entity_type: str | None = None,
     ) -> int:
-        conditions = self._filters(entity_address, severity, acknowledged)
+        conditions = self._filters(
+            entity_address, severity, acknowledged, entity_type
+        )
         result = await self.session.execute(
             select(func.count(Alert.id)).where(*conditions)
         )
@@ -77,12 +83,15 @@ class AlertRepository:
         entity_address: str | None,
         severity: str | None,
         acknowledged: bool | None,
+        entity_type: str | None,
     ) -> list:
         conditions = []
         if entity_address:
             conditions.append(Alert.entity_address == entity_address)
         if severity:
             conditions.append(Alert.severity == severity)
+        if entity_type:
+            conditions.append(Alert.entity_type == entity_type)
         if acknowledged is True:
             conditions.append(Alert.acknowledged_at.is_not(None))
         elif acknowledged is False:

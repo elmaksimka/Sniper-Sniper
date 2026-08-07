@@ -16,17 +16,18 @@ class AlertService:
     async def create_score_alert(self, event: ScoreUpdated) -> Alert | None:
         severity = "critical" if event.grade == "A" else "high"
         dedupe_key = (
-            f"wallet-score:{event.entity}:"
+            f"{event.entity_type}-score:{event.entity}:"
             f"{event.methodology_version}:{event.grade}"
         )
+        label = event.entity_type.capitalize()
         return await self.repository.create_if_absent(
             {
-                "entity_type": "wallet",
+                "entity_type": event.entity_type,
                 "entity_address": event.entity,
-                "alert_type": "wallet_score_grade",
+                "alert_type": f"{event.entity_type}_score_grade",
                 "severity": severity,
                 "message": (
-                    f"Wallet {event.entity} reached grade {event.grade} "
+                    f"{label} {event.entity} reached grade {event.grade} "
                     f"with score {event.score:.2f}"
                 ),
                 "details": {
@@ -46,8 +47,9 @@ class AlertService:
         entity_address: str | None,
         severity: str | None,
         acknowledged: bool | None,
+        entity_type: str | None = None,
     ) -> tuple[list[Alert], int]:
-        filters = (entity_address, severity, acknowledged)
+        filters = (entity_address, severity, acknowledged, entity_type)
         return (
             await self.repository.list_all(limit, offset, *filters),
             await self.repository.count(*filters),

@@ -370,6 +370,7 @@ async def list_alerts(
     entity_address: str | None = None,
     severity: Literal["high", "critical"] | None = None,
     acknowledged: bool | None = None,
+    entity_type: Literal["wallet", "token"] | None = None,
 ) -> AlertPage:
     alerts, total = await service.list_alerts(
         limit,
@@ -377,6 +378,7 @@ async def list_alerts(
         entity_address,
         severity,
         acknowledged,
+        entity_type,
     )
     return AlertPage(
         items=[AlertRead.from_alert(alert) for alert in alerts],

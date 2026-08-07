@@ -19,6 +19,8 @@ from app.services.token_service import TokenService
 from app.services.trade_service import TradeService
 from app.services.scoring_service import ScoringService
 from app.services.token_score_snapshot_service import TokenScoreSnapshotService
+from app.services.alert_service import AlertService
+from app.core.events import ScoreUpdated
 
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
@@ -105,6 +107,31 @@ async def test_creator_analytics_aggregate_launches_and_sol_activity(
         assert leader_total == 1
         assert leaders[0].token.address == "creator-traded-mint"
         assert leaders[0].methodology_version == "token-v1"
+
+        alerts = AlertService(session)
+        score_event = ScoreUpdated(
+            entity_type="token",
+            entity="creator-traded-mint",
+            score=72,
+            grade="B",
+            methodology_version="token-v1",
+        )
+        created_alert = await alerts.create_score_alert(score_event)
+        repeated_alert = await alerts.create_score_alert(score_event)
+        token_alerts, token_alert_total = await alerts.list_alerts(
+            10,
+            0,
+            "creator-traded-mint",
+            "high",
+            False,
+            "token",
+        )
+
+        assert created_alert is not None
+        assert repeated_alert is None
+        assert token_alert_total == 1
+        assert token_alerts[0].entity_type == "token"
+        assert token_alerts[0].alert_type == "token_score_grade"
 
 
 async def test_observed_token_holders_are_aggregated_and_paginated(

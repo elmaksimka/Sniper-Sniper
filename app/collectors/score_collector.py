@@ -41,6 +41,7 @@ class ScoreCollector:
         await self.snapshot_service.save(wallet.id, score)
         await self.event_bus.publish(
             ScoreUpdated(
+                entity_type="wallet",
                 entity=event.wallet,
                 score=score.score,
                 grade=score.grade,
@@ -54,3 +55,12 @@ class ScoreCollector:
             return
         token = await self.token_service.create_token(event.token_address)
         await self.token_snapshot_service.save(token.id, score)
+        await self.event_bus.publish(
+            ScoreUpdated(
+                entity_type="token",
+                entity=event.token_address,
+                score=score.score,
+                grade=score.grade,
+                methodology_version=score.methodology_version,
+            )
+        )

@@ -93,6 +93,7 @@ class NativeTransferObserved(Event):
 
 @dataclass(slots=True, kw_only=True)
 class ScoreUpdated(Event):
+    entity_type: str
     entity: str
     score: float
     grade: str

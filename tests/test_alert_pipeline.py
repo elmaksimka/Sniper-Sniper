@@ -16,15 +16,18 @@ class FakeAlertService:
 
     async def create_score_alert(self, event: ScoreUpdated) -> Alert | None:
         self.calls += 1
-        key = f"{event.entity}:{event.methodology_version}:{event.grade}"
+        key = (
+            f"{event.entity_type}:{event.entity}:"
+            f"{event.methodology_version}:{event.grade}"
+        )
         if key in self.keys:
             return None
         self.keys.add(key)
         return Alert(
             id=1,
-            entity_type="wallet",
+            entity_type=event.entity_type,
             entity_address=event.entity,
-            alert_type="wallet_score_grade",
+            alert_type=f"{event.entity_type}_score_grade",
             severity="critical" if event.grade == "A" else "high",
             message="milestone",
             details={"score": event.score},
@@ -37,7 +40,12 @@ class FakeAlertService:
 async def test_alert_collector_filters_and_deduplicates_milestones() -> None:
     event_bus = EventBus()
     service: Any = FakeAlertService()
-    collector = AlertCollector(event_bus, service, minimum_score=65)
+    collector = AlertCollector(
+        event_bus,
+        service,
+        minimum_score=65,
+        token_minimum_score=80,
+    )
     generated: list[AlertGenerated] = []
 
     async def capture(event: AlertGenerated) -> None:
@@ -48,6 +56,7 @@ async def test_alert_collector_filters_and_deduplicates_milestones() -> None:
 
     await event_bus.publish(
         ScoreUpdated(
+            entity_type="wallet",
             entity="wallet",
             score=50,
             grade="C",
@@ -55,6 +64,7 @@ async def test_alert_collector_filters_and_deduplicates_milestones() -> None:
         )
     )
     milestone = ScoreUpdated(
+        entity_type="wallet",
         entity="wallet",
         score=75,
         grade="B",
@@ -63,7 +73,28 @@ async def test_alert_collector_filters_and_deduplicates_milestones() -> None:
     await event_bus.publish(milestone)
     await event_bus.publish(milestone)
 
-    assert service.calls == 2
-    assert len(generated) == 1
+    await event_bus.publish(
+        ScoreUpdated(
+            entity_type="token",
+            entity="filtered-mint",
+            score=75,
+            grade="B",
+            methodology_version="token-v1",
+        )
+    )
+    token_milestone = ScoreUpdated(
+        entity_type="token",
+        entity="mint",
+        score=85,
+        grade="A",
+        methodology_version="token-v1",
+    )
+    await event_bus.publish(token_milestone)
+    await event_bus.publish(token_milestone)
+
+    assert service.calls == 4
+    assert len(generated) == 2
     assert generated[0].entity == "wallet"
     assert generated[0].severity == "high"
+    assert generated[1].entity == "mint"
+    assert generated[1].severity == "critical"

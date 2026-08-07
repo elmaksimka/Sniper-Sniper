@@ -34,6 +34,7 @@ async def test_grade_a_alert_has_stable_key_and_critical_severity() -> None:
 
     alert = await service.create_score_alert(
         ScoreUpdated(
+            entity_type="wallet",
             entity="wallet",
             score=88.5,
             grade="A",
@@ -51,3 +52,27 @@ async def test_grade_a_alert_has_stable_key_and_critical_severity() -> None:
         "grade": "A",
         "methodology_version": "wallet-v1",
     }
+
+
+@pytest.mark.asyncio
+async def test_token_alert_has_typed_key_and_message() -> None:
+    service = AlertService(None)  # type: ignore[arg-type]
+    repository = CapturingRepository()
+    service_with_fake: Any = service
+    service_with_fake.repository = repository
+
+    alert = await service.create_score_alert(
+        ScoreUpdated(
+            entity_type="token",
+            entity="mint",
+            score=72,
+            grade="B",
+            methodology_version="token-v1",
+        )
+    )
+
+    assert alert is not None
+    assert repository.values["entity_type"] == "token"
+    assert repository.values["alert_type"] == "token_score_grade"
+    assert repository.values["dedupe_key"] == "token-score:mint:token-v1:B"
+    assert str(repository.values["message"]).startswith("Token mint reached")
