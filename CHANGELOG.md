@@ -6,6 +6,7 @@ All notable changes to Alpha Engine are documented here.
 
 ### Added
 
+- Direct Dexscreener token links in Telegram alpha signals.
 - Rate-bounded history enrichment for promising D-grade wallet candidates,
   with persistent completion/retry state, missed-promotion reconciliation,
   sequential shared-session event dispatch, and stale-signal protection.

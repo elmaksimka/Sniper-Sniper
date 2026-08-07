@@ -48,6 +48,10 @@ async def test_alpha_signal_is_sent_to_each_unique_recipient() -> None:
     assert all("2.750000 SOL" in payload["text"] for payload in payloads)
     assert all("5 trades / 3 wallets" in payload["text"] for payload in payloads)
     assert all("solscan.io/tx/transaction-signature" in payload["text"] for payload in payloads)
+    assert all(
+        "dexscreener.com/solana/token-address" in payload["text"]
+        for payload in payloads
+    )
 
 
 @pytest.mark.asyncio

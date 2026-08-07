@@ -17,7 +17,8 @@ The wallet threshold defaults to 65 and the early-token threshold to 45. The
 evidence minimums default to three trades and two wallets. Scores are calculated
 after the trade is persisted, so the signal uses the latest available data. The
 Telegram message includes both scores and grades, the evidence counts, observed
-SOL and token amounts, and Solscan links for the token and transaction.
+SOL and token amounts, a direct Dexscreener chart link, and Solscan links for
+the token and transaction.
 
 This is a decision-support signal, not an automatic order or financial advice.
 Public Solana RPC data can be delayed or incomplete, and the score covers only

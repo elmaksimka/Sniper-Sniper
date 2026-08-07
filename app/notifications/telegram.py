@@ -180,6 +180,7 @@ class TelegramNotifier:
                 f"Buy size: {event.sol_amount:.6f} SOL",
                 f"Token amount: {event.token_amount:.6f}",
                 "",
+                f"Dexscreener: https://dexscreener.com/solana/{event.token_address}",
                 f"Token: https://solscan.io/token/{event.token_address}",
                 f"Transaction: https://solscan.io/tx/{event.signature}",
                 "",
