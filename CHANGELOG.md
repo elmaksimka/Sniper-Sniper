@@ -39,6 +39,12 @@ All notable changes to Alpha Engine are documented here.
   PostgreSQL 17 database.
 - Managed PostgreSQL URL normalization for async SQLAlchemy connections.
 
+### Fixed
+
+- Excluded wrapped SOL, canonical USDC, and canonical USDT from normalized
+  trades, wallet/token scoring, alpha eligibility, and activity totals; added a
+  maintenance command to clean legacy rows and recalculate scores.
+
 ## [0.1.0-rc.1] - 2026-08-07
 
 First backend MVP release candidate.

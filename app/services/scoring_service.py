@@ -3,6 +3,7 @@ from __future__ import annotations
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.scoring import EarlyTokenScore, TokenScore, WalletScore
+from app.core.assets import is_target_mint
 from app.repositories.token_repository import TokenRepository
 from app.services.analytics_service import AnalyticsService
 from app.services.wallet_score_calculator import WalletScoreCalculator
@@ -33,6 +34,8 @@ class ScoringService:
         return self.calculator.calculate(analytics, positions)
 
     async def score_token(self, address: str) -> TokenScore | None:
+        if not is_target_mint(address):
+            return None
         token = await self.tokens.get_by_address(address)
         if token is None:
             return None
@@ -55,6 +58,8 @@ class ScoringService:
         )
 
     async def score_early_token(self, address: str) -> EarlyTokenScore | None:
+        if not is_target_mint(address):
+            return None
         token = await self.tokens.get_by_address(address)
         if token is None:
             return None

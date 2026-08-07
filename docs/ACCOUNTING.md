@@ -21,6 +21,21 @@ unpriced instead of duplicating SOL cost across tokens.
 Token-to-token swaps also have `sol_change = 0`; their SOL-denominated cost
 basis requires a separate historical price source.
 
+## Non-target payment assets
+
+Wrapped SOL, canonical USDC, and canonical USDT are settlement assets rather
+than candidate tokens. The parser and analyzer exclude their mint addresses
+before emitting token or trade events. They therefore do not increase wallet
+activity/diversification scores, token scores, alpha eligibility, or Telegram
+activity totals. A maintenance command removes legacy rows and recalculates all
+score snapshots:
+
+```powershell
+poetry run python -m app.clean_non_target_assets
+```
+
+Stop the worker while running this command.
+
 ## Known limitations
 
 - Unsupported or partially parsed protocols may only expose balance changes.

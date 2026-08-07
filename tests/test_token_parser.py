@@ -1,3 +1,4 @@
+from app.core.assets import USDC_MINT, USDT_MINT
 from app.services.token_parser import SOL_MINT, TokenParser
 
 
@@ -16,6 +17,16 @@ def test_extract_tokens_filters_transfers_to_requested_wallet() -> None:
             },
             {
                 "mint": SOL_MINT,
+                "fromUserAccount": "sender",
+                "toUserAccount": "wallet",
+            },
+            {
+                "mint": USDC_MINT,
+                "fromUserAccount": "sender",
+                "toUserAccount": "wallet",
+            },
+            {
+                "mint": USDT_MINT,
                 "fromUserAccount": "sender",
                 "toUserAccount": "wallet",
             },

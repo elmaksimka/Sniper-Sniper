@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.core.assets import NON_TARGET_MINTS, WRAPPED_SOL_MINT
 
-SOL_MINT = "So11111111111111111111111111111111111111112"
+SOL_MINT = WRAPPED_SOL_MINT
 
 
 class TokenParser:
@@ -37,7 +38,7 @@ class TokenParser:
 
     @staticmethod
     def _add_mint(tokens: set[str], mint: Any) -> None:
-        if isinstance(mint, str) and mint and mint != SOL_MINT:
+        if isinstance(mint, str) and mint and mint not in NON_TARGET_MINTS:
             tokens.add(mint)
 
 

@@ -1,6 +1,7 @@
 import pytest
 
 from app.analyzer import TokenAnalyzer, TokenTrade
+from app.core.assets import USDC_MINT, USDT_MINT, WRAPPED_SOL_MINT
 
 
 def test_analyze_enhanced_transaction_buy() -> None:
@@ -247,3 +248,40 @@ def test_token_transfer_removes_fee_only_balance_change() -> None:
     trades = TokenAnalyzer().analyze_transaction(transaction, "wallet")
 
     assert trades[0].sol_change == 0
+
+
+def test_quote_assets_are_not_emitted_as_trades() -> None:
+    transaction = {
+        "accountData": [
+            {
+                "account": "wallet",
+                "nativeBalanceChange": 0,
+                "tokenBalanceChanges": [
+                    {
+                        "mint": WRAPPED_SOL_MINT,
+                        "userAccount": "wallet",
+                        "rawTokenAmount": {"tokenAmount": "-1", "decimals": 0},
+                    },
+                    {
+                        "mint": USDC_MINT,
+                        "userAccount": "wallet",
+                        "rawTokenAmount": {"tokenAmount": "-1", "decimals": 0},
+                    },
+                    {
+                        "mint": USDT_MINT,
+                        "userAccount": "wallet",
+                        "rawTokenAmount": {"tokenAmount": "-1", "decimals": 0},
+                    },
+                    {
+                        "mint": "target-mint",
+                        "userAccount": "wallet",
+                        "rawTokenAmount": {"tokenAmount": "10", "decimals": 0},
+                    },
+                ],
+            }
+        ]
+    }
+
+    assert TokenAnalyzer().analyze_transaction(transaction, "wallet") == [
+        TokenTrade("target-mint", "wallet", 0.0, 10.0)
+    ]

@@ -115,7 +115,7 @@ async def test_worker_status_notifications_are_delivered() -> None:
     assert "Alpha Engine запущено" in messages[0]
     assert "кожні 30 с" in messages[0]
     assert "Alpha Engine працює" in messages[1]
-    assert "125 транзакцій / 48 токенів" in messages[1]
+    assert "125 транзакцій / 48 торгових токенів" in messages[1]
     assert "17 транзакцій / 9 активних токенів" in messages[1]
     assert "7 транзакцій" in messages[1]
     assert "Кандидатів оброблено: 1" in messages[1]

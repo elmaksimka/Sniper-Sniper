@@ -4,6 +4,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any
 
+from app.core.assets import is_target_mint
+
 
 LAMPORTS_PER_SOL = 1_000_000_000
 
@@ -36,6 +38,11 @@ class TokenAnalyzer:
                 self._meta(transaction),
                 wallet,
             )
+        token_changes = {
+            mint: change
+            for mint, change in token_changes.items()
+            if is_target_mint(mint)
+        }
 
         economic_sol_change = self._economic_sol_change(transaction, wallet)
         fee = self._network_fee(transaction, wallet)

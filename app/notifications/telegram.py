@@ -97,7 +97,7 @@ class TelegramNotifier:
                         "За весь час: "
                         f"{int(details.get('total_transactions', 0))} "
                         "транзакцій / "
-                        f"{int(details.get('total_tokens', 0))} токенів"
+                        f"{int(details.get('total_tokens', 0))} торгових токенів"
                     ),
                     (
                         f"За останні {window_minutes} хв: "
