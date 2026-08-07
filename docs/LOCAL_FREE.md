@@ -49,6 +49,11 @@ public Solana endpoint is intended for development and can return `429` or be
 temporarily unavailable. The client applies request retries and the discovery
 scheduler automatically slows down without pausing monitored-wallet checks.
 
+When Telegram is configured, the worker confirms startup and sends a health
+status every 30 minutes. It also reports discovery degradation, recovery, and a
+graceful shutdown, so a quiet trading period is distinguishable from a stopped
+system.
+
 ## Cost boundary
 
 There is no subscription or automatic paid overage in this configuration. It

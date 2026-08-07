@@ -33,6 +33,8 @@ class TelegramNotifier:
         await self.send_text(self.format_alpha_signal(event))
 
     async def send_text(self, text: str) -> dict[str, bool]:
+        if not self.enabled:
+            return {}
         results: dict[str, bool] = {}
         for recipient in self.recipients:
             try:
@@ -44,6 +46,78 @@ class TelegramNotifier:
                     recipient=recipient,
                 )
         return results
+
+    async def send_worker_started(
+        self,
+        monitor_interval_seconds: float,
+        discovery_interval_seconds: float,
+        discovery_page_size: int,
+        discovery_source_count: int,
+    ) -> None:
+        await self.send_text(
+            "\n".join(
+                (
+                    "✅ Alpha Engine запущено",
+                    "",
+                    f"Топ-гаманці: кожні {monitor_interval_seconds:g} с",
+                    f"DEX discovery: кожні {discovery_interval_seconds:g} с",
+                    (
+                        "Охоплення discovery: "
+                        f"{discovery_page_size} транзакцій × "
+                        f"{discovery_source_count} джерела"
+                    ),
+                    "Telegram alpha-сигнали активні.",
+                )
+            )
+        )
+
+    async def send_worker_status(self, details: dict[str, Any]) -> None:
+        failures = int(details.get("discovery_failures", 0))
+        rpc_state = "норма" if failures == 0 else f"backoff ({failures})"
+        await self.send_text(
+            "\n".join(
+                (
+                    "🟢 Alpha Engine працює",
+                    "",
+                    f"RPC/discovery: {rpc_state}",
+                    (
+                        "Останній discovery: "
+                        f"{int(details.get('discovered_transactions', 0))} "
+                        "транзакцій"
+                    ),
+                    (
+                        "Топ-гаманці, останній цикл: "
+                        f"{int(details.get('processed_transactions', 0))} "
+                        "транзакцій"
+                    ),
+                    "Система продовжує моніторинг.",
+                )
+            )
+        )
+
+    async def send_discovery_degraded(
+        self,
+        failures: int,
+        retry_seconds: float,
+    ) -> None:
+        await self.send_text(
+            "\n".join(
+                (
+                    "🟡 Alpha Engine: RPC перевантажений",
+                    f"Невдалих discovery-циклів поспіль: {failures}",
+                    f"Наступна спроба приблизно через {retry_seconds:g} с.",
+                    "Моніторинг уже відомих топ-гаманців продовжується.",
+                )
+            )
+        )
+
+    async def send_discovery_recovered(self) -> None:
+        await self.send_text(
+            "🟢 Alpha Engine: RPC/discovery відновлено. Звичайний графік активний."
+        )
+
+    async def send_worker_stopped(self) -> None:
+        await self.send_text("⏹ Alpha Engine зупинено. Моніторинг не виконується.")
 
     async def _send(self, recipient: str, text: str) -> bool:
         payload: dict[str, Any] = {

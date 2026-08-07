@@ -44,6 +44,18 @@ docker compose --env-file .env.local -f docker-compose.local.yml run --rm worker
 The command sends a connection confirmation only. `/start` messages are not
 handled by Alpha Engine and do not trigger briefings.
 
+The worker also sends operational messages to the same recipients:
+
+- confirmation immediately after the active worker starts;
+- a status heartbeat every `TELEGRAM_STATUS_INTERVAL_SECONDS` (30 minutes by
+  default in local mode);
+- a warning when DEX discovery enters RPC backoff;
+- a recovery message when the normal discovery schedule resumes;
+- a message during a graceful worker shutdown.
+
+Operational messages never represent a trading signal. Alpha signals retain
+the `ALPHA SIGNAL — TOP TRADER BUY` heading.
+
 ## Monitored traders
 
 Only wallets registered through `POST /api/v1/monitors` are scanned. An empty

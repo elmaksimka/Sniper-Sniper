@@ -6,6 +6,8 @@ All notable changes to Alpha Engine are documented here.
 
 ### Added
 
+- Telegram worker lifecycle, periodic health, RPC degradation, and recovery
+  notifications, separate from trading signals.
 - Independent 30-second wallet monitoring and two-minute DEX discovery
   schedules, with bounded adaptive discovery backoff for free public RPCs.
 - On-demand early-token scoring and evidence gates for faster top-trader buy

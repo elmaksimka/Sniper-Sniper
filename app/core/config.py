@@ -95,6 +95,7 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
     telegram_chat_ids: str = ""
+    telegram_status_interval_seconds: float = Field(default=1800, gt=0)
 
     @property
     def telegram_recipients(self) -> tuple[str, ...]:

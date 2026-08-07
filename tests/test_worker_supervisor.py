@@ -105,6 +105,10 @@ async def test_run_finishes_poll_and_releases_resources(monkeypatch) -> None:
         discovery_programs=(),
         discovery_poll_interval_seconds=120,
         discovery_retry_max_seconds=900,
+        discovery_page_size=20,
+        telegram_bot_token="",
+        telegram_recipients=(),
+        telegram_status_interval_seconds=1800,
     )
     leader = FakeLeader()
     helius_client = FakeHeliusClient()

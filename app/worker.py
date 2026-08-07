@@ -11,6 +11,7 @@ from app.core.logging import get_logger, setup_logging
 from app.infrastructure.database import async_session_factory, engine
 from app.infrastructure.leader_election import PostgresLeaderElector
 from app.listeners.helius_client import HeliusClient
+from app.notifications.telegram import TelegramNotifier
 from app.repositories.monitor_repository import MonitorRepository
 from app.repositories.heartbeat_repository import HeartbeatRepository
 from app.services.monitor_worker import MonitorWorker
@@ -67,6 +68,10 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
     stop_event = stop_event or asyncio.Event()
     settings = get_settings()
     helius_client = HeliusClient()
+    telegram = TelegramNotifier(
+        settings.telegram_bot_token,
+        settings.telegram_recipients,
+    )
     leader = PostgresLeaderElector(engine, settings.worker_leader_lock_key)
     logger = get_logger("worker-supervisor")
     instance_id = f"{socket.gethostname()}:{os.getpid()}"
@@ -81,7 +86,9 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
         )
     )
     next_discovery_at = 0.0
+    next_status_at = 0.0
     discovery_failures = 0
+    worker_announced = False
 
     try:
         while not stop_event.is_set():
@@ -109,6 +116,19 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                 continue
             if stop_event.is_set():
                 break
+
+            if not worker_announced:
+                await telegram.send_worker_started(
+                    settings.monitor_poll_interval_seconds,
+                    settings.discovery_poll_interval_seconds,
+                    settings.discovery_page_size,
+                    len(settings.discovery_programs),
+                )
+                worker_announced = True
+                next_status_at = (
+                    asyncio.get_running_loop().time()
+                    + settings.telegram_status_interval_seconds
+                )
 
             try:
                 async with async_session_factory() as session:
@@ -138,6 +158,7 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                                     "dex_discovery_program_failed",
                                     program_id=program_id,
                                 )
+                        previous_failures = discovery_failures
                         discovery_failures = (
                             discovery_failures + 1 if discovery_failed else 0
                         )
@@ -152,6 +173,13 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                             discovery_failures=discovery_failures,
                             discovery_next_poll_seconds=delay,
                         )
+                        if discovery_failed and previous_failures == 0:
+                            await telegram.send_discovery_degraded(
+                                discovery_failures,
+                                delay,
+                            )
+                        elif not discovery_failed and previous_failures > 0:
+                            await telegram.send_discovery_recovered()
                     worker = MonitorWorker(
                         monitors=MonitorRepository(session),
                         scanner=container.scanner,
@@ -168,11 +196,23 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                 heartbeat_details["state"] = "error"
                 logger.exception("monitor_poll_failed")
 
+            if (
+                worker_announced
+                and asyncio.get_running_loop().time() >= next_status_at
+            ):
+                await telegram.send_worker_status(dict(heartbeat_details))
+                next_status_at = (
+                    asyncio.get_running_loop().time()
+                    + settings.telegram_status_interval_seconds
+                )
+
             await wait_for_stop(
                 stop_event,
                 settings.monitor_poll_interval_seconds,
             )
     finally:
+        if worker_announced:
+            await telegram.send_worker_stopped()
         heartbeat_task.cancel()
         with suppress(asyncio.CancelledError):
             await heartbeat_task
