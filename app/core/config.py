@@ -77,7 +77,7 @@ class Settings(BaseSettings):
     discovery_retry_max_seconds: float = Field(default=900, gt=0)
     candidate_enrichment_enabled: bool = False
     candidate_enrichment_min_score: float = Field(default=35, ge=0, le=65)
-    candidate_enrichment_history_limit: int = Field(default=20, ge=1, le=100)
+    candidate_enrichment_history_limit: int = Field(default=50, ge=1, le=100)
     candidate_enrichment_max_per_cycle: int = Field(default=1, ge=1, le=10)
     candidate_enrichment_retry_seconds: float = Field(default=1800, gt=0)
     auto_promote_wallet_score: float = Field(default=65, ge=0, le=100)
