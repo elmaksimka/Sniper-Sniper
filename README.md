@@ -174,4 +174,7 @@ Container image and production Compose deployment are documented in
 
 ## Status
 
-🚧 In development.
+Backend MVP release candidate. The application, migrations, CI gate, production
+containers, health checks, access controls, graceful shutdown, and verified
+backup workflow are complete. Remaining work is environment-specific staging
+deployment with real infrastructure credentials and DNS/TLS configuration.

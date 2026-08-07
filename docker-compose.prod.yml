@@ -38,6 +38,7 @@ services:
   worker:
     <<: *alpha-engine
     command: ["python", "-m", "app.worker"]
+    stop_grace_period: ${WORKER_STOP_GRACE_PERIOD:-60s}
     depends_on:
       migrate:
         condition: service_completed_successfully

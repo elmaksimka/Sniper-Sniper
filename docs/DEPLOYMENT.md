@@ -47,6 +47,9 @@ docker compose -f docker-compose.prod.yml logs migrate
 docker compose -f docker-compose.prod.yml logs api worker
 ```
 
+Deploy restarts send `SIGTERM` to the worker and allow the configured
+`WORKER_STOP_GRACE_PERIOD` for the active poll and resource cleanup to finish.
+
 The deploy must stop if `migrate` exits unsuccessfully. The API and worker both
 depend on successful migration completion, so an incompatible schema is never
 served automatically.

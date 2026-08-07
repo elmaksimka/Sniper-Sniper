@@ -1,6 +1,7 @@
 import asyncio
 from contextlib import suppress
 import os
+import signal
 import socket
 from typing import Any
 
@@ -20,9 +21,10 @@ async def heartbeat_loop(
     instance_id: str,
     interval_seconds: float,
     details: dict[str, Any],
+    stop_event: asyncio.Event,
 ) -> None:
     logger = get_logger("worker-heartbeat")
-    while True:
+    while not stop_event.is_set():
         if leader.is_leader:
             try:
                 async with async_session_factory() as session:
@@ -33,10 +35,22 @@ async def heartbeat_loop(
                     )
             except Exception:
                 logger.exception("worker_heartbeat_failed")
-        await asyncio.sleep(interval_seconds)
+        await wait_for_stop(stop_event, interval_seconds)
 
 
-async def run() -> None:
+async def wait_for_stop(
+    stop_event: asyncio.Event,
+    timeout_seconds: float,
+) -> bool:
+    try:
+        await asyncio.wait_for(stop_event.wait(), timeout_seconds)
+    except TimeoutError:
+        return False
+    return True
+
+
+async def run(stop_event: asyncio.Event | None = None) -> None:
+    stop_event = stop_event or asyncio.Event()
     settings = get_settings()
     helius_client = HeliusClient()
     leader = PostgresLeaderElector(engine, settings.worker_leader_lock_key)
@@ -49,24 +63,36 @@ async def run() -> None:
             instance_id,
             settings.worker_heartbeat_interval_seconds,
             heartbeat_details,
+            stop_event,
         )
     )
 
     try:
-        while True:
+        while not stop_event.is_set():
             try:
                 acquired = await leader.try_acquire()
             except Exception:
                 logger.exception("worker_leadership_acquisition_failed")
-                await asyncio.sleep(settings.worker_standby_poll_seconds)
+                await wait_for_stop(
+                    stop_event,
+                    settings.worker_standby_poll_seconds,
+                )
                 continue
 
             if not acquired:
-                await asyncio.sleep(settings.worker_standby_poll_seconds)
+                await wait_for_stop(
+                    stop_event,
+                    settings.worker_standby_poll_seconds,
+                )
                 continue
             if not await leader.verify():
-                await asyncio.sleep(settings.worker_standby_poll_seconds)
+                await wait_for_stop(
+                    stop_event,
+                    settings.worker_standby_poll_seconds,
+                )
                 continue
+            if stop_event.is_set():
+                break
 
             try:
                 async with async_session_factory() as session:
@@ -89,7 +115,10 @@ async def run() -> None:
                 heartbeat_details["state"] = "error"
                 logger.exception("monitor_poll_failed")
 
-            await asyncio.sleep(settings.monitor_poll_interval_seconds)
+            await wait_for_stop(
+                stop_event,
+                settings.monitor_poll_interval_seconds,
+            )
     finally:
         heartbeat_task.cancel()
         with suppress(asyncio.CancelledError):
@@ -99,9 +128,37 @@ async def run() -> None:
         await engine.dispose()
 
 
+async def run_with_signals() -> None:
+    stop_event = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    logger = get_logger("worker-supervisor")
+    registered_signals: list[signal.Signals] = []
+
+    def request_shutdown(signal_name: str) -> None:
+        logger.info("worker_shutdown_requested", signal=signal_name)
+        stop_event.set()
+
+    for signal_number in (signal.SIGINT, signal.SIGTERM):
+        try:
+            loop.add_signal_handler(
+                signal_number,
+                request_shutdown,
+                signal_number.name,
+            )
+        except NotImplementedError:
+            continue
+        registered_signals.append(signal_number)
+
+    try:
+        await run(stop_event)
+    finally:
+        for signal_number in registered_signals:
+            loop.remove_signal_handler(signal_number)
+
+
 def main() -> None:
     setup_logging()
-    asyncio.run(run())
+    asyncio.run(run_with_signals())
 
 
 if __name__ == "__main__":

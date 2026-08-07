@@ -14,6 +14,9 @@ a long wallet catch-up is running. Standby replicas do not overwrite the leader
 heartbeat. Configure the interval and stale boundary with
 `WORKER_HEARTBEAT_INTERVAL_SECONDS` and `WORKER_HEARTBEAT_STALE_SECONDS`; the
 stale boundary should remain several times larger than the interval.
+On `SIGTERM` or `SIGINT`, the worker stops scheduling new polls, completes the
+active poll, releases its advisory lock, and closes database and Helius clients.
+Compose allows `WORKER_STOP_GRACE_PERIOD` (default `60s`) before forcing exit.
 Each dependency check is bounded by `READINESS_CHECK_TIMEOUT_SECONDS`, so a
 stalled dependency cannot leave the HTTP probe hanging indefinitely.
 
