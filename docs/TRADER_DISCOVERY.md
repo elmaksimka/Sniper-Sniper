@@ -15,9 +15,10 @@ For each source the worker:
 6. promotes an A/B wallet at or above `AUTO_PROMOTE_WALLET_SCORE` into the
    continuous monitor list, subject to `AUTO_PROMOTE_MAX_MONITORS`.
 
-The free local defaults inspect twenty transactions per program every two
-minutes. Monitored top-trader wallets run on their own 30-second schedule, so a
-discovery slowdown does not delay them. This is deliberately a sample: the
+The free local defaults inspect fifty transactions per program every two
+minutes. Candidate history enrichment and monitored top-trader wallets run in
+separate loops, so slow history loading does not delay discovery. This remains
+a bounded sample: the
 public Solana endpoint is rate-limited and is not a full market indexer. When
 the saved cursor falls outside the bounded window, the worker records a
 warning, ingests the latest sample, and advances the cursor instead of becoming
@@ -33,7 +34,7 @@ sampled when PumpSwap fails, or vice versa.
 ```dotenv
 DISCOVERY_ENABLED=true
 DISCOVERY_PROGRAM_IDS=6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P,pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA
-DISCOVERY_PAGE_SIZE=20
+DISCOVERY_PAGE_SIZE=50
 DISCOVERY_MAX_PAGES=1
 DISCOVERY_POLL_INTERVAL_SECONDS=120
 DISCOVERY_RETRY_MAX_SECONDS=900
@@ -54,15 +55,16 @@ polled independently of the sampled DEX stream.
 ## Candidate history enrichment
 
 The free local mode closes the sparse-history gap without promoting weak
-wallets prematurely. After a successful DEX discovery cycle it selects the
-highest-scored unmonitored wallet at or above 35, loads its latest 20
-transactions, ingests them oldest-first, and recalculates the wallet score. A
+wallets prematurely. Its independent background loop selects the highest-scored
+unmonitored wallet at or above 35, loads its latest 75 transactions, ingests
+them oldest-first, and recalculates the wallet score. A
 persistent `candidate:<wallet>` record prevents repeated backfills. Transient
 errors are retried after 30 minutes.
 
-Only one candidate is enriched per two-minute discovery cycle by default. This
-caps the additional public-RPC load. If enrichment lifts the wallet to A/B and
-65 or higher, the normal promotion collector adds it to continuous monitoring.
+Only one candidate is enriched per background cycle by default. This caps the
+additional public-RPC load without blocking DEX discovery. If enrichment lifts
+the wallet to A/B and 65 or higher, the normal promotion collector adds it to
+continuous monitoring.
 
 ```dotenv
 CANDIDATE_ENRICHMENT_ENABLED=true

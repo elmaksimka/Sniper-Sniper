@@ -5,7 +5,13 @@ from types import SimpleNamespace
 import pytest
 
 import app.worker as worker_module
-from app.worker import discovery_retry_delay, telegram_status_loop, wait_for_stop
+from app.worker import (
+    candidate_enrichment_loop,
+    discovery_loop,
+    discovery_retry_delay,
+    telegram_status_loop,
+    wait_for_stop,
+)
 
 
 @pytest.mark.asyncio
@@ -90,6 +96,133 @@ async def test_telegram_status_loop_runs_independently(monkeypatch) -> None:
 
 
 @pytest.mark.asyncio
+async def test_candidate_enrichment_loop_runs_independently(monkeypatch) -> None:
+    stop_event = asyncio.Event()
+
+    class FakePromotionCollector:
+        async def reconcile(self) -> int:
+            return 1
+
+    class FakeContainer:
+        scanner = object()
+        token_detection_service = object()
+        trader_promotion_collector = FakePromotionCollector()
+
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def setup(self) -> None:
+            pass
+
+    class FakeEnrichmentService:
+        def __init__(self, **kwargs) -> None:
+            assert kwargs["history_limit"] == 75
+
+        async def run_once(self) -> SimpleNamespace:
+            stop_event.set()
+            return SimpleNamespace(
+                wallets_enriched=1,
+                transactions_processed=75,
+                wallets_promoted=0,
+                last_wallet="candidate",
+                last_score_before=45.0,
+                last_score_after=67.0,
+                history_limit=75,
+            )
+
+    @asynccontextmanager
+    async def fake_session_factory():
+        yield object()
+
+    monkeypatch.setattr(worker_module, "Container", FakeContainer)
+    monkeypatch.setattr(
+        worker_module,
+        "CandidateEnrichmentService",
+        FakeEnrichmentService,
+    )
+    monkeypatch.setattr(worker_module, "ScoreSnapshotRepository", lambda _: object())
+    monkeypatch.setattr(worker_module, "MonitorRepository", lambda _: object())
+    monkeypatch.setattr(worker_module, "HeartbeatRepository", lambda _: object())
+    monkeypatch.setattr(worker_module, "async_session_factory", fake_session_factory)
+    details: dict[str, object] = {}
+
+    await candidate_enrichment_loop(
+        SimpleNamespace(is_leader=True),  # type: ignore[arg-type]
+        SimpleNamespace(),  # type: ignore[arg-type]
+        0.001,
+        35,
+        75,
+        1,
+        1800,
+        details,
+        stop_event,
+    )
+
+    assert details == {
+        "candidate_state": "idle",
+        "candidate_wallets_enriched": 1,
+        "candidate_history_transactions": 75,
+        "candidate_wallets_promoted": 1,
+        "candidate_last_wallet": "candidate",
+        "candidate_last_score_before": 45.0,
+        "candidate_last_score_after": 67.0,
+        "candidate_history_limit": 75,
+    }
+
+
+@pytest.mark.asyncio
+async def test_discovery_loop_runs_independently(monkeypatch) -> None:
+    stop_event = asyncio.Event()
+
+    class FakeDiscoveryService:
+        async def scan_program(self, program_id: str) -> SimpleNamespace:
+            assert program_id == "program"
+            stop_event.set()
+            return SimpleNamespace(complete=True, processed_transactions=42)
+
+    class FakeContainer:
+        dex_discovery_service = FakeDiscoveryService()
+
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def setup(self) -> None:
+            pass
+
+    class FakeTelegram:
+        async def send_discovery_degraded(self, *args) -> None:
+            raise AssertionError("healthy discovery must not alert")
+
+        async def send_discovery_recovered(self) -> None:
+            raise AssertionError("healthy discovery must not alert")
+
+    @asynccontextmanager
+    async def fake_session_factory():
+        yield object()
+
+    monkeypatch.setattr(worker_module, "Container", FakeContainer)
+    monkeypatch.setattr(worker_module, "async_session_factory", fake_session_factory)
+    details: dict[str, object] = {}
+
+    await discovery_loop(
+        SimpleNamespace(is_leader=True),  # type: ignore[arg-type]
+        SimpleNamespace(),  # type: ignore[arg-type]
+        FakeTelegram(),  # type: ignore[arg-type]
+        ("program",),
+        120,
+        900,
+        details,
+        stop_event,
+    )
+
+    assert details == {
+        "discovered_transactions": 42,
+        "discovery_failures": 0,
+        "discovery_next_poll_seconds": 120,
+    }
+
+
+@pytest.mark.asyncio
 async def test_run_finishes_poll_and_releases_resources(monkeypatch) -> None:
     stop_event = asyncio.Event()
     poll_completed = False
@@ -161,6 +294,7 @@ async def test_run_finishes_poll_and_releases_resources(monkeypatch) -> None:
         discovery_poll_interval_seconds=120,
         discovery_retry_max_seconds=900,
         discovery_page_size=20,
+        candidate_enrichment_enabled=False,
         telegram_bot_token="",
         telegram_recipients=(),
         telegram_status_interval_seconds=1800,

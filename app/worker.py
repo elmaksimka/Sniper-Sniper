@@ -78,6 +78,142 @@ async def telegram_status_loop(
         )
 
 
+async def candidate_enrichment_loop(
+    leader: PostgresLeaderElector,
+    helius_client: HeliusClient,
+    interval_seconds: float,
+    minimum_score: float,
+    history_limit: int,
+    maximum_candidates: int,
+    retry_seconds: float,
+    details: dict[str, Any],
+    stop_event: asyncio.Event,
+) -> None:
+    """Enrich candidate wallets without delaying DEX discovery."""
+    logger = get_logger("candidate-enrichment-supervisor")
+
+    # Let the first discovery cycle claim the shared RPC capacity.
+    if await wait_for_stop(stop_event, interval_seconds):
+        return
+
+    while not stop_event.is_set():
+        if leader.is_leader:
+            details["candidate_state"] = "polling"
+            try:
+                async with async_session_factory() as session:
+                    container = Container(session, helius_client=helius_client)
+                    container.setup()
+                    enrichment = await CandidateEnrichmentService(
+                        scores=ScoreSnapshotRepository(session),
+                        monitors=MonitorRepository(session),
+                        scanner=container.scanner,
+                        detection=container.token_detection_service,
+                        cursors=HeartbeatRepository(session),
+                        minimum_score=minimum_score,
+                        history_limit=history_limit,
+                        maximum_candidates=maximum_candidates,
+                        retry_seconds=retry_seconds,
+                    ).run_once()
+                    reconciled = (
+                        await container.trader_promotion_collector.reconcile()
+                    )
+                    details.update(
+                        candidate_state="idle",
+                        candidate_wallets_enriched=enrichment.wallets_enriched,
+                        candidate_history_transactions=(
+                            enrichment.transactions_processed
+                        ),
+                        candidate_wallets_promoted=(
+                            enrichment.wallets_promoted + reconciled
+                        ),
+                        candidate_last_wallet=enrichment.last_wallet or "",
+                        candidate_last_score_before=(
+                            enrichment.last_score_before
+                        ),
+                        candidate_last_score_after=enrichment.last_score_after,
+                        candidate_history_limit=enrichment.history_limit,
+                    )
+            except Exception:
+                details["candidate_state"] = "error"
+                logger.exception("candidate_enrichment_cycle_failed")
+
+        await wait_for_stop(stop_event, interval_seconds)
+
+
+async def discovery_loop(
+    leader: PostgresLeaderElector,
+    helius_client: HeliusClient,
+    telegram: TelegramNotifier,
+    program_ids: tuple[str, ...],
+    interval_seconds: float,
+    retry_max_seconds: float,
+    details: dict[str, Any],
+    stop_event: asyncio.Event,
+) -> None:
+    """Discover DEX trades without delaying monitored-wallet polling."""
+    logger = get_logger("dex-discovery-supervisor")
+    consecutive_failures = 0
+
+    while not stop_event.is_set():
+        cycle_started_at = asyncio.get_running_loop().time()
+        if leader.is_leader:
+            discovered = 0
+            discovery_failed = False
+            try:
+                async with async_session_factory() as session:
+                    container = Container(session, helius_client=helius_client)
+                    container.setup()
+                    for program_id in program_ids:
+                        try:
+                            result = (
+                                await container.dex_discovery_service.scan_program(
+                                    program_id
+                                )
+                            )
+                            if not result.complete:
+                                logger.warning(
+                                    "dex_discovery_gap_sampled",
+                                    program_id=program_id,
+                                )
+                            discovered += result.processed_transactions
+                        except Exception:
+                            discovery_failed = True
+                            logger.exception(
+                                "dex_discovery_program_failed",
+                                program_id=program_id,
+                            )
+            except Exception:
+                discovery_failed = True
+                logger.exception("dex_discovery_cycle_failed")
+
+            previous_failures = consecutive_failures
+            consecutive_failures = (
+                consecutive_failures + 1 if discovery_failed else 0
+            )
+            delay = discovery_retry_delay(
+                interval_seconds,
+                retry_max_seconds,
+                consecutive_failures,
+            )
+            details.update(
+                discovered_transactions=discovered,
+                discovery_failures=consecutive_failures,
+                discovery_next_poll_seconds=delay,
+            )
+            if discovery_failed and previous_failures == 0:
+                await telegram.send_discovery_degraded(
+                    consecutive_failures,
+                    delay,
+                )
+            elif not discovery_failed and previous_failures > 0:
+                await telegram.send_discovery_recovered()
+        else:
+            delay = interval_seconds
+
+        elapsed = asyncio.get_running_loop().time() - cycle_started_at
+        await wait_for_stop(stop_event, max(0, delay - elapsed))
+
+
 async def wait_for_stop(
     stop_event: asyncio.Event,
     timeout_seconds: float,
@@ -124,10 +260,10 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
             stop_event,
         )
     )
-    next_discovery_at = 0.0
-    discovery_failures = 0
     worker_announced = False
     status_task: asyncio.Task[None] | None = None
+    candidate_task: asyncio.Task[None] | None = None
+    discovery_task: asyncio.Task[None] | None = None
 
     try:
         while not stop_event.is_set():
@@ -174,6 +310,33 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                         stop_event,
                     )
                 )
+                if settings.candidate_enrichment_enabled:
+                    candidate_task = asyncio.create_task(
+                        candidate_enrichment_loop(
+                            leader,
+                            helius_client,
+                            settings.discovery_poll_interval_seconds,
+                            settings.candidate_enrichment_min_score,
+                            settings.candidate_enrichment_history_limit,
+                            settings.candidate_enrichment_max_per_cycle,
+                            settings.candidate_enrichment_retry_seconds,
+                            heartbeat_details,
+                            stop_event,
+                        )
+                    )
+                if settings.discovery_enabled:
+                    discovery_task = asyncio.create_task(
+                        discovery_loop(
+                            leader,
+                            helius_client,
+                            telegram,
+                            settings.discovery_programs,
+                            settings.discovery_poll_interval_seconds,
+                            settings.discovery_retry_max_seconds,
+                            heartbeat_details,
+                            stop_event,
+                        )
+                    )
 
             try:
                 async with async_session_factory() as session:
@@ -189,103 +352,6 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                     )
                     processed = await monitor_worker.run_once()
                     heartbeat_details["processed_transactions"] = processed
-                    now = asyncio.get_running_loop().time()
-                    if settings.discovery_enabled and now >= next_discovery_at:
-                        discovered = 0
-                        discovery_failed = False
-                        for program_id in settings.discovery_programs:
-                            try:
-                                discovery = (
-                                    await container.dex_discovery_service.scan_program(
-                                        program_id
-                                    )
-                                )
-                                if not discovery.complete:
-                                    logger.warning(
-                                        "dex_discovery_gap_sampled",
-                                        program_id=program_id,
-                                    )
-                                discovered += discovery.processed_transactions
-                            except Exception:
-                                discovery_failed = True
-                                logger.exception(
-                                    "dex_discovery_program_failed",
-                                    program_id=program_id,
-                                )
-                        previous_failures = discovery_failures
-                        discovery_failures = (
-                            discovery_failures + 1 if discovery_failed else 0
-                        )
-                        delay = discovery_retry_delay(
-                            settings.discovery_poll_interval_seconds,
-                            settings.discovery_retry_max_seconds,
-                            discovery_failures,
-                        )
-                        next_discovery_at = asyncio.get_running_loop().time() + delay
-                        heartbeat_details.update(
-                            discovered_transactions=discovered,
-                            discovery_failures=discovery_failures,
-                            discovery_next_poll_seconds=delay,
-                        )
-                        if discovery_failed and previous_failures == 0:
-                            await telegram.send_discovery_degraded(
-                                discovery_failures,
-                                delay,
-                            )
-                        elif not discovery_failed and previous_failures > 0:
-                            await telegram.send_discovery_recovered()
-                        if (
-                            settings.candidate_enrichment_enabled
-                            and not discovery_failed
-                        ):
-                            try:
-                                enrichment = await CandidateEnrichmentService(
-                                    scores=ScoreSnapshotRepository(session),
-                                    monitors=MonitorRepository(session),
-                                    scanner=container.scanner,
-                                    detection=container.token_detection_service,
-                                    cursors=HeartbeatRepository(session),
-                                    minimum_score=(
-                                        settings.candidate_enrichment_min_score
-                                    ),
-                                    history_limit=(
-                                        settings.candidate_enrichment_history_limit
-                                    ),
-                                    maximum_candidates=(
-                                        settings.candidate_enrichment_max_per_cycle
-                                    ),
-                                    retry_seconds=(
-                                        settings.candidate_enrichment_retry_seconds
-                                    ),
-                                ).run_once()
-                                reconciled = await (
-                                    container.trader_promotion_collector.reconcile()
-                                )
-                                heartbeat_details.update(
-                                    candidate_wallets_enriched=(
-                                        enrichment.wallets_enriched
-                                    ),
-                                    candidate_history_transactions=(
-                                        enrichment.transactions_processed
-                                    ),
-                                    candidate_wallets_promoted=(
-                                        enrichment.wallets_promoted + reconciled
-                                    ),
-                                    candidate_last_wallet=(
-                                        enrichment.last_wallet or ""
-                                    ),
-                                    candidate_last_score_before=(
-                                        enrichment.last_score_before
-                                    ),
-                                    candidate_last_score_after=(
-                                        enrichment.last_score_after
-                                    ),
-                                    candidate_history_limit=(
-                                        enrichment.history_limit
-                                    ),
-                                )
-                            except Exception:
-                                logger.exception("candidate_enrichment_cycle_failed")
                     heartbeat_details["state"] = "idle"
             except Exception:
                 heartbeat_details["state"] = "error"
@@ -296,6 +362,14 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                 settings.monitor_poll_interval_seconds,
             )
     finally:
+        if discovery_task is not None:
+            discovery_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await discovery_task
+        if candidate_task is not None:
+            candidate_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await candidate_task
         if status_task is not None:
             status_task.cancel()
             with suppress(asyncio.CancelledError):
