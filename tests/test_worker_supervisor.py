@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 import app.worker as worker_module
-from app.worker import discovery_retry_delay, wait_for_stop
+from app.worker import discovery_retry_delay, telegram_status_loop, wait_for_stop
 
 
 @pytest.mark.asyncio
@@ -32,6 +32,61 @@ def test_discovery_retry_delay_is_bounded(
     expected: float,
 ) -> None:
     assert discovery_retry_delay(120, 900, failures) == expected
+
+
+@pytest.mark.asyncio
+async def test_telegram_status_loop_runs_independently(monkeypatch) -> None:
+    stop_event = asyncio.Event()
+    sent_details: list[dict[str, object]] = []
+
+    class FakeTelegram:
+        async def send_worker_status(
+            self,
+            details: dict[str, object],
+        ) -> dict[str, bool]:
+            sent_details.append(details)
+            stop_event.set()
+            return {"chat": True}
+
+    class FakeStatsService:
+        def __init__(self, session: object) -> None:
+            pass
+
+        async def get(self, window_minutes: int) -> SimpleNamespace:
+            return SimpleNamespace(
+                total_transactions=100,
+                total_tokens=25,
+                recent_transactions=12,
+                recent_tokens=4,
+                window_minutes=window_minutes,
+            )
+
+    @asynccontextmanager
+    async def fake_session_factory():
+        yield object()
+
+    monkeypatch.setattr(worker_module, "ActivityStatsService", FakeStatsService)
+    monkeypatch.setattr(worker_module, "async_session_factory", fake_session_factory)
+
+    await telegram_status_loop(
+        SimpleNamespace(is_leader=True),
+        FakeTelegram(),  # type: ignore[arg-type]
+        0.001,
+        30,
+        {"state": "polling"},
+        stop_event,
+    )
+
+    assert sent_details == [
+        {
+            "state": "polling",
+            "total_transactions": 100,
+            "total_tokens": 25,
+            "recent_transactions": 12,
+            "recent_tokens": 4,
+            "status_window_minutes": 30,
+        }
+    ]
 
 
 @pytest.mark.asyncio

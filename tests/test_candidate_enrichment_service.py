@@ -105,3 +105,47 @@ async def test_completed_candidate_is_not_fetched_again() -> None:
     assert result.wallets_enriched == 0
     assert result.last_wallet is None
     assert detection.signatures == []
+
+
+@pytest.mark.asyncio
+async def test_failed_candidates_are_bounded_by_attempt_limit() -> None:
+    class MultipleScores(FakeScores):
+        async def list_leaderboard(self, **_: Any) -> list[object]:
+            return [
+                SimpleNamespace(
+                    wallet_id=index,
+                    score=43.2,
+                    wallet=SimpleNamespace(address=f"candidate-{index}"),
+                )
+                for index in range(3)
+            ]
+
+    class FailingScanner(FakeScanner):
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def scan_address(
+            self,
+            address: str,
+            limit: int,
+        ) -> list[dict[str, str]]:
+            self.calls += 1
+            raise RuntimeError("rate limited")
+
+    scanner = FailingScanner()
+    enrichment = CandidateEnrichmentService(
+        scores=MultipleScores(),  # type: ignore[arg-type]
+        monitors=FakeMonitors(),  # type: ignore[arg-type]
+        scanner=scanner,  # type: ignore[arg-type]
+        detection=FakeDetection(),  # type: ignore[arg-type]
+        cursors=FakeCursors(),  # type: ignore[arg-type]
+        minimum_score=35,
+        history_limit=20,
+        maximum_candidates=1,
+        retry_seconds=1800,
+    )
+
+    result = await enrichment.run_once()
+
+    assert scanner.calls == 1
+    assert result.wallets_enriched == 0

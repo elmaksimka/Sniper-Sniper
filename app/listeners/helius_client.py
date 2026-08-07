@@ -271,9 +271,12 @@ class HeliusClient:
             and isinstance((signature := row.get("signature")), str)
             and signature
         ]
-        responses = await asyncio.gather(
-            *(self.get_transaction(signature) for signature in signatures)
-        )
+        # Public Solana RPC endpoints apply strict per-method burst limits.
+        # Fetch details sequentially so one history page does not launch a
+        # synchronized wave of requests and retries after a 429 response.
+        responses = []
+        for signature in signatures:
+            responses.append(await self.get_transaction(signature))
         transactions = [
             transaction
             for item in responses

@@ -119,6 +119,40 @@ async def test_standard_history_uses_public_solana_rpc_methods() -> None:
 
 
 @pytest.mark.asyncio
+async def test_standard_history_fetches_transaction_details_sequentially() -> None:
+    active = 0
+    peak = 0
+
+    class StandardClient(HeliusClient):
+        async def _request(
+            self,
+            method: str,
+            params: list[Any] | dict[str, Any] | None = None,
+        ) -> dict[str, Any]:
+            nonlocal active, peak
+            if method == "getSignaturesForAddress":
+                return {
+                    "result": [
+                        {"signature": f"sig-{index}", "err": None}
+                        for index in range(3)
+                    ]
+                }
+            active += 1
+            peak = max(peak, active)
+            await asyncio.sleep(0)
+            active -= 1
+            return {"result": {"transaction": {}, "meta": {}}}
+
+    client = StandardClient()
+    client.transaction_history_mode = "standard"
+
+    page = await client.get_transactions_for_address("wallet", limit=3)
+
+    assert len(page.transactions) == 3
+    assert peak == 1
+
+
+@pytest.mark.asyncio
 async def test_standard_history_skips_helius_only_metadata() -> None:
     client = StubHeliusClient({"result": {"name": "should-not-be-used"}})
     client.transaction_history_mode = "standard"

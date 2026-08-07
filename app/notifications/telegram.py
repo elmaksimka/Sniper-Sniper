@@ -96,11 +96,11 @@ class TelegramNotifier:
             )
         )
 
-    async def send_worker_status(self, details: dict[str, Any]) -> None:
+    async def send_worker_status(self, details: dict[str, Any]) -> dict[str, bool]:
         failures = int(details.get("discovery_failures", 0))
         rpc_state = "норма" if failures == 0 else f"backoff ({failures})"
         window_minutes = int(details.get("status_window_minutes", 30))
-        await self.send_text(
+        return await self.send_text(
             "\n".join(
                 (
                     "🟢 Alpha Engine працює",

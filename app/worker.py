@@ -42,6 +42,42 @@ async def heartbeat_loop(
         await wait_for_stop(stop_event, interval_seconds)
 
 
+async def telegram_status_loop(
+    leader: PostgresLeaderElector,
+    telegram: TelegramNotifier,
+    interval_seconds: float,
+    window_minutes: int,
+    details: dict[str, Any],
+    stop_event: asyncio.Event,
+) -> None:
+    """Send periodic worker reports independently from RPC processing."""
+    logger = get_logger("worker-telegram-status")
+    while not await wait_for_stop(stop_event, interval_seconds):
+        if not leader.is_leader:
+            continue
+
+        report_details = dict(details)
+        try:
+            async with async_session_factory() as session:
+                stats = await ActivityStatsService(session).get(window_minutes)
+            report_details.update(
+                total_transactions=stats.total_transactions,
+                total_tokens=stats.total_tokens,
+                recent_transactions=stats.recent_transactions,
+                recent_tokens=stats.recent_tokens,
+                status_window_minutes=stats.window_minutes,
+            )
+        except Exception:
+            logger.exception("worker_activity_stats_failed")
+
+        results = await telegram.send_worker_status(report_details)
+        logger.info(
+            "worker_status_sent",
+            recipients_succeeded=sum(results.values()),
+            recipients_total=len(results),
+        )
+
+
 async def wait_for_stop(
     stop_event: asyncio.Event,
     timeout_seconds: float,
@@ -89,9 +125,9 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
         )
     )
     next_discovery_at = 0.0
-    next_status_at = 0.0
     discovery_failures = 0
     worker_announced = False
+    status_task: asyncio.Task[None] | None = None
 
     try:
         while not stop_event.is_set():
@@ -128,7 +164,16 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                     len(settings.discovery_programs),
                 )
                 worker_announced = True
-                next_status_at = 0.0
+                status_task = asyncio.create_task(
+                    telegram_status_loop(
+                        leader,
+                        telegram,
+                        settings.telegram_status_interval_seconds,
+                        settings.telegram_status_window_minutes,
+                        heartbeat_details,
+                        stop_event,
+                    )
+                )
 
             try:
                 async with async_session_factory() as session:
@@ -246,35 +291,15 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                 heartbeat_details["state"] = "error"
                 logger.exception("monitor_poll_failed")
 
-            if (
-                worker_announced
-                and asyncio.get_running_loop().time() >= next_status_at
-            ):
-                try:
-                    async with async_session_factory() as status_session:
-                        stats = await ActivityStatsService(status_session).get(
-                            settings.telegram_status_window_minutes
-                        )
-                    heartbeat_details.update(
-                        total_transactions=stats.total_transactions,
-                        total_tokens=stats.total_tokens,
-                        recent_transactions=stats.recent_transactions,
-                        recent_tokens=stats.recent_tokens,
-                        status_window_minutes=stats.window_minutes,
-                    )
-                except Exception:
-                    logger.exception("worker_activity_stats_failed")
-                await telegram.send_worker_status(dict(heartbeat_details))
-                next_status_at = (
-                    asyncio.get_running_loop().time()
-                    + settings.telegram_status_interval_seconds
-                )
-
             await wait_for_stop(
                 stop_event,
                 settings.monitor_poll_interval_seconds,
             )
     finally:
+        if status_task is not None:
+            status_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await status_task
         if worker_announced:
             await telegram.send_worker_stopped()
         heartbeat_task.cancel()

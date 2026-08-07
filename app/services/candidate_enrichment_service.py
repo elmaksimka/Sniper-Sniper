@@ -54,6 +54,7 @@ class CandidateEnrichmentService:
             offset=0,
         )
         enriched = 0
+        attempted = 0
         processed = 0
         promoted = 0
         last_wallet: str | None = None
@@ -61,7 +62,7 @@ class CandidateEnrichmentService:
         last_score_after: float | None = None
 
         for snapshot in candidates:
-            if enriched >= self.maximum_candidates:
+            if attempted >= self.maximum_candidates:
                 break
             if snapshot.score < self.minimum_score or snapshot.score >= 65:
                 continue
@@ -74,6 +75,7 @@ class CandidateEnrichmentService:
             if not self._ready(cursor):
                 continue
 
+            attempted += 1
             try:
                 transactions = await self.scanner.scan_address(
                     address,
