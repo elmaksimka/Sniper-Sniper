@@ -33,7 +33,7 @@ async def postgres_engine() -> AsyncIterator[AsyncEngine]:
     test_engine = create_async_engine(
         database_url,
         connect_args={
-            "server_settings": {"search_path": f"{schema_name},public"},
+            "server_settings": {"search_path": schema_name},
         },
     )
     try:

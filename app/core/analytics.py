@@ -50,3 +50,19 @@ class TokenPosition:
     @property
     def has_incomplete_history(self) -> bool:
         return self.unmatched_sell_quantity > 0
+
+
+@dataclass(frozen=True, slots=True)
+class ObservedTokenHolder:
+    wallet_address: str
+    quantity: float
+    total_bought: float
+    total_sold: float
+    unmatched_sell_quantity: float
+    trade_count: int
+    first_trade_at: datetime
+    last_trade_at: datetime
+
+    @property
+    def has_incomplete_history(self) -> bool:
+        return self.unmatched_sell_quantity > 0

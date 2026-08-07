@@ -168,6 +168,29 @@ class TokenAnalyticsRead(BaseModel):
     last_trade_at: datetime | None
 
 
+class ObservedTokenHolderRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    wallet_address: str
+    quantity: float
+    total_bought: float
+    total_sold: float
+    unmatched_sell_quantity: float
+    trade_count: int
+    first_trade_at: datetime
+    last_trade_at: datetime
+    has_incomplete_history: bool
+
+
+class ObservedTokenHolderPage(BaseModel):
+    token_address: str
+    items: list[ObservedTokenHolderRead]
+    total: int
+    limit: int
+    offset: int
+    include_closed: bool
+
+
 class TokenPositionRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

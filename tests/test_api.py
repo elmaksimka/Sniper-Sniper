@@ -8,7 +8,12 @@ from app.api.dependencies import get_score_snapshot_service, get_scoring_service
 from app.api.dependencies import get_alert_service
 from app.api.dependencies import get_funding_service, get_monitor_service
 from app.api.dependencies import get_system_health_service
-from app.core.analytics import TokenAnalytics, TokenPosition, WalletAnalytics
+from app.core.analytics import (
+    ObservedTokenHolder,
+    TokenAnalytics,
+    TokenPosition,
+    WalletAnalytics,
+)
 from app.core.scoring import WalletScore
 from app.core.funding import FundingCounterparty, WalletFundingAnalytics
 from app.infrastructure.models import (
@@ -151,6 +156,33 @@ class FakeAnalyticsService:
                 trade_count=2,
             )
         ]
+
+    async def get_token_holders(
+        self,
+        address: str,
+        limit: int,
+        offset: int,
+        include_closed: bool = False,
+    ) -> tuple[list[ObservedTokenHolder], int] | None:
+        if address != self.token.address:
+            return None
+        assert (limit, offset, include_closed) == (10, 5, True)
+        now = datetime.now(UTC)
+        return (
+            [
+                ObservedTokenHolder(
+                    wallet_address="holder",
+                    quantity=7,
+                    total_bought=10,
+                    total_sold=3,
+                    unmatched_sell_quantity=0,
+                    trade_count=2,
+                    first_trade_at=now,
+                    last_trade_at=now,
+                )
+            ],
+            1,
+        )
 
 
 class FakeScoringService:
@@ -547,6 +579,39 @@ def test_get_token_analytics() -> None:
     assert response.json()["unique_wallets"] == 2
     assert response.json()["buy_volume"] == 20.0
     assert response.json()["net_token_flow"] == 15.0
+
+
+def test_list_observed_token_holders() -> None:
+    client, _ = create_client()
+
+    response = client.get(
+        "/api/v1/analytics/tokens/mint/holders",
+        params={"limit": 10, "offset": 5, "include_closed": True},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["token_address"] == "mint"
+    assert payload["total"] == 1
+    assert payload["include_closed"] is True
+    assert payload["items"][0]["wallet_address"] == "holder"
+    assert payload["items"][0]["quantity"] == 7.0
+    assert payload["items"][0]["has_incomplete_history"] is False
+
+
+def test_missing_token_holders_returns_404() -> None:
+    application = create_app()
+    analytics = FakeAnalyticsService()
+    application.dependency_overrides[get_analytics_service] = lambda: analytics
+    client = TestClient(application)
+
+    response = client.get(
+        "/api/v1/analytics/tokens/missing/holders",
+        params={"limit": 10, "offset": 5, "include_closed": True},
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Token not found"}
 
 
 def test_missing_analytics_entity_returns_404() -> None:

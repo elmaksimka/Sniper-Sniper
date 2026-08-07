@@ -168,8 +168,8 @@ class Trade(Base):
     )
 
     timestamp: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=utc_now_naive,
+        DateTime(timezone=True),
+        default=utc_now,
     )
 
     token: Mapped["Token"] = relationship(

@@ -100,6 +100,7 @@ Read endpoints:
 - `GET /api/v1/analytics/wallets/{address}`
 - `GET /api/v1/analytics/wallets/{address}/positions`
 - `GET /api/v1/analytics/tokens/{address}`
+- `GET /api/v1/analytics/tokens/{address}/holders`
 - `GET /api/v1/scores/wallets/{address}`
 - `GET /api/v1/scores/wallets`
 - `GET /api/v1/alerts`
@@ -127,6 +128,8 @@ Transaction normalization and conservative SOL allocation are documented in
 [`docs/ACCOUNTING.md`](docs/ACCOUNTING.md).
 Native SOL funding extraction is documented in
 [`docs/FUNDING.md`](docs/FUNDING.md).
+Observed holder analytics is documented in
+[`docs/HOLDERS.md`](docs/HOLDERS.md).
 Wallet history pagination is documented in
 [`docs/INGESTION.md`](docs/INGESTION.md).
 Production probes and startup ordering are documented in

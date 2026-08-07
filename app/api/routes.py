@@ -35,6 +35,8 @@ from app.api.schemas import (
     FundingTransferPage,
     FundingTransferRead,
     WalletFundingAnalyticsRead,
+    ObservedTokenHolderPage,
+    ObservedTokenHolderRead,
 )
 
 
@@ -202,6 +204,39 @@ async def get_token_analytics(
         )
 
     return TokenAnalyticsRead.model_validate(analytics)
+
+
+@router.get(
+    "/analytics/tokens/{address}/holders",
+    response_model=ObservedTokenHolderPage,
+)
+async def list_observed_token_holders(
+    address: str,
+    service: AnalyticsServiceDependency,
+    limit: Limit = 50,
+    offset: Offset = 0,
+    include_closed: bool = False,
+) -> ObservedTokenHolderPage:
+    result = await service.get_token_holders(
+        address,
+        limit,
+        offset,
+        include_closed,
+    )
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Token not found",
+        )
+    holders, total = result
+    return ObservedTokenHolderPage(
+        token_address=address,
+        items=[ObservedTokenHolderRead.model_validate(item) for item in holders],
+        total=total,
+        limit=limit,
+        offset=offset,
+        include_closed=include_closed,
+    )
 
 
 @router.get(

@@ -14,9 +14,105 @@ from app.services.monitor_service import MonitorService
 from app.services.system_health_service import SystemHealthService
 from app.services.funding_service import FundingService
 from app.services.wallet_service import WalletService
+from app.services.analytics_service import AnalyticsService
+from app.services.token_service import TokenService
+from app.services.trade_service import TradeService
 
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
+
+
+async def test_observed_token_holders_are_aggregated_and_paginated(
+    postgres_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with postgres_session_factory() as session:
+        token = await TokenService(session).create_token("holder-test-mint")
+        wallets = WalletService(session)
+        active = await wallets.create_wallet("active-holder")
+        smaller = await wallets.create_wallet("smaller-holder")
+        incomplete = await wallets.create_wallet("incomplete-holder")
+        recovered = await wallets.create_wallet("recovered-holder")
+        trades = TradeService(session)
+
+        await trades.create_trade(
+            token.id, active.id, "buy", 10, 0.1, -1, "holder-buy"
+        )
+        await trades.create_trade(
+            token.id, active.id, "sell", 3, 0.2, 0.6, "holder-sell"
+        )
+        await trades.create_trade(
+            token.id, smaller.id, "buy", 4, 0.1, -0.4, "smaller-buy"
+        )
+        await trades.create_trade(
+            token.id,
+            incomplete.id,
+            "sell",
+            5,
+            0.1,
+            0.5,
+            "incomplete-sell",
+        )
+        await trades.create_trade(
+            token.id,
+            recovered.id,
+            "sell",
+            5,
+            0.1,
+            0.5,
+            "recovered-early-sell",
+        )
+        await trades.create_trade(
+            token.id,
+            recovered.id,
+            "buy",
+            10,
+            0.1,
+            -1,
+            "recovered-later-buy",
+        )
+
+    async with postgres_session_factory() as session:
+        service = AnalyticsService(session)
+        active_page = await service.get_token_holders(
+            "holder-test-mint", 10, 0
+        )
+        all_page = await service.get_token_holders(
+            "holder-test-mint", 10, 0, include_closed=True
+        )
+        second_page = await service.get_token_holders(
+            "holder-test-mint", 1, 1
+        )
+
+        assert active_page is not None
+        active_holders, active_total = active_page
+        assert active_total == 3
+        assert [item.wallet_address for item in active_holders] == [
+            "recovered-holder",
+            "active-holder",
+            "smaller-holder",
+        ]
+        assert [item.quantity for item in active_holders] == [10.0, 7.0, 4.0]
+        assert active_holders[0].unmatched_sell_quantity == 5
+        assert active_holders[0].has_incomplete_history is True
+
+        assert second_page is not None
+        paged_holders, paged_total = second_page
+        assert paged_total == 3
+        assert [item.wallet_address for item in paged_holders] == [
+            "active-holder"
+        ]
+
+        assert all_page is not None
+        all_holders, all_total = all_page
+        assert all_total == 4
+        incomplete_holder = next(
+            item
+            for item in all_holders
+            if item.wallet_address == "incomplete-holder"
+        )
+        assert incomplete_holder.quantity == 0
+        assert incomplete_holder.unmatched_sell_quantity == 5
+        assert incomplete_holder.has_incomplete_history is True
 
 
 async def test_funding_transfer_round_trips_and_filters_by_direction(
