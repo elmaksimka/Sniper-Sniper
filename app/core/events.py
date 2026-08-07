@@ -56,6 +56,11 @@ class WalletUpdated(Event):
     wallet: str
 
 
+@dataclass(slots=True, kw_only=True)
+class TokenUpdated(Event):
+    token_address: str
+
+
 # -----------------------
 # Trading Events
 # -----------------------

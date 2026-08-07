@@ -13,6 +13,7 @@ from app.services.score_snapshot_service import ScoreSnapshotService
 from app.services.scoring_service import ScoringService
 from app.services.system_health_service import SystemHealthService
 from app.services.funding_service import FundingService
+from app.services.token_score_snapshot_service import TokenScoreSnapshotService
 
 
 SessionDependency = Annotated[AsyncSession, Depends(get_session)]
@@ -54,6 +55,18 @@ def get_score_snapshot_service(
 ScoreSnapshotServiceDependency = Annotated[
     ScoreSnapshotService,
     Depends(get_score_snapshot_service),
+]
+
+
+def get_token_score_snapshot_service(
+    session: SessionDependency,
+) -> TokenScoreSnapshotService:
+    return TokenScoreSnapshotService(session)
+
+
+TokenScoreSnapshotServiceDependency = Annotated[
+    TokenScoreSnapshotService,
+    Depends(get_token_score_snapshot_service),
 ]
 
 

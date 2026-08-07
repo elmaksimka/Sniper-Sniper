@@ -10,6 +10,7 @@ from app.infrastructure.models import (
     WalletMonitor,
     WalletScoreSnapshot,
     FundingTransfer,
+    TokenScoreSnapshot,
 )
 
 
@@ -276,6 +277,36 @@ class TokenScoreRead(BaseModel):
     observed_holder_count: int
     top_holder_share: float
     incomplete_holder_ratio: float
+
+
+class TokenScoreSnapshotRead(TokenScoreRead):
+    updated_at: datetime
+
+    @classmethod
+    def from_snapshot(cls, snapshot: TokenScoreSnapshot) -> TokenScoreSnapshotRead:
+        return cls(
+            token_address=snapshot.token.address,
+            score=snapshot.score,
+            grade=snapshot.grade,
+            methodology_version=snapshot.methodology_version,
+            activity_score=snapshot.activity_score,
+            participation_score=snapshot.participation_score,
+            holder_distribution_score=snapshot.holder_distribution_score,
+            flow_balance_score=snapshot.flow_balance_score,
+            creator_history_score=snapshot.creator_history_score,
+            data_quality_score=snapshot.data_quality_score,
+            observed_holder_count=snapshot.observed_holder_count,
+            top_holder_share=snapshot.top_holder_share,
+            incomplete_holder_ratio=snapshot.incomplete_holder_ratio,
+            updated_at=snapshot.updated_at,
+        )
+
+
+class TokenScoreLeaderboardPage(BaseModel):
+    items: list[TokenScoreSnapshotRead]
+    total: int
+    limit: int
+    offset: int
 
 
 class WalletScoreSnapshotRead(WalletScoreRead):

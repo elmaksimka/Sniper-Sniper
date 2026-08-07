@@ -7,7 +7,7 @@ from app.collectors.score_collector import ScoreCollector
 from app.collectors.trade_collector import TradeCollector
 from app.core.event_bus import EventBus
 from app.core.events import ScoreUpdated, TradeObserved
-from app.core.scoring import WalletScore
+from app.core.scoring import TokenScore, WalletScore
 from app.infrastructure.models import Token, Wallet
 
 
@@ -47,6 +47,23 @@ class FakeScoringService:
             unmatched_sell_ratio=0.25,
         )
 
+    async def score_token(self, address: str) -> TokenScore:
+        return TokenScore(
+            token_address=address,
+            score=70,
+            grade="B",
+            methodology_version="token-v1",
+            activity_score=10,
+            participation_score=10,
+            holder_distribution_score=15,
+            flow_balance_score=10,
+            creator_history_score=15,
+            data_quality_score=10,
+            observed_holder_count=5,
+            top_holder_share=0.3,
+            incomplete_holder_ratio=0,
+        )
+
 
 class FakeSnapshotService:
     def __init__(self) -> None:
@@ -54,6 +71,15 @@ class FakeSnapshotService:
 
     async def save(self, wallet_id: int, score: WalletScore) -> object:
         self.saved = (wallet_id, score)
+        return object()
+
+
+class FakeTokenSnapshotService:
+    def __init__(self) -> None:
+        self.saved: tuple[int, TokenScore] | None = None
+
+    async def save(self, token_id: int, score: TokenScore) -> object:
+        self.saved = (token_id, score)
         return object()
 
 
@@ -65,6 +91,7 @@ async def test_trade_persistence_triggers_score_snapshot_pipeline() -> None:
     trade_service: Any = FakeTradeService()
     scoring_service: Any = FakeScoringService()
     snapshot_service: Any = FakeSnapshotService()
+    token_snapshot_service: Any = FakeTokenSnapshotService()
 
     trade_collector = TradeCollector(
         event_bus,
@@ -77,6 +104,8 @@ async def test_trade_persistence_triggers_score_snapshot_pipeline() -> None:
         scoring_service,
         snapshot_service,
         wallet_service,
+        token_snapshot_service,
+        token_service,
     )
     score_events: list[ScoreUpdated] = []
 
@@ -104,6 +133,9 @@ async def test_trade_persistence_triggers_score_snapshot_pipeline() -> None:
     assert snapshot_service.saved is not None
     assert snapshot_service.saved[0] == 2
     assert snapshot_service.saved[1].score == 75
+    assert token_snapshot_service.saved is not None
+    assert token_snapshot_service.saved[0] == 1
+    assert token_snapshot_service.saved[1].score == 70
     assert len(score_events) == 1
     assert score_events[0].entity == "wallet"
     assert score_events[0].score == 75

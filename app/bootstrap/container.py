@@ -23,6 +23,7 @@ from app.services.token_store import TokenStore
 from app.services.trade_service import TradeService
 from app.services.wallet_service import WalletService
 from app.services.funding_service import FundingService
+from app.services.token_score_snapshot_service import TokenScoreSnapshotService
 
 
 class Container:
@@ -39,6 +40,7 @@ class Container:
         self.trade_service = TradeService(session)
         self.scoring_service = ScoringService(session)
         self.score_snapshot_service = ScoreSnapshotService(session)
+        self.token_score_snapshot_service = TokenScoreSnapshotService(session)
         self.alert_service = AlertService(session)
         self.funding_service = FundingService(session)
 
@@ -57,6 +59,8 @@ class Container:
             scoring_service=self.scoring_service,
             snapshot_service=self.score_snapshot_service,
             wallet_service=self.wallet_service,
+            token_snapshot_service=self.token_score_snapshot_service,
+            token_service=self.token_service,
         )
         self.alert_collector = AlertCollector(
             event_bus=self.event_bus,

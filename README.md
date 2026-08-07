@@ -52,6 +52,8 @@ Run the wallet scanner:
 poetry run python -m app.main
 ```
 
+The score backfill command updates both wallet and token snapshots.
+
 Run the continuous monitored-wallet worker:
 
 ```powershell
@@ -104,6 +106,7 @@ Read endpoints:
 - `GET /api/v1/analytics/creators/{address}`
 - `GET /api/v1/scores/wallets/{address}`
 - `GET /api/v1/scores/tokens/{address}`
+- `GET /api/v1/scores/tokens`
 - `GET /api/v1/scores/wallets`
 - `GET /api/v1/alerts`
 - `POST /api/v1/alerts/{alert_id}/acknowledge`

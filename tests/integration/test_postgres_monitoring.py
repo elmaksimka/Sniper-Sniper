@@ -18,6 +18,7 @@ from app.services.analytics_service import AnalyticsService
 from app.services.token_service import TokenService
 from app.services.trade_service import TradeService
 from app.services.scoring_service import ScoringService
+from app.services.token_score_snapshot_service import TokenScoreSnapshotService
 
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
@@ -90,6 +91,20 @@ async def test_creator_analytics_aggregate_launches_and_sol_activity(
         assert token_score.observed_holder_count == 1
         assert token_score.top_holder_share == 1
         assert token_score.incomplete_holder_ratio == 0.5
+
+        snapshots = TokenScoreSnapshotService(session)
+        first_snapshot = await snapshots.save(traded.id, token_score)
+        repeated_snapshot = await snapshots.save(traded.id, token_score)
+        leaders, leader_total = await snapshots.leaderboard(
+            10,
+            0,
+            token_score.grade,
+        )
+
+        assert repeated_snapshot.id == first_snapshot.id
+        assert leader_total == 1
+        assert leaders[0].token.address == "creator-traded-mint"
+        assert leaders[0].methodology_version == "token-v1"
 
 
 async def test_observed_token_holders_are_aggregated_and_paginated(

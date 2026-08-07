@@ -7,8 +7,9 @@ from app.services.score_backfill_service import ScoreBackfillService
 async def run() -> None:
     session = await create_session()
     try:
-        processed = await ScoreBackfillService(session).run()
-        print("Wallet score snapshots updated:", processed)
+        wallets, tokens = await ScoreBackfillService(session).run_all()
+        print("Wallet score snapshots updated:", wallets)
+        print("Token score snapshots updated:", tokens)
     finally:
         await session.close()
         await engine.dispose()

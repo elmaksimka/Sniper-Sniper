@@ -74,6 +74,12 @@ class Token(Base):
         back_populates="token",
     )
 
+    score_snapshot: Mapped["TokenScoreSnapshot | None"] = relationship(
+        back_populates="token",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+
 
 class Wallet(Base):
     __tablename__ = "wallets"
@@ -245,6 +251,35 @@ class WalletScoreSnapshot(Base):
     )
 
     wallet: Mapped["Wallet"] = relationship(back_populates="score_snapshot")
+
+
+class TokenScoreSnapshot(Base):
+    __tablename__ = "token_score_snapshots"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    token_id: Mapped[int] = mapped_column(
+        ForeignKey("tokens.id", ondelete="CASCADE"),
+        unique=True,
+    )
+    score: Mapped[float] = mapped_column(Float, index=True)
+    grade: Mapped[str] = mapped_column(String(2), index=True)
+    methodology_version: Mapped[str] = mapped_column(String(32))
+    activity_score: Mapped[float] = mapped_column(Float)
+    participation_score: Mapped[float] = mapped_column(Float)
+    holder_distribution_score: Mapped[float] = mapped_column(Float)
+    flow_balance_score: Mapped[float] = mapped_column(Float)
+    creator_history_score: Mapped[float] = mapped_column(Float)
+    data_quality_score: Mapped[float] = mapped_column(Float)
+    observed_holder_count: Mapped[int] = mapped_column()
+    top_holder_share: Mapped[float] = mapped_column(Float)
+    incomplete_holder_ratio: Mapped[float] = mapped_column(Float)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+    token: Mapped["Token"] = relationship(back_populates="score_snapshot")
 
 
 class Alert(Base):

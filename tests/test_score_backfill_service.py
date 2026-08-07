@@ -2,8 +2,8 @@ from typing import Any
 
 import pytest
 
-from app.core.scoring import WalletScore
-from app.infrastructure.models import Wallet
+from app.core.scoring import TokenScore, WalletScore
+from app.infrastructure.models import Token, Wallet
 from app.services.score_backfill_service import ScoreBackfillService
 
 
@@ -34,6 +34,23 @@ class FakeScoringService:
             unmatched_sell_ratio=0.25,
         )
 
+    async def score_token(self, address: str) -> TokenScore:
+        return TokenScore(
+            token_address=address,
+            score=50,
+            grade="C",
+            methodology_version="token-v1",
+            activity_score=10,
+            participation_score=5,
+            holder_distribution_score=10,
+            flow_balance_score=5,
+            creator_history_score=10,
+            data_quality_score=10,
+            observed_holder_count=2,
+            top_holder_share=0.5,
+            incomplete_holder_ratio=0,
+        )
+
 
 class FakeSnapshotService:
     def __init__(self) -> None:
@@ -41,6 +58,26 @@ class FakeSnapshotService:
 
     async def save(self, wallet_id: int, _: WalletScore) -> object:
         self.wallet_ids.append(wallet_id)
+        return object()
+
+
+class FakeTokenRepository:
+    async def list_all(
+        self,
+        limit: int,
+        offset: int,
+        creator: str | None = None,
+    ) -> list[Token]:
+        tokens = [Token(id=1, address="mint-1"), Token(id=2, address="mint-2")]
+        return tokens[offset : offset + limit]
+
+
+class FakeTokenSnapshotService:
+    def __init__(self) -> None:
+        self.token_ids: list[int] = []
+
+    async def save(self, token_id: int, _: TokenScore) -> object:
+        self.token_ids.append(token_id)
         return object()
 
 
@@ -58,3 +95,19 @@ async def test_backfill_processes_wallets_in_batches() -> None:
 
     assert processed == 3
     assert snapshots.wallet_ids == [1, 2, 3]
+
+
+@pytest.mark.asyncio
+async def test_backfill_processes_tokens_in_batches() -> None:
+    session: Any = None
+    service = ScoreBackfillService(session)
+    service_with_fakes: Any = service
+    service_with_fakes.tokens = FakeTokenRepository()
+    service_with_fakes.scoring = FakeScoringService()
+    snapshots = FakeTokenSnapshotService()
+    service_with_fakes.token_snapshots = snapshots
+
+    processed = await service.run_tokens(batch_size=1)
+
+    assert processed == 2
+    assert snapshots.token_ids == [1, 2]

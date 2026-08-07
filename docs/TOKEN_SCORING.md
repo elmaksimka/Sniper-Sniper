@@ -17,6 +17,18 @@ heuristic from 0 to 100. It is not a price forecast or financial advice.
 The response includes the component values, methodology version,
 `top_holder_share`, and `incomplete_holder_ratio`.
 
+## Materialized scores
+
+Each persisted trade emits a token update and atomically upserts the latest
+`token_score_snapshots` row. `GET /api/v1/scores/tokens` returns the materialized
+leaderboard and accepts the same `grade` values as the wallet leaderboard.
+
+After deploying the snapshot migration, populate existing tokens and wallets:
+
+```powershell
+poetry run python -m app.backfill_scores
+```
+
 ## Limitations
 
 The score uses only data ingested by Alpha Engine. Observed holder concentration

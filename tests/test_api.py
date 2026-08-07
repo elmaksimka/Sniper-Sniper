@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from app.api.app import create_app
 from app.api.dependencies import get_analytics_service, get_read_service
 from app.api.dependencies import get_score_snapshot_service, get_scoring_service
+from app.api.dependencies import get_token_score_snapshot_service
 from app.api.dependencies import get_alert_service
 from app.api.dependencies import get_funding_service, get_monitor_service
 from app.api.dependencies import get_system_health_service
@@ -26,6 +27,7 @@ from app.infrastructure.models import (
     WalletMonitor,
     WalletScoreSnapshot,
     FundingTransfer,
+    TokenScoreSnapshot,
 )
 
 
@@ -292,6 +294,39 @@ class FakeScoreSnapshotService:
         return [self.snapshot], 1
 
 
+class FakeTokenScoreSnapshotService:
+    def __init__(self) -> None:
+        token = Token(id=1, address="mint")
+        self.snapshot = TokenScoreSnapshot(
+            id=1,
+            token_id=token.id,
+            token=token,
+            score=72.5,
+            grade="B",
+            methodology_version="token-v1",
+            activity_score=15,
+            participation_score=10,
+            holder_distribution_score=18,
+            flow_balance_score=10,
+            creator_history_score=12,
+            data_quality_score=7.5,
+            observed_holder_count=8,
+            top_holder_share=0.25,
+            incomplete_holder_ratio=0.1,
+            updated_at=datetime.now(UTC),
+        )
+        self.filters: tuple[int, int, str | None] | None = None
+
+    async def leaderboard(
+        self,
+        limit: int,
+        offset: int,
+        grade: str | None,
+    ) -> tuple[list[TokenScoreSnapshot], int]:
+        self.filters = (limit, offset, grade)
+        return [self.snapshot], 1
+
+
 class FakeAlertService:
     def __init__(self) -> None:
         self.alert = Alert(
@@ -446,6 +481,7 @@ def create_client() -> tuple[TestClient, FakeReadService]:
     analytics = FakeAnalyticsService()
     scoring = FakeScoringService()
     snapshots = FakeScoreSnapshotService()
+    token_snapshots = FakeTokenScoreSnapshotService()
     alerts = FakeAlertService()
     monitors = FakeMonitorService()
     funding = FakeFundingService()
@@ -455,6 +491,9 @@ def create_client() -> tuple[TestClient, FakeReadService]:
     application.dependency_overrides[get_scoring_service] = lambda: scoring
     application.dependency_overrides[get_score_snapshot_service] = (
         lambda: snapshots
+    )
+    application.dependency_overrides[get_token_score_snapshot_service] = (
+        lambda: token_snapshots
     )
     application.dependency_overrides[get_alert_service] = lambda: alerts
     application.dependency_overrides[get_monitor_service] = lambda: monitors
@@ -765,6 +804,30 @@ def test_missing_token_score_returns_404() -> None:
 
     assert response.status_code == 404
     assert response.json() == {"detail": "Token not found"}
+
+
+def test_token_score_leaderboard() -> None:
+    client, _ = create_client()
+
+    response = client.get(
+        "/api/v1/scores/tokens",
+        params={"limit": 10, "offset": 5, "grade": "B"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    assert payload["items"][0]["token_address"] == "mint"
+    assert payload["items"][0]["methodology_version"] == "token-v1"
+    assert payload["items"][0]["updated_at"] is not None
+
+
+def test_token_score_leaderboard_validates_grade() -> None:
+    client, _ = create_client()
+
+    response = client.get("/api/v1/scores/tokens", params={"grade": "Z"})
+
+    assert response.status_code == 422
 
 
 def test_wallet_score_leaderboard() -> None:

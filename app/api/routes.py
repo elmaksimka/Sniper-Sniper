@@ -12,6 +12,7 @@ from app.api.dependencies import (
     ScoreSnapshotServiceDependency,
     ScoringServiceDependency,
     FundingServiceDependency,
+    TokenScoreSnapshotServiceDependency,
 )
 from app.api.schemas import (
     AlertPage,
@@ -39,6 +40,8 @@ from app.api.schemas import (
     ObservedTokenHolderRead,
     CreatorAnalyticsRead,
     TokenScoreRead,
+    TokenScoreLeaderboardPage,
+    TokenScoreSnapshotRead,
 )
 
 
@@ -316,6 +319,25 @@ async def get_token_score(
             detail="Token not found",
         )
     return TokenScoreRead.model_validate(score)
+
+
+@router.get(
+    "/scores/tokens",
+    response_model=TokenScoreLeaderboardPage,
+)
+async def list_token_scores(
+    service: TokenScoreSnapshotServiceDependency,
+    limit: Limit = 50,
+    offset: Offset = 0,
+    grade: Literal["A", "B", "C", "D", "E"] | None = None,
+) -> TokenScoreLeaderboardPage:
+    snapshots, total = await service.leaderboard(limit, offset, grade)
+    return TokenScoreLeaderboardPage(
+        items=[TokenScoreSnapshotRead.from_snapshot(item) for item in snapshots],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get(
