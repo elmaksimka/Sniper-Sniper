@@ -83,6 +83,10 @@ Run the default test suite:
 poetry run pytest -q
 ```
 
+The GitHub Actions quality gate runs Ruff, MyPy, migrations against a clean
+PostgreSQL 17 service, the full test suite, and a production Docker build on
+every push and pull request.
+
 PostgreSQL integration tests require an explicit test URL. They create and drop
 only a randomly named `alpha_test_*` schema:
 

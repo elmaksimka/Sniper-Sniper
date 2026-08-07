@@ -5,6 +5,13 @@ and worker. `docker-compose.prod.yml` starts PostgreSQL, applies Alembic
 migrations once, then starts the worker and API. The API becomes healthy only
 after its full readiness probe passes.
 
+## Release gate
+
+The CI workflow must pass before deployment. It validates formatting and types,
+upgrades a clean PostgreSQL database to Alembic head, checks model/migration
+parity, runs the full suite with integration tests enabled, and builds the same
+runtime image used by production.
+
 ## Start
 
 Create the production environment file and replace every placeholder secret:
