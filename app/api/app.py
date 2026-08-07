@@ -12,6 +12,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.dependencies import SystemHealthServiceDependency
 from app.api.routes import router
+from app.api.schemas import BuildInfo
 from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.infrastructure.database import engine
@@ -36,7 +37,7 @@ def create_app() -> FastAPI:
     production = settings.environment.lower() == "production"
     application = FastAPI(
         title=settings.app_name,
-        version="0.1.0",
+        version=settings.app_version,
         lifespan=lifespan,
         docs_url=None if production else "/docs",
         redoc_url=None if production else "/redoc",
@@ -106,6 +107,14 @@ def create_app() -> FastAPI:
     @application.get("/health", tags=["system"])
     async def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    @application.get("/version", response_model=BuildInfo, tags=["system"])
+    async def version() -> BuildInfo:
+        return BuildInfo(
+            version=settings.app_version,
+            revision=settings.git_sha,
+            environment=settings.environment,
+        )
 
     @application.get("/health/live", tags=["system"])
     async def liveness() -> dict[str, str]:

@@ -14,6 +14,12 @@ from app.infrastructure.models import (
 )
 
 
+class BuildInfo(BaseModel):
+    version: str
+    revision: str
+    environment: str
+
+
 class TokenRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

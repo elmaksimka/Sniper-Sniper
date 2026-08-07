@@ -536,6 +536,19 @@ def test_invalid_request_id_is_replaced() -> None:
     assert len(request_id) == 32
 
 
+def test_version_reports_build_identity() -> None:
+    client, _ = create_client()
+
+    response = client.get("/version")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "version": "0.1.0",
+        "revision": "development",
+        "environment": "development",
+    }
+
+
 def test_liveness_and_readiness() -> None:
     client, _ = create_client()
 
@@ -947,6 +960,7 @@ def test_production_mutations_require_admin_api_key(monkeypatch) -> None:
     monkeypatch.setenv("HELIUS_API_KEY", "helius-key")
     monkeypatch.setenv("ADMIN_API_KEY", "a" * 32)
     monkeypatch.setenv("ALLOWED_HOSTS", "testserver,localhost,127.0.0.1")
+    monkeypatch.setenv("GIT_SHA", "abcdef1")
     get_settings.cache_clear()
     try:
         client, _ = create_client()

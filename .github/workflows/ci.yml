@@ -75,4 +75,10 @@ jobs:
           config --quiet
 
       - name: Build production image
-        run: docker build --target runtime -t alpha-engine:${{ github.sha }} .
+        run: >-
+          docker build
+          --target runtime
+          --build-arg APP_VERSION=0.1.0
+          --build-arg GIT_SHA=${{ github.sha }}
+          -t alpha-engine:${{ github.sha }}
+          .

@@ -23,6 +23,10 @@ docker compose -f docker-compose.prod.yml up -d
 docker compose -f docker-compose.prod.yml ps
 ```
 
+Set `GIT_SHA` to the exact 7-40 character hexadecimal revision being deployed.
+The build stores `APP_VERSION` and `GIT_SHA` in OCI image labels and runtime
+environment variables. Verify them after deployment with `GET /version`.
+
 `DATABASE_URL` must use the Compose hostname `postgres`, not `localhost`. Keep
 `.env` out of version control. In a managed deployment, inject the same variables
 from the platform secret store instead of copying a file.

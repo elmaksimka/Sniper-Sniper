@@ -3,6 +3,9 @@ x-alpha-engine: &alpha-engine
   build:
     context: .
     target: runtime
+    args:
+      APP_VERSION: ${APP_VERSION:-0.1.0}
+      GIT_SHA: ${GIT_SHA:?GIT_SHA must be set in .env}
   env_file:
     - path: .env
       required: false

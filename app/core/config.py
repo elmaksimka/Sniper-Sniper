@@ -1,4 +1,5 @@
 from functools import lru_cache
+import re
 
 from pydantic import Field
 from pydantic import model_validator
@@ -13,6 +14,8 @@ class Settings(BaseSettings):
     """
 
     app_name: str = "Alpha Engine"
+    app_version: str = "0.1.0"
+    git_sha: str = "development"
     environment: str = "development"
 
     # Solana
@@ -103,6 +106,8 @@ class Settings(BaseSettings):
         }
         if not allowed_hosts or "*" in allowed_hosts:
             missing.append("ALLOWED_HOSTS (explicit host allowlist)")
+        if re.fullmatch(r"[0-9a-fA-F]{7,40}", self.git_sha) is None:
+            missing.append("GIT_SHA (7-40 hexadecimal characters)")
         if missing:
             raise ValueError(
                 "Missing or invalid production configuration: "

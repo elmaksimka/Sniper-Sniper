@@ -11,6 +11,7 @@ def production_settings(**overrides: str) -> Settings:
         "helius_api_key": "helius-key",
         "admin_api_key": "a" * 32,
         "allowed_hosts": "api.example.com,localhost,127.0.0.1",
+        "git_sha": "abcdef1",
     }
     values.update(overrides)
     return Settings(_env_file=None, **values)  # type: ignore[arg-type]
@@ -30,6 +31,7 @@ def test_production_settings_accept_complete_configuration() -> None:
         ({"admin_api_key": "short"}, "ADMIN_API_KEY"),
         ({"allowed_hosts": "*"}, "ALLOWED_HOSTS"),
         ({"allowed_hosts": "api.example.com,*"}, "ALLOWED_HOSTS"),
+        ({"git_sha": "development"}, "GIT_SHA"),
     ],
 )
 def test_production_settings_reject_incomplete_configuration(

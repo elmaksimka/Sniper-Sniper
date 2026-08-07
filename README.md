@@ -104,6 +104,7 @@ Read endpoints:
 - `GET /health`
 - `GET /health/live`
 - `GET /health/ready`
+- `GET /version`
 - `GET /api/v1/tokens`
 - `GET /api/v1/tokens/{address}`
 - `GET /api/v1/wallets`

@@ -15,9 +15,18 @@ RUN poetry install --only main --no-root --no-ansi
 
 FROM python:3.12-slim AS runtime
 
+ARG APP_VERSION=0.1.0
+ARG GIT_SHA=development
+
 ENV PATH="/app/.venv/bin:${PATH}" \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    APP_VERSION="${APP_VERSION}" \
+    GIT_SHA="${GIT_SHA}"
+
+LABEL org.opencontainers.image.title="Alpha Engine" \
+      org.opencontainers.image.version="${APP_VERSION}" \
+      org.opencontainers.image.revision="${GIT_SHA}"
 
 RUN groupadd --gid 10001 alpha \
     && useradd --uid 10001 --gid alpha --create-home alpha
