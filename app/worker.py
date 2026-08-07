@@ -15,6 +15,7 @@ from app.notifications.telegram import TelegramNotifier
 from app.repositories.monitor_repository import MonitorRepository
 from app.repositories.heartbeat_repository import HeartbeatRepository
 from app.services.monitor_worker import MonitorWorker
+from app.services.activity_stats_service import ActivityStatsService
 
 
 async def heartbeat_loop(
@@ -125,10 +126,7 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                     len(settings.discovery_programs),
                 )
                 worker_announced = True
-                next_status_at = (
-                    asyncio.get_running_loop().time()
-                    + settings.telegram_status_interval_seconds
-                )
+                next_status_at = 0.0
 
             try:
                 async with async_session_factory() as session:
@@ -200,6 +198,20 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                 worker_announced
                 and asyncio.get_running_loop().time() >= next_status_at
             ):
+                try:
+                    async with async_session_factory() as status_session:
+                        stats = await ActivityStatsService(status_session).get(
+                            settings.telegram_status_window_minutes
+                        )
+                    heartbeat_details.update(
+                        total_transactions=stats.total_transactions,
+                        total_tokens=stats.total_tokens,
+                        recent_transactions=stats.recent_transactions,
+                        recent_tokens=stats.recent_tokens,
+                        status_window_minutes=stats.window_minutes,
+                    )
+                except Exception:
+                    logger.exception("worker_activity_stats_failed")
                 await telegram.send_worker_status(dict(heartbeat_details))
                 next_status_at = (
                     asyncio.get_running_loop().time()

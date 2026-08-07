@@ -82,6 +82,11 @@ async def test_worker_status_notifications_are_delivered() -> None:
                 "discovery_failures": 0,
                 "discovered_transactions": 7,
                 "processed_transactions": 3,
+                "total_transactions": 125,
+                "total_tokens": 48,
+                "recent_transactions": 17,
+                "recent_tokens": 9,
+                "status_window_minutes": 30,
             }
         )
         await notifier.send_discovery_degraded(1, 240)
@@ -92,6 +97,8 @@ async def test_worker_status_notifications_are_delivered() -> None:
     assert "Alpha Engine запущено" in messages[0]
     assert "кожні 30 с" in messages[0]
     assert "Alpha Engine працює" in messages[1]
+    assert "125 транзакцій / 48 токенів" in messages[1]
+    assert "17 транзакцій / 9 активних токенів" in messages[1]
     assert "7 транзакцій" in messages[1]
     assert "RPC перевантажений" in messages[2]
     assert "discovery відновлено" in messages[3]

@@ -74,12 +74,27 @@ class TelegramNotifier:
     async def send_worker_status(self, details: dict[str, Any]) -> None:
         failures = int(details.get("discovery_failures", 0))
         rpc_state = "норма" if failures == 0 else f"backoff ({failures})"
+        window_minutes = int(details.get("status_window_minutes", 30))
         await self.send_text(
             "\n".join(
                 (
                     "🟢 Alpha Engine працює",
                     "",
                     f"RPC/discovery: {rpc_state}",
+                    "",
+                    (
+                        "За весь час: "
+                        f"{int(details.get('total_transactions', 0))} "
+                        "транзакцій / "
+                        f"{int(details.get('total_tokens', 0))} токенів"
+                    ),
+                    (
+                        f"За останні {window_minutes} хв: "
+                        f"{int(details.get('recent_transactions', 0))} "
+                        "транзакцій / "
+                        f"{int(details.get('recent_tokens', 0))} активних токенів"
+                    ),
+                    "",
                     (
                         "Останній discovery: "
                         f"{int(details.get('discovered_transactions', 0))} "

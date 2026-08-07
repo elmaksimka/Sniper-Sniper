@@ -48,7 +48,8 @@ The worker also sends operational messages to the same recipients:
 
 - confirmation immediately after the active worker starts;
 - a status heartbeat every `TELEGRAM_STATUS_INTERVAL_SECONDS` (30 minutes by
-  default in local mode);
+  default in local mode), including all-time database totals and unique
+  transaction/token activity during `TELEGRAM_STATUS_WINDOW_MINUTES`;
 - a warning when DEX discovery enters RPC backoff;
 - a recovery message when the normal discovery schedule resumes;
 - a message during a graceful worker shutdown.

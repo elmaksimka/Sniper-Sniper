@@ -109,6 +109,7 @@ async def test_run_finishes_poll_and_releases_resources(monkeypatch) -> None:
         telegram_bot_token="",
         telegram_recipients=(),
         telegram_status_interval_seconds=1800,
+        telegram_status_window_minutes=30,
     )
     leader = FakeLeader()
     helius_client = FakeHeliusClient()

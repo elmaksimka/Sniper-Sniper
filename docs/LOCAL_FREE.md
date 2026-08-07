@@ -52,7 +52,8 @@ scheduler automatically slows down without pausing monitored-wallet checks.
 When Telegram is configured, the worker confirms startup and sends a health
 status every 30 minutes. It also reports discovery degradation, recovery, and a
 graceful shutdown, so a quiet trading period is distinguishable from a stopped
-system.
+system. Each health message includes unique transaction and token totals for the
+whole database plus observed on-chain activity from the previous 30 minutes.
 
 ## Cost boundary
 
