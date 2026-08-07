@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from collections import defaultdict
 from collections.abc import Awaitable, Callable
 from typing import TypeVar
@@ -37,6 +36,7 @@ class EventBus:
         if not handlers:
             return
 
-        await asyncio.gather(
-            *(handler(event) for handler in handlers)
-        )
+        # Containers share one AsyncSession. Sequential dispatch prevents two
+        # handlers from using the same asyncpg connection concurrently.
+        for handler in handlers:
+            await handler(event)

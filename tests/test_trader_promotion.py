@@ -27,6 +27,17 @@ class FakeMonitorService:
         return SimpleNamespace()
 
 
+class FakeScores:
+    async def list_leaderboard(self, **_: object) -> list[object]:
+        return [
+            SimpleNamespace(
+                score=70,
+                grade="B",
+                wallet=SimpleNamespace(address="persisted-wallet"),
+            )
+        ]
+
+
 def wallet_score(score: float, grade: str = "B") -> ScoreUpdated:
     return ScoreUpdated(
         entity_type="wallet",
@@ -72,3 +83,21 @@ async def test_low_score_or_full_capacity_is_not_promoted() -> None:
     await event_bus.publish(wallet_score(90, "A"))
 
     assert service.added == []
+
+
+@pytest.mark.asyncio
+async def test_reconcile_promotes_persisted_eligible_wallet() -> None:
+    service = FakeMonitorService()
+    collector = TraderPromotionCollector(
+        EventBus(),
+        FakeMonitors(),  # type: ignore[arg-type]
+        service,  # type: ignore[arg-type]
+        minimum_score=65,
+        maximum_monitors=100,
+        scores=FakeScores(),  # type: ignore[arg-type]
+    )
+
+    promoted = await collector.reconcile()
+
+    assert promoted == 1
+    assert service.added == ["persisted-wallet"]

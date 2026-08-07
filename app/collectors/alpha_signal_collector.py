@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 from app.core.event_bus import EventBus
 from app.core.events import AlphaSignalGenerated, TradeScored
 from app.repositories.score_snapshot_repository import ScoreSnapshotRepository
@@ -22,6 +24,7 @@ class AlphaSignalCollector:
         token_threshold: float,
         token_min_trades: int,
         token_min_wallets: int,
+        maximum_trade_age_seconds: float,
     ) -> None:
         self.event_bus = event_bus
         self.wallets = wallets
@@ -32,6 +35,7 @@ class AlphaSignalCollector:
         self.token_threshold = token_threshold
         self.token_min_trades = token_min_trades
         self.token_min_wallets = token_min_wallets
+        self.maximum_trade_age_seconds = maximum_trade_age_seconds
 
     def register(self) -> None:
         self.event_bus.subscribe(TradeScored, self.handle_trade_scored)
@@ -39,6 +43,14 @@ class AlphaSignalCollector:
     async def handle_trade_scored(self, event: TradeScored) -> None:
         if event.side != "buy" or not event.signature:
             return
+        if event.transaction_at is not None:
+            transaction_at = event.transaction_at
+            if transaction_at.tzinfo is None:
+                transaction_at = transaction_at.replace(tzinfo=UTC)
+            if datetime.now(UTC) - transaction_at > timedelta(
+                seconds=self.maximum_trade_age_seconds
+            ):
+                return
 
         wallet = await self.wallets.get_by_address(event.wallet)
         if wallet is None:

@@ -105,6 +105,18 @@ class TelegramNotifier:
                         f"{int(details.get('processed_transactions', 0))} "
                         "транзакцій"
                     ),
+                    (
+                        "Кандидатів оброблено: "
+                        f"{int(details.get('candidate_wallets_enriched', 0))}"
+                    ),
+                    (
+                        "Історичних транзакцій: "
+                        f"{int(details.get('candidate_history_transactions', 0))}"
+                    ),
+                    (
+                        "Нових топ-гаманців: "
+                        f"{int(details.get('candidate_wallets_promoted', 0))}"
+                    ),
                     "Система продовжує моніторинг.",
                 )
             )

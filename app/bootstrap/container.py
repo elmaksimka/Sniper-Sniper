@@ -98,6 +98,7 @@ class Container:
             token_threshold=settings.alpha_early_token_score_threshold,
             token_min_trades=settings.alpha_early_token_min_trades,
             token_min_wallets=settings.alpha_early_token_min_wallets,
+            maximum_trade_age_seconds=settings.alpha_signal_max_age_seconds,
         )
         self.trader_promotion_collector = TraderPromotionCollector(
             event_bus=self.event_bus,
@@ -105,6 +106,7 @@ class Container:
             monitor_service=self.monitor_service,
             minimum_score=settings.auto_promote_wallet_score,
             maximum_monitors=settings.auto_promote_max_monitors,
+            scores=ScoreSnapshotRepository(session),
         )
 
         self.helius_client = helius_client or HeliusClient()

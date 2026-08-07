@@ -14,6 +14,8 @@ from app.listeners.helius_client import HeliusClient
 from app.notifications.telegram import TelegramNotifier
 from app.repositories.monitor_repository import MonitorRepository
 from app.repositories.heartbeat_repository import HeartbeatRepository
+from app.repositories.score_snapshot_repository import ScoreSnapshotRepository
+from app.services.candidate_enrichment_service import CandidateEnrichmentService
 from app.services.monitor_worker import MonitorWorker
 from app.services.activity_stats_service import ActivityStatsService
 
@@ -133,6 +135,15 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                     heartbeat_details["state"] = "polling"
                     container = Container(session, helius_client=helius_client)
                     container.setup()
+                    monitor_worker = MonitorWorker(
+                        monitors=MonitorRepository(session),
+                        scanner=container.scanner,
+                        detection=container.token_detection_service,
+                        page_size=settings.monitor_page_size,
+                        max_pages=settings.monitor_max_pages,
+                    )
+                    processed = await monitor_worker.run_once()
+                    heartbeat_details["processed_transactions"] = processed
                     now = asyncio.get_running_loop().time()
                     if settings.discovery_enabled and now >= next_discovery_at:
                         discovered = 0
@@ -178,18 +189,47 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                             )
                         elif not discovery_failed and previous_failures > 0:
                             await telegram.send_discovery_recovered()
-                    worker = MonitorWorker(
-                        monitors=MonitorRepository(session),
-                        scanner=container.scanner,
-                        detection=container.token_detection_service,
-                        page_size=settings.monitor_page_size,
-                        max_pages=settings.monitor_max_pages,
-                    )
-                    processed = await worker.run_once()
-                    heartbeat_details.update(
-                        state="idle",
-                        processed_transactions=processed,
-                    )
+                        if (
+                            settings.candidate_enrichment_enabled
+                            and not discovery_failed
+                        ):
+                            try:
+                                enrichment = await CandidateEnrichmentService(
+                                    scores=ScoreSnapshotRepository(session),
+                                    monitors=MonitorRepository(session),
+                                    scanner=container.scanner,
+                                    detection=container.token_detection_service,
+                                    cursors=HeartbeatRepository(session),
+                                    minimum_score=(
+                                        settings.candidate_enrichment_min_score
+                                    ),
+                                    history_limit=(
+                                        settings.candidate_enrichment_history_limit
+                                    ),
+                                    maximum_candidates=(
+                                        settings.candidate_enrichment_max_per_cycle
+                                    ),
+                                    retry_seconds=(
+                                        settings.candidate_enrichment_retry_seconds
+                                    ),
+                                ).run_once()
+                                reconciled = await (
+                                    container.trader_promotion_collector.reconcile()
+                                )
+                                heartbeat_details.update(
+                                    candidate_wallets_enriched=(
+                                        enrichment.wallets_enriched
+                                    ),
+                                    candidate_history_transactions=(
+                                        enrichment.transactions_processed
+                                    ),
+                                    candidate_wallets_promoted=(
+                                        enrichment.wallets_promoted + reconciled
+                                    ),
+                                )
+                            except Exception:
+                                logger.exception("candidate_enrichment_cycle_failed")
+                    heartbeat_details["state"] = "idle"
             except Exception:
                 heartbeat_details["state"] = "error"
                 logger.exception("monitor_poll_failed")

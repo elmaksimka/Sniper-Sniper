@@ -6,6 +6,9 @@ All notable changes to Alpha Engine are documented here.
 
 ### Added
 
+- Rate-bounded history enrichment for promising D-grade wallet candidates,
+  with persistent completion/retry state, missed-promotion reconciliation,
+  sequential shared-session event dispatch, and stale-signal protection.
 - Telegram worker lifecycle, periodic health, RPC degradation, and recovery
   notifications with all-time and rolling activity totals, separate from
   trading signals.

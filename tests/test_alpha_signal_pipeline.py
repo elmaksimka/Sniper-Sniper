@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 from typing import Any
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -65,6 +66,7 @@ async def test_qualifying_buy_emits_alpha_signal() -> None:
         token_threshold=45,
         token_min_trades=3,
         token_min_wallets=2,
+        maximum_trade_age_seconds=300,
     )
     generated: list[AlphaSignalGenerated] = []
 
@@ -119,6 +121,7 @@ async def test_non_qualifying_trade_is_filtered(
         token_threshold=45,
         token_min_trades=3,
         token_min_wallets=2,
+        maximum_trade_age_seconds=300,
     )
     collector.register()
 
@@ -154,6 +157,7 @@ async def test_insufficient_early_evidence_is_filtered(
         token_threshold=45,
         token_min_trades=3,
         token_min_wallets=2,
+        maximum_trade_age_seconds=300,
     )
     collector.register()
 
@@ -165,6 +169,39 @@ async def test_insufficient_early_evidence_is_filtered(
             amount=100,
             sol_change=-2.5,
             signature="signature",
+        )
+    )
+
+    assert alerts.calls == 0
+
+
+@pytest.mark.asyncio
+async def test_historical_buy_does_not_emit_alpha_signal() -> None:
+    event_bus = EventBus()
+    alerts = FakeAlerts()
+    collector = AlphaSignalCollector(
+        event_bus=event_bus,
+        wallets=AddressRepository(SimpleNamespace(id=1)),  # type: ignore[arg-type]
+        wallet_scores=ScoreRepository(82, "A"),  # type: ignore[arg-type]
+        scoring=EarlyScoring(80),  # type: ignore[arg-type]
+        alerts=alerts,  # type: ignore[arg-type]
+        wallet_threshold=65,
+        token_threshold=45,
+        token_min_trades=3,
+        token_min_wallets=2,
+        maximum_trade_age_seconds=300,
+    )
+    collector.register()
+
+    await event_bus.publish(
+        TradeScored(
+            token_address="token",
+            wallet="wallet",
+            side="buy",
+            amount=100,
+            sol_change=-2.5,
+            signature="historical-signature",
+            transaction_at=datetime.now(UTC) - timedelta(hours=1),
         )
     )
 

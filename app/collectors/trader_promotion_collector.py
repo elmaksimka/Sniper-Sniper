@@ -4,6 +4,7 @@ from app.core.event_bus import EventBus
 from app.core.events import ScoreUpdated
 from app.core.logging import get_logger
 from app.repositories.monitor_repository import MonitorRepository
+from app.repositories.score_snapshot_repository import ScoreSnapshotRepository
 from app.services.monitor_service import MonitorService
 
 
@@ -17,12 +18,14 @@ class TraderPromotionCollector:
         monitor_service: MonitorService,
         minimum_score: float,
         maximum_monitors: int,
+        scores: ScoreSnapshotRepository | None = None,
     ) -> None:
         self.event_bus = event_bus
         self.monitors = monitors
         self.monitor_service = monitor_service
         self.minimum_score = minimum_score
         self.maximum_monitors = maximum_monitors
+        self.scores = scores
         self.logger = get_logger("trader-promotion")
 
     def register(self) -> None:
@@ -53,3 +56,31 @@ class TraderPromotionCollector:
             score=event.score,
             grade=event.grade,
         )
+
+    async def reconcile(self) -> int:
+        """Promote eligible persisted scores missed by an interrupted event."""
+        if self.scores is None:
+            return 0
+        available = self.maximum_monitors - await self.monitors.count_enabled()
+        if available <= 0:
+            return 0
+
+        promoted = 0
+        snapshots = await self.scores.list_leaderboard(limit=1000, offset=0)
+        for snapshot in snapshots:
+            if promoted >= available or snapshot.score < self.minimum_score:
+                break
+            if snapshot.grade not in {"A", "B"}:
+                continue
+            address = snapshot.wallet.address
+            if await self.monitors.get_by_address(address) is not None:
+                continue
+            await self.monitor_service.add(address)
+            promoted += 1
+            self.logger.info(
+                "trader_reconciled",
+                wallet=address,
+                score=snapshot.score,
+                grade=snapshot.grade,
+            )
+        return promoted

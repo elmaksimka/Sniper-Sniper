@@ -4,6 +4,7 @@ Alpha Engine sends a Telegram alpha signal only after a normalized `buy` trade
 meets all of these conditions:
 
 - the transaction has a signature;
+- the observed purchase is no older than `ALPHA_SIGNAL_MAX_AGE_SECONDS`;
 - the wallet score is at least `ALPHA_WALLET_SCORE_THRESHOLD`;
 - the early-token score is at least `ALPHA_EARLY_TOKEN_SCORE_THRESHOLD`;
 - the wallet has grade A or B;
@@ -22,6 +23,8 @@ This is a decision-support signal, not an automatic order or financial advice.
 Public Solana RPC data can be delayed or incomplete, and the score covers only
 activity observed by Alpha Engine. See
 [`EARLY_TOKEN_SCORING.md`](EARLY_TOKEN_SCORING.md) for the methodology.
+Historical candidate-wallet enrichment contributes to scores but cannot emit a
+stale signal; the default signal freshness window is five minutes.
 
 ## Telegram configuration
 

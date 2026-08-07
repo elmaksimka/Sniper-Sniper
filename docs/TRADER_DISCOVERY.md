@@ -50,3 +50,27 @@ Promotion is evidence-based rather than immediate: a newly observed wallet
 usually needs multiple buys and sells before its performance, exit experience,
 and data quality can reach grade A or B. Once promoted, its own history is
 polled independently of the sampled DEX stream.
+
+## Candidate history enrichment
+
+The free local mode closes the sparse-history gap without promoting weak
+wallets prematurely. After a successful DEX discovery cycle it selects the
+highest-scored unmonitored wallet at or above 35, loads its latest 20
+transactions, ingests them oldest-first, and recalculates the wallet score. A
+persistent `candidate:<wallet>` record prevents repeated backfills. Transient
+errors are retried after 30 minutes.
+
+Only one candidate is enriched per two-minute discovery cycle by default. This
+caps the additional public-RPC load. If enrichment lifts the wallet to A/B and
+65 or higher, the normal promotion collector adds it to continuous monitoring.
+
+```dotenv
+CANDIDATE_ENRICHMENT_ENABLED=true
+CANDIDATE_ENRICHMENT_MIN_SCORE=35
+CANDIDATE_ENRICHMENT_HISTORY_LIMIT=20
+CANDIDATE_ENRICHMENT_MAX_PER_CYCLE=1
+CANDIDATE_ENRICHMENT_RETRY_SECONDS=1800
+```
+
+Historical backfill never creates a stale trading alert: alpha signals reject
+buys older than `ALPHA_SIGNAL_MAX_AGE_SECONDS` (five minutes by default).
