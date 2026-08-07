@@ -5,9 +5,10 @@ and worker. `docker-compose.prod.yml` starts PostgreSQL, applies Alembic
 migrations once, then starts the worker and API. The API becomes healthy only
 after its full readiness probe passes.
 
-The selected managed staging target is Render. Its Blueprint and provisioning
-instructions are documented in [`RENDER.md`](RENDER.md). The Compose deployment
-remains the portable self-hosted and local-rehearsal path.
+The zero-cost staging target is an Oracle Cloud Always Free Ampere VM. Its
+Compose overlay, HTTPS proxy, and provisioning instructions are documented in
+[`OCI_FREE.md`](OCI_FREE.md). Render remains an optional paid managed target;
+its Blueprint is documented in [`RENDER.md`](RENDER.md).
 
 ## Release gate
 
@@ -50,6 +51,11 @@ hosts are rejected in production. OpenAPI and ReDoc are disabled in production.
 `FORWARDED_ALLOW_IPS` defaults to loopback. When a trusted reverse proxy sits in
 front of the API, set it to that proxy's address or CIDR; do not use `*` on a
 publicly reachable service.
+
+The published API port binds to `API_BIND_ADDRESS`, which defaults to
+`127.0.0.1`. Keep that default when using the OCI Caddy overlay. Caddy reaches
+the API over the private Compose network and is the only public HTTP entry
+point.
 
 Inspect migration and service logs:
 

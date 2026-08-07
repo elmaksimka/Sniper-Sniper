@@ -175,12 +175,13 @@ Container image and production Compose deployment are documented in
 Release acceptance is documented in
 [`docs/RELEASE.md`](docs/RELEASE.md), with changes listed in
 [`CHANGELOG.md`](CHANGELOG.md).
-Managed staging on Render is documented in
-[`docs/RENDER.md`](docs/RENDER.md).
+Zero-cost self-hosted staging on Oracle Cloud Always Free is documented in
+[`docs/OCI_FREE.md`](docs/OCI_FREE.md). Optional paid managed staging on Render
+is documented in [`docs/RENDER.md`](docs/RENDER.md).
 
 ## Status
 
 Backend MVP `v0.1.0-rc.1`. The application, migrations, CI gate, production
-containers, health checks, access controls, graceful shutdown, and verified
-backup workflow are complete. Remaining work is environment-specific staging
-deployment with real infrastructure credentials and DNS/TLS configuration.
+containers, health checks, access controls, graceful shutdown, verified backup
+workflow, and zero-cost OCI deployment overlay are complete. Remaining work is
+provisioning the external staging account and applying real secrets and DNS.

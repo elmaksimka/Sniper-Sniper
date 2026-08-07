@@ -6,6 +6,9 @@ All notable changes to Alpha Engine are documented here.
 
 ### Added
 
+- Oracle Cloud Always Free staging overlay with automatic Caddy HTTPS and a
+  deployment runbook.
+- Loopback-only API port binding by default for reverse-proxy deployments.
 - Render staging Blueprint for the API, background worker, and private managed
   PostgreSQL 17 database.
 - Managed PostgreSQL URL normalization for async SQLAlchemy connections.

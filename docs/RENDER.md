@@ -1,5 +1,16 @@
 # Render staging deployment
 
+This is an optional paid managed deployment, not the zero-cost staging path.
+As of July 2026, Render's published small-application example prices an
+always-on Starter web service plus Basic PostgreSQL at about USD 13 per month;
+this Blueprint also requires a separate paid Starter background worker. Expect
+roughly USD 20 per month before additional bandwidth or storage, and verify the
+checkout total because platform pricing can change. The free PostgreSQL option
+expires after 30 days and background workers do not have a free instance type.
+
+For a no-recurring-hosting-cost staging setup, use
+[`OCI_FREE.md`](OCI_FREE.md).
+
 The staging target is Render in the Frankfurt region. `render.yaml` provisions:
 
 - a paid Starter Docker web service for the API;

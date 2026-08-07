@@ -74,6 +74,14 @@ jobs:
           --profile operations
           config --quiet
 
+      - name: Validate Oracle Always Free Compose
+        run: >-
+          docker compose
+          --env-file .env.production.example
+          -f docker-compose.prod.yml
+          -f docker-compose.oci.yml
+          config --quiet
+
       - name: Build production image
         run: >-
           docker build
