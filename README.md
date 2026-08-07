@@ -172,10 +172,13 @@ Production probes and startup ordering are documented in
 [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
 Container image and production Compose deployment are documented in
 [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+Release acceptance is documented in
+[`docs/RELEASE.md`](docs/RELEASE.md), with changes listed in
+[`CHANGELOG.md`](CHANGELOG.md).
 
 ## Status
 
-Backend MVP release candidate. The application, migrations, CI gate, production
+Backend MVP `v0.1.0-rc.1`. The application, migrations, CI gate, production
 containers, health checks, access controls, graceful shutdown, and verified
 backup workflow are complete. Remaining work is environment-specific staging
 deployment with real infrastructure credentials and DNS/TLS configuration.
