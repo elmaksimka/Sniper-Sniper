@@ -20,6 +20,13 @@ Telegram message includes both scores and grades, the evidence counts, observed
 SOL and token amounts, a direct Dexscreener chart link, and Solscan links for
 the token and transaction.
 
+Before delivery, the notifier asks the free Dexscreener token endpoint for the
+highest-liquidity pair where the detected mint is the base token. It multiplies
+the observed token amount by that pair's current USD price and labels the result
+as an estimate. This is not the historical execution price. When no indexed
+pair or positive USD price is available, the message says the estimate is
+unavailable instead of displaying `$0`.
+
 This is a decision-support signal, not an automatic order or financial advice.
 Public Solana RPC data can be delayed or incomplete, and the score covers only
 activity observed by Alpha Engine. See

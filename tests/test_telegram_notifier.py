@@ -6,6 +6,7 @@ import pytest
 
 from app.core.events import AlphaSignalGenerated
 from app.notifications.telegram import TelegramNotifier
+from app.services.dexscreener_client import TokenMarketQuote
 
 
 def alpha_signal() -> AlphaSignalGenerated:
@@ -27,6 +28,14 @@ def alpha_signal() -> AlphaSignalGenerated:
     )
 
 
+class FakeMarketData:
+    async def get_token_quote(self, token_address: str) -> TokenMarketQuote:
+        return TokenMarketQuote(
+            price_usd=0.01,
+            pair_url="https://dexscreener.com/solana/pair-address",
+        )
+
+
 @pytest.mark.asyncio
 async def test_alpha_signal_is_sent_to_each_unique_recipient() -> None:
     payloads: list[dict[str, Any]] = []
@@ -40,16 +49,18 @@ async def test_alpha_signal_is_sent_to_each_unique_recipient() -> None:
             "secret-token",
             ["100", "200", "100"],
             http_client=http,
+            market_data_client=FakeMarketData(),  # type: ignore[arg-type]
         )
         await notifier.handle_alpha_signal(alpha_signal())
 
     assert [payload["chat_id"] for payload in payloads] == ["100", "200"]
     assert all("TOP TRADER BUY" in payload["text"] for payload in payloads)
     assert all("2.750000 SOL" in payload["text"] for payload in payloads)
+    assert all("~$12.35 (current DEX price)" in payload["text"] for payload in payloads)
     assert all("5 trades / 3 wallets" in payload["text"] for payload in payloads)
     assert all("solscan.io/tx/transaction-signature" in payload["text"] for payload in payloads)
     assert all(
-        "dexscreener.com/solana/token-address" in payload["text"]
+        "dexscreener.com/solana/pair-address" in payload["text"]
         for payload in payloads
     )
 

@@ -7,6 +7,7 @@ import httpx
 
 from app.core.events import AlphaSignalGenerated
 from app.core.logging import get_logger
+from app.services.dexscreener_client import DexScreenerClient, TokenMarketQuote
 
 
 class TelegramNotifier:
@@ -17,10 +18,12 @@ class TelegramNotifier:
         bot_token: str,
         recipients: Iterable[str],
         http_client: httpx.AsyncClient | None = None,
+        market_data_client: DexScreenerClient | None = None,
     ) -> None:
         self.bot_token = bot_token.strip()
         self.recipients = tuple(dict.fromkeys(str(item).strip() for item in recipients))
         self._client = http_client
+        self.market_data = market_data_client or DexScreenerClient()
         self.logger = get_logger("telegram-notifier")
 
     @property
@@ -30,7 +33,15 @@ class TelegramNotifier:
     async def handle_alpha_signal(self, event: AlphaSignalGenerated) -> None:
         if not self.enabled:
             return
-        await self.send_text(self.format_alpha_signal(event))
+        quote: TokenMarketQuote | None = None
+        try:
+            quote = await self.market_data.get_token_quote(event.token_address)
+        except Exception:
+            self.logger.warning(
+                "dexscreener_quote_failed",
+                token_address=event.token_address,
+            )
+        await self.send_text(self.format_alpha_signal(event, quote))
 
     async def send_text(self, text: str) -> dict[str, bool]:
         if not self.enabled:
@@ -163,7 +174,28 @@ class TelegramNotifier:
         return isinstance(data, dict) and data.get("ok") is True
 
     @staticmethod
-    def format_alpha_signal(event: AlphaSignalGenerated) -> str:
+    def format_alpha_signal(
+        event: AlphaSignalGenerated,
+        quote: TokenMarketQuote | None = None,
+    ) -> str:
+        estimated_value = (
+            event.token_amount * quote.price_usd if quote is not None else None
+        )
+        dex_url = (
+            quote.pair_url
+            if quote is not None and quote.pair_url
+            else f"https://dexscreener.com/solana/{event.token_address}"
+        )
+        sol_size = (
+            f"{event.sol_amount:.6f} SOL"
+            if event.sol_amount > 0
+            else "not detected"
+        )
+        usd_size = (
+            TelegramNotifier._format_usd(estimated_value)
+            if estimated_value is not None
+            else "unavailable (token may not be indexed yet)"
+        )
         return "\n".join(
             (
                 "🚨 ALPHA SIGNAL — TOP TRADER BUY",
@@ -177,13 +209,20 @@ class TelegramNotifier:
                     f"{event.observed_trade_count} trades / "
                     f"{event.observed_wallet_count} wallets"
                 ),
-                f"Buy size: {event.sol_amount:.6f} SOL",
+                f"Buy size: {sol_size}",
+                f"Estimated buy value: {usd_size}",
                 f"Token amount: {event.token_amount:.6f}",
                 "",
-                f"Dexscreener: https://dexscreener.com/solana/{event.token_address}",
+                f"Dexscreener: {dex_url}",
                 f"Token: https://solscan.io/token/{event.token_address}",
                 f"Transaction: https://solscan.io/tx/{event.signature}",
                 "",
                 "Signal for manual review — not financial advice.",
             )
         )
+
+    @staticmethod
+    def _format_usd(value: float) -> str:
+        if value >= 1:
+            return f"~${value:,.2f} (current DEX price)"
+        return f"~${value:.6f} (current DEX price)"
