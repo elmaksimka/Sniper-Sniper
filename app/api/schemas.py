@@ -9,6 +9,7 @@ from app.infrastructure.models import (
     Trade,
     WalletMonitor,
     WalletScoreSnapshot,
+    FundingTransfer,
 )
 
 
@@ -75,6 +76,35 @@ class WalletPage(BaseModel):
 
 class TradePage(BaseModel):
     items: list[TradeRead]
+    total: int
+    limit: int
+    offset: int
+
+
+class FundingTransferRead(BaseModel):
+    id: int
+    signature: str
+    instruction_index: str
+    source: str
+    destination: str
+    amount_sol: float
+    timestamp: datetime
+
+    @classmethod
+    def from_transfer(cls, transfer: FundingTransfer) -> FundingTransferRead:
+        return cls(
+            id=transfer.id,
+            signature=transfer.signature,
+            instruction_index=transfer.instruction_index,
+            source=transfer.source_wallet.address,
+            destination=transfer.destination_wallet.address,
+            amount_sol=transfer.amount_sol,
+            timestamp=transfer.timestamp,
+        )
+
+
+class FundingTransferPage(BaseModel):
+    items: list[FundingTransferRead]
     total: int
     limit: int
     offset: int

@@ -97,6 +97,16 @@ class Wallet(Base):
         back_populates="wallet",
     )
 
+    outgoing_funding_transfers: Mapped[list["FundingTransfer"]] = relationship(
+        foreign_keys="FundingTransfer.source_wallet_id",
+        back_populates="source_wallet",
+    )
+
+    incoming_funding_transfers: Mapped[list["FundingTransfer"]] = relationship(
+        foreign_keys="FundingTransfer.destination_wallet_id",
+        back_populates="destination_wallet",
+    )
+
     score_snapshot: Mapped["WalletScoreSnapshot | None"] = relationship(
         back_populates="wallet",
         cascade="all, delete-orphan",
@@ -168,6 +178,44 @@ class Trade(Base):
 
     wallet: Mapped["Wallet"] = relationship(
         back_populates="trades",
+    )
+
+
+class FundingTransfer(Base):
+    __tablename__ = "funding_transfers"
+    __table_args__ = (
+        UniqueConstraint(
+            "signature",
+            "instruction_index",
+            name="uq_funding_transfers_signature_instruction",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_wallet_id: Mapped[int] = mapped_column(
+        ForeignKey("wallets.id", ondelete="CASCADE"),
+        index=True,
+    )
+    destination_wallet_id: Mapped[int] = mapped_column(
+        ForeignKey("wallets.id", ondelete="CASCADE"),
+        index=True,
+    )
+    amount_sol: Mapped[float] = mapped_column(Float)
+    signature: Mapped[str] = mapped_column(String(128), index=True)
+    instruction_index: Mapped[str] = mapped_column(String(64))
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        index=True,
+    )
+
+    source_wallet: Mapped["Wallet"] = relationship(
+        foreign_keys=[source_wallet_id],
+        back_populates="outgoing_funding_transfers",
+    )
+    destination_wallet: Mapped["Wallet"] = relationship(
+        foreign_keys=[destination_wallet_id],
+        back_populates="incoming_funding_transfers",
     )
 
 

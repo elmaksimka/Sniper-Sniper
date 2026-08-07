@@ -7,6 +7,7 @@ from app.collectors.token_collector import TokenCollector
 from app.collectors.trade_collector import TradeCollector
 from app.collectors.score_collector import ScoreCollector
 from app.collectors.alert_collector import AlertCollector
+from app.collectors.funding_collector import FundingCollector
 from app.core.config import get_settings
 from app.core.event_bus import EventBus
 from app.listeners.helius_client import HeliusClient
@@ -21,6 +22,7 @@ from app.services.token_service import TokenService
 from app.services.token_store import TokenStore
 from app.services.trade_service import TradeService
 from app.services.wallet_service import WalletService
+from app.services.funding_service import FundingService
 
 
 class Container:
@@ -38,6 +40,7 @@ class Container:
         self.scoring_service = ScoringService(session)
         self.score_snapshot_service = ScoreSnapshotService(session)
         self.alert_service = AlertService(session)
+        self.funding_service = FundingService(session)
 
         self.token_collector = TokenCollector(
             event_bus=self.event_bus,
@@ -59,6 +62,11 @@ class Container:
             event_bus=self.event_bus,
             alert_service=self.alert_service,
             minimum_score=settings.wallet_score_alert_threshold,
+        )
+        self.funding_collector = FundingCollector(
+            event_bus=self.event_bus,
+            wallet_service=self.wallet_service,
+            funding_service=self.funding_service,
         )
 
         self.helius_client = helius_client or HeliusClient()
@@ -84,3 +92,4 @@ class Container:
         self.trade_collector.register()
         self.score_collector.register()
         self.alert_collector.register()
+        self.funding_collector.register()

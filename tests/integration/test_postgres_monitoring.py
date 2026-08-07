@@ -12,9 +12,54 @@ from app.repositories.monitor_repository import MonitorRepository
 from app.repositories.heartbeat_repository import HeartbeatRepository
 from app.services.monitor_service import MonitorService
 from app.services.system_health_service import SystemHealthService
+from app.services.funding_service import FundingService
+from app.services.wallet_service import WalletService
 
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
+
+
+async def test_funding_transfer_round_trips_and_filters_by_direction(
+    postgres_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with postgres_session_factory() as session:
+        wallets = WalletService(session)
+        source = await wallets.create_wallet("funding-source")
+        destination = await wallets.create_wallet("funding-destination")
+        service = FundingService(session)
+
+        created = await service.create_transfer(
+            source.id,
+            destination.id,
+            1.25,
+            "funding-signature",
+            "outer:0",
+        )
+        repeated = await service.create_transfer(
+            source.id,
+            destination.id,
+            1.25,
+            "funding-signature",
+            "outer:0",
+        )
+
+        assert repeated.id == created.id
+
+    async with postgres_session_factory() as session:
+        service = FundingService(session)
+        incoming, incoming_total = await service.list_transfers(
+            10, 0, "funding-destination", "incoming"
+        )
+        wrong_direction, wrong_total = await service.list_transfers(
+            10, 0, "funding-destination", "outgoing"
+        )
+
+        assert incoming_total == 1
+        assert incoming[0].source_wallet.address == "funding-source"
+        assert incoming[0].destination_wallet.address == "funding-destination"
+        assert incoming[0].amount_sol == 1.25
+        assert wrong_direction == []
+        assert wrong_total == 0
 
 
 async def test_monitor_state_round_trips_through_postgres(

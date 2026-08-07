@@ -12,6 +12,7 @@ from app.services.read_service import ReadService
 from app.services.score_snapshot_service import ScoreSnapshotService
 from app.services.scoring_service import ScoringService
 from app.services.system_health_service import SystemHealthService
+from app.services.funding_service import FundingService
 
 
 SessionDependency = Annotated[AsyncSession, Depends(get_session)]
@@ -61,6 +62,16 @@ def get_alert_service(session: SessionDependency) -> AlertService:
 
 
 AlertServiceDependency = Annotated[AlertService, Depends(get_alert_service)]
+
+
+def get_funding_service(session: SessionDependency) -> FundingService:
+    return FundingService(session)
+
+
+FundingServiceDependency = Annotated[
+    FundingService,
+    Depends(get_funding_service),
+]
 
 
 def get_monitor_service(session: SessionDependency) -> MonitorService:

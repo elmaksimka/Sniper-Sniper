@@ -6,6 +6,7 @@ from typing import Any
 from app.analyzer import TokenAnalyzer
 from app.listeners.helius_client import HeliusClient
 from app.services.token_parser import TokenParser
+from app.services.funding_parser import FundingParser
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,10 +30,12 @@ class TransactionScanner:
         helius: HeliusClient,
         parser: TokenParser,
         analyzer: TokenAnalyzer,
+        funding_parser: FundingParser | None = None,
     ) -> None:
         self.helius = helius
         self.parser = parser
         self.analyzer = analyzer
+        self.funding_parser = funding_parser or FundingParser()
 
     async def scan_page(
         self,
@@ -163,6 +166,7 @@ class TransactionScanner:
             "timestamp": transaction.get("blockTime"),
             "tokens": self.parser.extract_tokens(transaction, wallet),
             "trades": self.analyzer.analyze_transaction(transaction, wallet),
+            "native_transfers": self.funding_parser.extract_transfers(transaction),
         }
 
     @staticmethod

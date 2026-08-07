@@ -5,7 +5,8 @@ import pytest
 
 from app.analyzer import TokenTrade
 from app.core.event_bus import EventBus
-from app.core.events import TokenCreated, TradeObserved
+from app.core.events import NativeTransferObserved, TokenCreated, TradeObserved
+from app.core.funding import NativeTransfer
 from app.services.token_detection_service import TokenDetectionService
 from app.services.token_store import TokenStore
 
@@ -31,6 +32,14 @@ class FakeScanner:
                         token_change=2.0,
                     )
                 ],
+                "native_transfers": [
+                    NativeTransfer(
+                        source="funder",
+                        destination="wallet",
+                        amount_sol=1.5,
+                        instruction_index="outer:0",
+                    )
+                ],
             }
         ]
 
@@ -50,7 +59,7 @@ class FakeMetadataService:
 @pytest.mark.asyncio
 async def test_scan_wallet_publishes_token_then_trade_events() -> None:
     event_bus = EventBus()
-    published: list[TokenCreated | TradeObserved] = []
+    published: list[TokenCreated | TradeObserved | NativeTransferObserved] = []
 
     async def capture_token(event: TokenCreated) -> None:
         published.append(event)
@@ -58,8 +67,12 @@ async def test_scan_wallet_publishes_token_then_trade_events() -> None:
     async def capture_trade(event: TradeObserved) -> None:
         published.append(event)
 
+    async def capture_transfer(event: NativeTransferObserved) -> None:
+        published.append(event)
+
     event_bus.subscribe(TokenCreated, capture_token)
     event_bus.subscribe(TradeObserved, capture_trade)
+    event_bus.subscribe(NativeTransferObserved, capture_transfer)
 
     scanner: Any = FakeScanner()
     metadata: Any = FakeMetadataService()
@@ -88,8 +101,15 @@ async def test_scan_wallet_publishes_token_then_trade_events() -> None:
         id=published[1].id,
         created_at=published[1].created_at,
     )
+    assert isinstance(published[2], NativeTransferObserved)
+    assert published[2].source == "funder"
+    assert published[2].destination == "wallet"
+    assert published[2].amount_sol == 1.5
 
     await service.scan_wallet("wallet", limit=2)
 
     assert len([event for event in published if isinstance(event, TokenCreated)]) == 1
     assert len([event for event in published if isinstance(event, TradeObserved)]) == 2
+    assert len(
+        [event for event in published if isinstance(event, NativeTransferObserved)]
+    ) == 2

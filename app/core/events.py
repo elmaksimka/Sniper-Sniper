@@ -72,6 +72,16 @@ class TradeObserved(Event):
     transaction_at: datetime | None = None
 
 
+@dataclass(slots=True, kw_only=True)
+class NativeTransferObserved(Event):
+    source: str
+    destination: str
+    amount_sol: float
+    instruction_index: str
+    signature: str
+    transaction_at: datetime | None = None
+
+
 # -----------------------
 # Internal Events
 # -----------------------

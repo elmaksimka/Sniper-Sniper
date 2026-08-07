@@ -5,7 +5,8 @@ from typing import Any
 
 from app.analyzer import TokenTrade
 from app.core.event_bus import EventBus
-from app.core.events import TokenCreated, TradeObserved
+from app.core.events import NativeTransferObserved, TokenCreated, TradeObserved
+from app.core.funding import NativeTransfer
 from app.listeners.transaction_scanner import TransactionScanner
 from app.services.metadata_service import MetadataService
 from app.services.token_store import TokenStore
@@ -85,6 +86,23 @@ class TokenDetectionService:
                         ),
                     )
                 )
+
+            if isinstance(signature, str):
+                for transfer in transaction.get("native_transfers", []):
+                    if not isinstance(transfer, NativeTransfer):
+                        continue
+                    await self.event_bus.publish(
+                        NativeTransferObserved(
+                            source=transfer.source,
+                            destination=transfer.destination,
+                            amount_sol=transfer.amount_sol,
+                            instruction_index=transfer.instruction_index,
+                            signature=signature,
+                            transaction_at=self._timestamp(
+                                transaction.get("timestamp")
+                            ),
+                        )
+                    )
 
         result = sorted(found)
         print("Tokens found:", result)

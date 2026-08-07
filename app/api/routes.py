@@ -11,6 +11,7 @@ from app.api.dependencies import (
     ReadServiceDependency,
     ScoreSnapshotServiceDependency,
     ScoringServiceDependency,
+    FundingServiceDependency,
 )
 from app.api.schemas import (
     AlertPage,
@@ -31,6 +32,8 @@ from app.api.schemas import (
     WalletScoreRead,
     WalletScoreLeaderboardPage,
     WalletScoreSnapshotRead,
+    FundingTransferPage,
+    FundingTransferRead,
 )
 
 
@@ -118,6 +121,28 @@ async def list_trades(
     )
     return TradePage(
         items=[TradeRead.from_trade(trade) for trade in trades],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get("/funding/transfers", response_model=FundingTransferPage)
+async def list_funding_transfers(
+    service: FundingServiceDependency,
+    limit: Limit = 50,
+    offset: Offset = 0,
+    wallet_address: str | None = None,
+    direction: Literal["incoming", "outgoing"] | None = None,
+) -> FundingTransferPage:
+    transfers, total = await service.list_transfers(
+        limit,
+        offset,
+        wallet_address,
+        direction,
+    )
+    return FundingTransferPage(
+        items=[FundingTransferRead.from_transfer(item) for item in transfers],
         total=total,
         limit=limit,
         offset=offset,

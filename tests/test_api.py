@@ -6,7 +6,7 @@ from app.api.app import create_app
 from app.api.dependencies import get_analytics_service, get_read_service
 from app.api.dependencies import get_score_snapshot_service, get_scoring_service
 from app.api.dependencies import get_alert_service
-from app.api.dependencies import get_monitor_service
+from app.api.dependencies import get_funding_service, get_monitor_service
 from app.api.dependencies import get_system_health_service
 from app.core.analytics import TokenAnalytics, TokenPosition, WalletAnalytics
 from app.core.scoring import WalletScore
@@ -17,6 +17,7 @@ from app.infrastructure.models import (
     Wallet,
     WalletMonitor,
     WalletScoreSnapshot,
+    FundingTransfer,
 )
 
 
@@ -278,6 +279,35 @@ class FakeMonitorService:
         return self.monitor
 
 
+class FakeFundingService:
+    def __init__(self) -> None:
+        now = datetime.now(UTC)
+        source = Wallet(id=10, address="funder")
+        destination = Wallet(id=11, address="wallet")
+        self.transfer = FundingTransfer(
+            id=12,
+            source_wallet_id=source.id,
+            destination_wallet_id=destination.id,
+            source_wallet=source,
+            destination_wallet=destination,
+            amount_sol=1.5,
+            signature="funding-signature",
+            instruction_index="outer:0",
+            timestamp=now,
+        )
+        self.filters: tuple | None = None
+
+    async def list_transfers(
+        self,
+        limit: int,
+        offset: int,
+        wallet_address: str | None,
+        direction: str | None,
+    ) -> tuple[list[FundingTransfer], int]:
+        self.filters = (limit, offset, wallet_address, direction)
+        return [self.transfer], 1
+
+
 class FakeSystemHealthService:
     def __init__(self, ready: bool = True) -> None:
         self.ready = ready
@@ -301,6 +331,7 @@ def create_client() -> tuple[TestClient, FakeReadService]:
     snapshots = FakeScoreSnapshotService()
     alerts = FakeAlertService()
     monitors = FakeMonitorService()
+    funding = FakeFundingService()
     system_health = FakeSystemHealthService()
     application.dependency_overrides[get_read_service] = lambda: service
     application.dependency_overrides[get_analytics_service] = lambda: analytics
@@ -310,6 +341,7 @@ def create_client() -> tuple[TestClient, FakeReadService]:
     )
     application.dependency_overrides[get_alert_service] = lambda: alerts
     application.dependency_overrides[get_monitor_service] = lambda: monitors
+    application.dependency_overrides[get_funding_service] = lambda: funding
     application.dependency_overrides[get_system_health_service] = (
         lambda: system_health
     )
@@ -405,6 +437,33 @@ def test_trade_side_validation() -> None:
     client, _ = create_client()
 
     response = client.get("/api/v1/trades", params={"side": "hold"})
+
+    assert response.status_code == 422
+
+
+def test_list_funding_transfers() -> None:
+    client, _ = create_client()
+
+    response = client.get(
+        "/api/v1/funding/transfers",
+        params={"wallet_address": "wallet", "direction": "incoming"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    assert payload["items"][0]["source"] == "funder"
+    assert payload["items"][0]["destination"] == "wallet"
+    assert payload["items"][0]["amount_sol"] == 1.5
+
+
+def test_funding_direction_validation() -> None:
+    client, _ = create_client()
+
+    response = client.get(
+        "/api/v1/funding/transfers",
+        params={"direction": "sideways"},
+    )
 
     assert response.status_code == 422
 

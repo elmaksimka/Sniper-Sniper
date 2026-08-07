@@ -71,6 +71,7 @@ async def test_scanner_returns_tokens_and_normalized_raw_trades() -> None:
                     token_change=10.0,
                 )
             ],
+            "native_transfers": [],
         }
     ]
 
