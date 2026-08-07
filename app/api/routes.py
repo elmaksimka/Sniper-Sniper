@@ -37,6 +37,7 @@ from app.api.schemas import (
     WalletFundingAnalyticsRead,
     ObservedTokenHolderPage,
     ObservedTokenHolderRead,
+    CreatorAnalyticsRead,
 )
 
 
@@ -237,6 +238,24 @@ async def list_observed_token_holders(
         offset=offset,
         include_closed=include_closed,
     )
+
+
+@router.get(
+    "/analytics/creators/{address}",
+    response_model=CreatorAnalyticsRead,
+)
+async def get_creator_analytics(
+    address: str,
+    service: AnalyticsServiceDependency,
+    token_limit: Limit = 10,
+) -> CreatorAnalyticsRead:
+    analytics = await service.get_creator(address, token_limit)
+    if analytics is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Creator not found",
+        )
+    return CreatorAnalyticsRead.model_validate(analytics)
 
 
 @router.get(

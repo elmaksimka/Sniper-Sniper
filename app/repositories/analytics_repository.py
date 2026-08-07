@@ -4,7 +4,13 @@ from sqlalchemy import case, distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.analytics import ObservedTokenHolder, TokenAnalytics, WalletAnalytics
+from app.core.analytics import (
+    CreatorAnalytics,
+    CreatorTokenAnalytics,
+    ObservedTokenHolder,
+    TokenAnalytics,
+    WalletAnalytics,
+)
 from app.infrastructure.models import Token, Trade, Wallet
 
 
@@ -129,6 +135,92 @@ class AnalyticsRepository:
             net_wallet_sol_change=float(row.net_wallet_sol_change),
             first_trade_at=row.first_trade_at,
             last_trade_at=row.last_trade_at,
+        )
+
+    async def get_creator_metrics(
+        self,
+        address: str,
+        token_limit: int = 10,
+    ) -> CreatorAnalytics | None:
+        metrics_result = await self.session.execute(
+            select(
+                func.count(distinct(Token.id)).label("token_count"),
+                func.count(distinct(Trade.token_id)).label("traded_token_count"),
+                func.count(Trade.id).label("total_trades"),
+                func.count(distinct(Trade.wallet_id)).label("unique_traders"),
+                func.coalesce(func.sum(func.abs(Trade.sol_change)), 0.0).label(
+                    "observed_sol_volume"
+                ),
+                func.coalesce(func.sum(Trade.sol_change), 0.0).label(
+                    "net_wallet_sol_change"
+                ),
+                func.min(Token.created_at).label("first_token_created_at"),
+                func.max(Token.created_at).label("latest_token_created_at"),
+            )
+            .select_from(Token)
+            .outerjoin(Trade, Trade.token_id == Token.id)
+            .where(Token.creator == address)
+        )
+        metrics = metrics_result.one()
+        if int(metrics.token_count) == 0:
+            return None
+
+        token_rows = await self.session.execute(
+            select(
+                Token.address.label("token_address"),
+                Token.symbol,
+                Token.name,
+                Token.created_at,
+                func.count(Trade.id).label("total_trades"),
+                func.count(distinct(Trade.wallet_id)).label("unique_traders"),
+                func.coalesce(func.sum(func.abs(Trade.sol_change)), 0.0).label(
+                    "observed_sol_volume"
+                ),
+                func.min(Trade.timestamp).label("first_trade_at"),
+                func.max(Trade.timestamp).label("last_trade_at"),
+            )
+            .select_from(Token)
+            .outerjoin(Trade, Trade.token_id == Token.id)
+            .where(Token.creator == address)
+            .group_by(
+                Token.id,
+                Token.address,
+                Token.symbol,
+                Token.name,
+                Token.created_at,
+            )
+            .order_by(
+                func.count(Trade.id).desc(),
+                func.coalesce(func.sum(func.abs(Trade.sol_change)), 0.0).desc(),
+                Token.created_at.desc(),
+                Token.address.asc(),
+            )
+            .limit(token_limit)
+        )
+        return CreatorAnalytics(
+            creator_address=address,
+            token_count=int(metrics.token_count),
+            traded_token_count=int(metrics.traded_token_count),
+            total_trades=int(metrics.total_trades),
+            unique_traders=int(metrics.unique_traders),
+            observed_sol_volume=float(metrics.observed_sol_volume),
+            net_wallet_sol_change=float(metrics.net_wallet_sol_change),
+            first_token_created_at=metrics.first_token_created_at,
+            latest_token_created_at=metrics.latest_token_created_at,
+            tokens=[
+                CreatorTokenAnalytics(
+                    token_address=row.token_address,
+                    symbol=row.symbol,
+                    name=row.name,
+                    created_at=row.created_at,
+                    total_trades=int(row.total_trades),
+                    unique_traders=int(row.unique_traders),
+                    observed_sol_volume=float(row.observed_sol_volume),
+                    first_trade_at=row.first_trade_at,
+                    last_trade_at=row.last_trade_at,
+                )
+                for row in token_rows.all()
+            ],
         )
 
     async def list_wallet_trades(self, address: str) -> list[Trade]:

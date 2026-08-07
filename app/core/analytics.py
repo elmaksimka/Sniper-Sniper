@@ -66,3 +66,30 @@ class ObservedTokenHolder:
     @property
     def has_incomplete_history(self) -> bool:
         return self.unmatched_sell_quantity > 0
+
+
+@dataclass(frozen=True, slots=True)
+class CreatorTokenAnalytics:
+    token_address: str
+    symbol: str | None
+    name: str | None
+    created_at: datetime
+    total_trades: int
+    unique_traders: int
+    observed_sol_volume: float
+    first_trade_at: datetime | None
+    last_trade_at: datetime | None
+
+
+@dataclass(frozen=True, slots=True)
+class CreatorAnalytics:
+    creator_address: str
+    token_count: int
+    traded_token_count: int
+    total_trades: int
+    unique_traders: int
+    observed_sol_volume: float
+    net_wallet_sol_change: float
+    first_token_created_at: datetime
+    latest_token_created_at: datetime
+    tokens: list[CreatorTokenAnalytics]

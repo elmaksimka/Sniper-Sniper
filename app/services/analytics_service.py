@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.analytics import (
     ObservedTokenHolder,
+    CreatorAnalytics,
     TokenAnalytics,
     TokenPosition,
     WalletAnalytics,
@@ -59,3 +60,10 @@ class AnalyticsService:
             offset,
             include_closed,
         )
+
+    async def get_creator(
+        self,
+        address: str,
+        token_limit: int = 10,
+    ) -> CreatorAnalytics | None:
+        return await self.analytics.get_creator_metrics(address, token_limit)

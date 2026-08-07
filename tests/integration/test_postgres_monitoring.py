@@ -22,6 +22,67 @@ from app.services.trade_service import TradeService
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
 
+async def test_creator_analytics_aggregate_launches_and_sol_activity(
+    postgres_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    async with postgres_session_factory() as session:
+        tokens = TokenService(session)
+        traded = await tokens.create_token(
+            "creator-traded-mint",
+            symbol="CT",
+            name="Creator Traded",
+            creator="creator-address",
+        )
+        await tokens.create_token(
+            "creator-untraded-mint",
+            symbol="CU",
+            name="Creator Untraded",
+            creator="creator-address",
+        )
+        wallets = WalletService(session)
+        first = await wallets.create_wallet("creator-trader-one")
+        second = await wallets.create_wallet("creator-trader-two")
+        trades = TradeService(session)
+        await trades.create_trade(
+            traded.id,
+            first.id,
+            "buy",
+            10,
+            0.1,
+            -1,
+            "creator-trade-one",
+        )
+        await trades.create_trade(
+            traded.id,
+            second.id,
+            "sell",
+            5,
+            0.1,
+            0.5,
+            "creator-trade-two",
+        )
+
+    async with postgres_session_factory() as session:
+        analytics = await AnalyticsService(session).get_creator(
+            "creator-address",
+            token_limit=1,
+        )
+        missing = await AnalyticsService(session).get_creator("missing-creator")
+
+        assert analytics is not None
+        assert analytics.token_count == 2
+        assert analytics.traded_token_count == 1
+        assert analytics.total_trades == 2
+        assert analytics.unique_traders == 2
+        assert analytics.observed_sol_volume == 1.5
+        assert analytics.net_wallet_sol_change == -0.5
+        assert len(analytics.tokens) == 1
+        assert analytics.tokens[0].token_address == "creator-traded-mint"
+        assert analytics.tokens[0].total_trades == 2
+        assert analytics.tokens[0].unique_traders == 2
+        assert missing is None
+
+
 async def test_observed_token_holders_are_aggregated_and_paginated(
     postgres_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:

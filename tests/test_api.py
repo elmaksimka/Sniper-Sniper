@@ -9,6 +9,8 @@ from app.api.dependencies import get_alert_service
 from app.api.dependencies import get_funding_service, get_monitor_service
 from app.api.dependencies import get_system_health_service
 from app.core.analytics import (
+    CreatorAnalytics,
+    CreatorTokenAnalytics,
     ObservedTokenHolder,
     TokenAnalytics,
     TokenPosition,
@@ -182,6 +184,39 @@ class FakeAnalyticsService:
                 )
             ],
             1,
+        )
+
+    async def get_creator(
+        self,
+        address: str,
+        token_limit: int = 10,
+    ) -> CreatorAnalytics | None:
+        if address != "creator":
+            return None
+        now = datetime.now(UTC)
+        return CreatorAnalytics(
+            creator_address=address,
+            token_count=2,
+            traded_token_count=1,
+            total_trades=2,
+            unique_traders=2,
+            observed_sol_volume=1.5,
+            net_wallet_sol_change=-0.5,
+            first_token_created_at=now,
+            latest_token_created_at=now,
+            tokens=[
+                CreatorTokenAnalytics(
+                    token_address="creator-mint",
+                    symbol="CRT",
+                    name="Creator Token",
+                    created_at=now,
+                    total_trades=2,
+                    unique_traders=2,
+                    observed_sol_volume=1.5,
+                    first_trade_at=now,
+                    last_trade_at=now,
+                )
+            ][:token_limit],
         )
 
 
@@ -612,6 +647,34 @@ def test_missing_token_holders_returns_404() -> None:
 
     assert response.status_code == 404
     assert response.json() == {"detail": "Token not found"}
+
+
+def test_get_creator_analytics() -> None:
+    client, _ = create_client()
+
+    response = client.get(
+        "/api/v1/analytics/creators/creator",
+        params={"token_limit": 5},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["creator_address"] == "creator"
+    assert payload["token_count"] == 2
+    assert payload["traded_token_count"] == 1
+    assert payload["unique_traders"] == 2
+    assert payload["observed_sol_volume"] == 1.5
+    assert payload["net_wallet_sol_change"] == -0.5
+    assert payload["tokens"][0]["token_address"] == "creator-mint"
+
+
+def test_missing_creator_returns_404() -> None:
+    client, _ = create_client()
+
+    response = client.get("/api/v1/analytics/creators/missing")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Creator not found"}
 
 
 def test_missing_analytics_entity_returns_404() -> None:

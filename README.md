@@ -101,6 +101,7 @@ Read endpoints:
 - `GET /api/v1/analytics/wallets/{address}/positions`
 - `GET /api/v1/analytics/tokens/{address}`
 - `GET /api/v1/analytics/tokens/{address}/holders`
+- `GET /api/v1/analytics/creators/{address}`
 - `GET /api/v1/scores/wallets/{address}`
 - `GET /api/v1/scores/wallets`
 - `GET /api/v1/alerts`
@@ -130,6 +131,8 @@ Native SOL funding extraction is documented in
 [`docs/FUNDING.md`](docs/FUNDING.md).
 Observed holder analytics is documented in
 [`docs/HOLDERS.md`](docs/HOLDERS.md).
+Creator-level launch analytics is documented in
+[`docs/CREATORS.md`](docs/CREATORS.md).
 Wallet history pagination is documented in
 [`docs/INGESTION.md`](docs/INGESTION.md).
 Production probes and startup ordering are documented in
