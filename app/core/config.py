@@ -60,8 +60,10 @@ class Settings(BaseSettings):
     alpha_early_token_min_wallets: int = Field(default=2, ge=1, le=100)
     discovery_enabled: bool = False
     discovery_program_ids: str = ""
-    discovery_page_size: int = Field(default=10, ge=1, le=40)
+    discovery_page_size: int = Field(default=20, ge=1, le=40)
     discovery_max_pages: int = Field(default=1, ge=1, le=10)
+    discovery_poll_interval_seconds: float = Field(default=120, gt=0)
+    discovery_retry_max_seconds: float = Field(default=900, gt=0)
     auto_promote_wallet_score: float = Field(default=65, ge=0, le=100)
     auto_promote_max_monitors: int = Field(default=100, ge=1, le=10_000)
 

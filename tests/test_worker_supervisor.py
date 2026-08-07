@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 import app.worker as worker_module
-from app.worker import wait_for_stop
+from app.worker import discovery_retry_delay, wait_for_stop
 
 
 @pytest.mark.asyncio
@@ -21,6 +21,17 @@ async def test_wait_for_stop_returns_after_timeout() -> None:
     stop_event = asyncio.Event()
 
     assert await wait_for_stop(stop_event, 0.001) is False
+
+
+@pytest.mark.parametrize(
+    ("failures", "expected"),
+    [(0, 120), (1, 240), (2, 480), (3, 900), (20, 900)],
+)
+def test_discovery_retry_delay_is_bounded(
+    failures: int,
+    expected: float,
+) -> None:
+    assert discovery_retry_delay(120, 900, failures) == expected
 
 
 @pytest.mark.asyncio
@@ -92,6 +103,8 @@ async def test_run_finishes_poll_and_releases_resources(monkeypatch) -> None:
         monitor_poll_interval_seconds=30,
         discovery_enabled=False,
         discovery_programs=(),
+        discovery_poll_interval_seconds=120,
+        discovery_retry_max_seconds=900,
     )
     leader = FakeLeader()
     helius_client = FakeHeliusClient()

@@ -6,6 +6,8 @@ All notable changes to Alpha Engine are documented here.
 
 ### Added
 
+- Independent 30-second wallet monitoring and two-minute DEX discovery
+  schedules, with bounded adaptive discovery backoff for free public RPCs.
 - On-demand early-token scoring and evidence gates for faster top-trader buy
   signals without waiting for a mature token-score snapshot.
 - Free on-demand Pump and PumpSwap transaction sampling with persistent source

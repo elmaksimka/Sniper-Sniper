@@ -15,27 +15,36 @@ For each source the worker:
 6. promotes an A/B wallet at or above `AUTO_PROMOTE_WALLET_SCORE` into the
    continuous monitor list, subject to `AUTO_PROMOTE_MAX_MONITORS`.
 
-The defaults inspect ten transactions per program and one page per worker cycle.
-This is deliberately a sample: the public Solana endpoint is rate-limited and
-is not a full market indexer. When the saved cursor falls outside the bounded
-window, the worker records a warning, ingests the latest sample, and advances
-the cursor instead of becoming permanently stuck on an unfillable gap.
+The free local defaults inspect twenty transactions per program every two
+minutes. Monitored top-trader wallets run on their own 30-second schedule, so a
+discovery slowdown does not delay them. This is deliberately a sample: the
+public Solana endpoint is rate-limited and is not a full market indexer. When
+the saved cursor falls outside the bounded window, the worker records a
+warning, ingests the latest sample, and advances the cursor instead of becoming
+permanently stuck on an unfillable gap.
+
+Failed discovery cycles use bounded exponential backoff: 4, 8, then 15 minutes
+maximum with the default configuration. A successful cycle restores the normal
+two-minute interval. Failures are isolated per program, so Pump can still be
+sampled when PumpSwap fails, or vice versa.
 
 ## Configuration
 
 ```dotenv
 DISCOVERY_ENABLED=true
 DISCOVERY_PROGRAM_IDS=6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P,pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA
-DISCOVERY_PAGE_SIZE=10
+DISCOVERY_PAGE_SIZE=20
 DISCOVERY_MAX_PAGES=1
+DISCOVERY_POLL_INTERVAL_SECONDS=120
+DISCOVERY_RETRY_MAX_SECONDS=900
 AUTO_PROMOTE_WALLET_SCORE=65
 AUTO_PROMOTE_MAX_MONITORS=100
 ```
 
-Increasing the page count or size consumes more public RPC capacity and can
-produce HTTP `429` responses. Keep the conservative defaults in the fully free
-mode. A dedicated RPC or streaming indexer would be required for comprehensive,
-low-latency market coverage.
+Increasing the page count, size, or frequency consumes more public RPC capacity
+and can produce HTTP `429` responses. Keep the adaptive defaults in the fully
+free mode. A dedicated RPC or streaming indexer would be required for
+comprehensive, low-latency market coverage.
 
 Promotion is evidence-based rather than immediate: a newly observed wallet
 usually needs multiple buys and sells before its performance, exit experience,

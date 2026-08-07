@@ -19,8 +19,9 @@ Install Docker Desktop, then run from the repository root:
 ```
 
 Open `http://127.0.0.1:8000/docs`. Add monitored wallets through the API. The
-conservative defaults scan at most three 20-transaction pages every five
-minutes to stay friendly to the shared public endpoint.
+defaults check monitored wallets every 30 seconds and sample 20 recent
+transactions from each configured DEX program every two minutes. Discovery
+backs off independently for up to 15 minutes when the shared RPC is overloaded.
 
 ## Stop and resume
 
@@ -45,8 +46,8 @@ docker compose --env-file .env.local -f docker-compose.local.yml down
 
 Do not add `--volumes` to `down`: that option deletes the local database. The
 public Solana endpoint is intended for development and can return `429` or be
-temporarily unavailable. The client applies bounded retries; simply resume the
-stack later if the shared service remains busy.
+temporarily unavailable. The client applies request retries and the discovery
+scheduler automatically slows down without pausing monitored-wallet checks.
 
 ## Cost boundary
 

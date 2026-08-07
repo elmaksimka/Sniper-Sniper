@@ -49,6 +49,20 @@ async def wait_for_stop(
     return True
 
 
+def discovery_retry_delay(
+    interval_seconds: float,
+    maximum_seconds: float,
+    consecutive_failures: int,
+) -> float:
+    """Return the normal interval or bounded exponential discovery backoff."""
+    if consecutive_failures <= 0:
+        return interval_seconds
+    return min(
+        interval_seconds * (2**consecutive_failures),
+        maximum_seconds,
+    )
+
+
 async def run(stop_event: asyncio.Event | None = None) -> None:
     stop_event = stop_event or asyncio.Event()
     settings = get_settings()
@@ -66,6 +80,8 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
             stop_event,
         )
     )
+    next_discovery_at = 0.0
+    discovery_failures = 0
 
     try:
         while not stop_event.is_set():
@@ -99,20 +115,43 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                     heartbeat_details["state"] = "polling"
                     container = Container(session, helius_client=helius_client)
                     container.setup()
-                    discovered = 0
-                    if settings.discovery_enabled:
+                    now = asyncio.get_running_loop().time()
+                    if settings.discovery_enabled and now >= next_discovery_at:
+                        discovered = 0
+                        discovery_failed = False
                         for program_id in settings.discovery_programs:
-                            discovery = (
-                                await container.dex_discovery_service.scan_program(
-                                    program_id
+                            try:
+                                discovery = (
+                                    await container.dex_discovery_service.scan_program(
+                                        program_id
+                                    )
                                 )
-                            )
-                            if not discovery.complete:
-                                logger.warning(
-                                    "dex_discovery_gap_sampled",
+                                if not discovery.complete:
+                                    logger.warning(
+                                        "dex_discovery_gap_sampled",
+                                        program_id=program_id,
+                                    )
+                                discovered += discovery.processed_transactions
+                            except Exception:
+                                discovery_failed = True
+                                logger.exception(
+                                    "dex_discovery_program_failed",
                                     program_id=program_id,
                                 )
-                            discovered += discovery.processed_transactions
+                        discovery_failures = (
+                            discovery_failures + 1 if discovery_failed else 0
+                        )
+                        delay = discovery_retry_delay(
+                            settings.discovery_poll_interval_seconds,
+                            settings.discovery_retry_max_seconds,
+                            discovery_failures,
+                        )
+                        next_discovery_at = asyncio.get_running_loop().time() + delay
+                        heartbeat_details.update(
+                            discovered_transactions=discovered,
+                            discovery_failures=discovery_failures,
+                            discovery_next_poll_seconds=delay,
+                        )
                     worker = MonitorWorker(
                         monitors=MonitorRepository(session),
                         scanner=container.scanner,
@@ -124,7 +163,6 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                     heartbeat_details.update(
                         state="idle",
                         processed_transactions=processed,
-                        discovered_transactions=discovered,
                     )
             except Exception:
                 heartbeat_details["state"] = "error"
