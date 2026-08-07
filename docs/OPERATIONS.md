@@ -17,6 +17,12 @@ stale boundary should remain several times larger than the interval.
 Each dependency check is bounded by `READINESS_CHECK_TIMEOUT_SECONDS`, so a
 stalled dependency cannot leave the HTTP probe hanging indefinitely.
 
+## Administrative API access
+
+In production, all endpoints that change monitor state or acknowledge alerts
+require `X-API-Key: <ADMIN_API_KEY>`. Missing or invalid credentials return
+`401`; read-only endpoints and health probes remain available without the key.
+
 ## Deployment order
 
 1. Apply migrations with `poetry run alembic upgrade head`.

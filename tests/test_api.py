@@ -9,6 +9,7 @@ from app.api.dependencies import get_token_score_snapshot_service
 from app.api.dependencies import get_alert_service
 from app.api.dependencies import get_funding_service, get_monitor_service
 from app.api.dependencies import get_system_health_service
+from app.core.config import get_settings
 from app.core.analytics import (
     CreatorAnalytics,
     CreatorTokenAnalytics,
@@ -918,3 +919,36 @@ def test_unknown_monitor_returns_404() -> None:
     response = client.delete("/api/v1/monitors/missing")
 
     assert response.status_code == 404
+
+
+def test_production_mutations_require_admin_api_key(monkeypatch) -> None:
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://alpha:test@db/test")
+    monkeypatch.setenv("HELIUS_API_KEY", "helius-key")
+    monkeypatch.setenv("ADMIN_API_KEY", "a" * 32)
+    get_settings.cache_clear()
+    try:
+        client, _ = create_client()
+
+        read_response = client.get("/api/v1/monitors")
+        missing_key = client.post(
+            "/api/v1/monitors",
+            json={"address": "protected"},
+        )
+        wrong_key = client.post(
+            "/api/v1/monitors",
+            json={"address": "protected"},
+            headers={"X-API-Key": "wrong"},
+        )
+        authorized = client.post(
+            "/api/v1/monitors",
+            json={"address": "protected"},
+            headers={"X-API-Key": "a" * 32},
+        )
+
+        assert read_response.status_code == 200
+        assert missing_key.status_code == 401
+        assert wrong_key.status_code == 401
+        assert authorized.status_code == 201
+    finally:
+        get_settings.cache_clear()

@@ -1,6 +1,7 @@
 from functools import lru_cache
 
 from pydantic import Field
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -58,6 +59,11 @@ class Settings(BaseSettings):
     worker_heartbeat_stale_seconds: float = Field(default=120, gt=0)
     readiness_check_timeout_seconds: float = Field(default=3, gt=0)
 
+    admin_api_key: str = Field(
+        default="",
+        description="API key required by administrative endpoints in production",
+    )
+
     # Database
     database_url: str = Field(
         default="",
@@ -73,6 +79,25 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
     )
+
+    @model_validator(mode="after")
+    def validate_production_settings(self) -> "Settings":
+        if self.environment.lower() != "production":
+            return self
+
+        missing: list[str] = []
+        if not self.database_url:
+            missing.append("DATABASE_URL")
+        if not (self.helius_api_key or self.helius_rpc_url):
+            missing.append("HELIUS_API_KEY or HELIUS_RPC_URL")
+        if len(self.admin_api_key) < 32:
+            missing.append("ADMIN_API_KEY (at least 32 characters)")
+        if missing:
+            raise ValueError(
+                "Missing or invalid production configuration: "
+                + ", ".join(missing)
+            )
+        return self
 
 
 @lru_cache

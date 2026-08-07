@@ -20,6 +20,15 @@ docker compose -f docker-compose.prod.yml ps
 `.env` out of version control. In a managed deployment, inject the same variables
 from the platform secret store instead of copying a file.
 
+Set `ADMIN_API_KEY` to at least 32 random characters. Production startup fails
+fast when the database URL, Helius configuration, or admin key is missing. Send
+the key in the `X-API-Key` header when acknowledging alerts or changing wallet
+monitors. Read-only analytics endpoints do not require this key.
+
+`FORWARDED_ALLOW_IPS` defaults to loopback. When a trusted reverse proxy sits in
+front of the API, set it to that proxy's address or CIDR; do not use `*` on a
+publicly reachable service.
+
 Inspect migration and service logs:
 
 ```powershell

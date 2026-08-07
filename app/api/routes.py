@@ -5,6 +5,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.api.dependencies import (
+    AdminAccessDependency,
     AlertServiceDependency,
     AnalyticsServiceDependency,
     MonitorServiceDependency,
@@ -395,6 +396,7 @@ async def list_alerts(
 async def acknowledge_alert(
     alert_id: int,
     service: AlertServiceDependency,
+    _admin_access: AdminAccessDependency,
 ) -> AlertRead:
     alert = await service.acknowledge(alert_id)
     if alert is None:
@@ -426,6 +428,7 @@ async def list_monitors(
 async def add_monitor(
     payload: MonitorCreate,
     service: MonitorServiceDependency,
+    _admin_access: AdminAccessDependency,
 ) -> MonitorRead:
     monitor = await service.add(payload.address)
     return MonitorRead.from_monitor(monitor)
@@ -435,6 +438,7 @@ async def add_monitor(
 async def enable_monitor(
     address: str,
     service: MonitorServiceDependency,
+    _admin_access: AdminAccessDependency,
 ) -> MonitorRead:
     monitor = await service.set_enabled(address, True)
     if monitor is None:
@@ -446,6 +450,7 @@ async def enable_monitor(
 async def disable_monitor(
     address: str,
     service: MonitorServiceDependency,
+    _admin_access: AdminAccessDependency,
 ) -> MonitorRead:
     monitor = await service.set_enabled(address, False)
     if monitor is None:
