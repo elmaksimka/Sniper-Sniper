@@ -10,6 +10,7 @@ from app.api.dependencies import get_funding_service, get_monitor_service
 from app.api.dependencies import get_system_health_service
 from app.core.analytics import TokenAnalytics, TokenPosition, WalletAnalytics
 from app.core.scoring import WalletScore
+from app.core.funding import FundingCounterparty, WalletFundingAnalytics
 from app.infrastructure.models import (
     Alert,
     Token,
@@ -307,6 +308,36 @@ class FakeFundingService:
         self.filters = (limit, offset, wallet_address, direction)
         return [self.transfer], 1
 
+    async def get_wallet_analytics(
+        self,
+        address: str,
+        counterparty_limit: int,
+    ) -> WalletFundingAnalytics | None:
+        if address != "wallet":
+            return None
+        return WalletFundingAnalytics(
+            wallet_address=address,
+            incoming_transfer_count=2,
+            outgoing_transfer_count=1,
+            incoming_sol=2.0,
+            outgoing_sol=0.5,
+            net_sol=1.5,
+            unique_funders=1,
+            unique_destinations=1,
+            first_funder="funder",
+            first_funding_at=self.transfer.timestamp,
+            counterparties=[
+                FundingCounterparty(
+                    address="funder",
+                    direction="incoming",
+                    transfer_count=2,
+                    total_sol=2.0,
+                    first_transfer_at=self.transfer.timestamp,
+                    last_transfer_at=self.transfer.timestamp,
+                )
+            ][:counterparty_limit],
+        )
+
 
 class FakeSystemHealthService:
     def __init__(self, ready: bool = True) -> None:
@@ -466,6 +497,33 @@ def test_funding_direction_validation() -> None:
     )
 
     assert response.status_code == 422
+
+
+def test_get_wallet_funding_analytics() -> None:
+    client, _ = create_client()
+
+    response = client.get(
+        "/api/v1/funding/wallets/wallet",
+        params={"counterparty_limit": 5},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["incoming_sol"] == 2.0
+    assert payload["outgoing_sol"] == 0.5
+    assert payload["net_sol"] == 1.5
+    assert payload["first_funder"] == "funder"
+    assert payload["counterparties"][0]["direction"] == "incoming"
+    assert payload["counterparties"][0]["total_sol"] == 2.0
+
+
+def test_missing_wallet_funding_analytics_returns_404() -> None:
+    client, _ = create_client()
+
+    response = client.get("/api/v1/funding/wallets/missing")
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Wallet not found"}
 
 
 def test_get_wallet_analytics() -> None:

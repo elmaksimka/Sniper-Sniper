@@ -5,12 +5,15 @@ from datetime import UTC, datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.models import FundingTransfer
+from app.core.funding import WalletFundingAnalytics
 from app.repositories.funding_repository import FundingRepository
+from app.repositories.wallet_repository import WalletRepository
 
 
 class FundingService:
     def __init__(self, session: AsyncSession) -> None:
         self.repository = FundingRepository(session)
+        self.wallets = WalletRepository(session)
 
     async def create_transfer(
         self,
@@ -51,3 +54,17 @@ class FundingService:
         )
         total = await self.repository.count(wallet_address, direction)
         return transfers, total
+
+    async def get_wallet_analytics(
+        self,
+        address: str,
+        counterparty_limit: int = 10,
+    ) -> WalletFundingAnalytics | None:
+        wallet = await self.wallets.get_by_address(address)
+        if wallet is None:
+            return None
+        return await self.repository.get_wallet_analytics(
+            wallet.id,
+            wallet.address,
+            counterparty_limit,
+        )

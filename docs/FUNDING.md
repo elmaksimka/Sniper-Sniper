@@ -20,3 +20,8 @@ Use `GET /api/v1/funding/transfers` to browse transfers. Optional filters:
 
 Direction only has meaning together with `wallet_address`; without a wallet the
 endpoint returns all transfers.
+
+Use `GET /api/v1/funding/wallets/{address}` for aggregate funding intelligence:
+incoming and outgoing volume, net flow, unique funders and destinations, the
+earliest observed funder, and the largest directional counterparty
+relationships. `counterparty_limit` controls the returned relationship count.

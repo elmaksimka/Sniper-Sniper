@@ -34,6 +34,7 @@ from app.api.schemas import (
     WalletScoreSnapshotRead,
     FundingTransferPage,
     FundingTransferRead,
+    WalletFundingAnalyticsRead,
 )
 
 
@@ -147,6 +148,24 @@ async def list_funding_transfers(
         limit=limit,
         offset=offset,
     )
+
+
+@router.get(
+    "/funding/wallets/{address}",
+    response_model=WalletFundingAnalyticsRead,
+)
+async def get_wallet_funding_analytics(
+    address: str,
+    service: FundingServiceDependency,
+    counterparty_limit: Limit = 10,
+) -> WalletFundingAnalyticsRead:
+    analytics = await service.get_wallet_analytics(address, counterparty_limit)
+    if analytics is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Wallet not found",
+        )
+    return WalletFundingAnalyticsRead.model_validate(analytics)
 
 
 @router.get(

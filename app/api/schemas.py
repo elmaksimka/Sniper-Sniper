@@ -110,6 +110,33 @@ class FundingTransferPage(BaseModel):
     offset: int
 
 
+class FundingCounterpartyRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    address: str
+    direction: str
+    transfer_count: int
+    total_sol: float
+    first_transfer_at: datetime
+    last_transfer_at: datetime
+
+
+class WalletFundingAnalyticsRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    wallet_address: str
+    incoming_transfer_count: int
+    outgoing_transfer_count: int
+    incoming_sol: float
+    outgoing_sol: float
+    net_sol: float
+    unique_funders: int
+    unique_destinations: int
+    first_funder: str | None
+    first_funding_at: datetime | None
+    counterparties: list[FundingCounterpartyRead]
+
+
 class WalletAnalyticsRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

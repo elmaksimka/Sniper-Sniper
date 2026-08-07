@@ -96,6 +96,7 @@ Read endpoints:
 - `GET /api/v1/wallets/{address}`
 - `GET /api/v1/trades`
 - `GET /api/v1/funding/transfers`
+- `GET /api/v1/funding/wallets/{address}`
 - `GET /api/v1/analytics/wallets/{address}`
 - `GET /api/v1/analytics/wallets/{address}/positions`
 - `GET /api/v1/analytics/tokens/{address}`
