@@ -47,6 +47,11 @@ and can produce HTTP `429` responses. Keep the adaptive defaults in the fully
 free mode. A dedicated RPC or streaming indexer would be required for
 comprehensive, low-latency market coverage.
 
+The fully free local profile serializes RPC calls with
+`HELIUS_MAX_CONCURRENCY=1`. Discovery, candidate enrichment, and monitored
+wallet polling remain independent tasks, but share this single request slot to
+avoid simultaneous bursts against the public endpoint.
+
 Promotion is evidence-based rather than immediate: a newly observed wallet
 usually needs multiple buys and sells before its performance, exit experience,
 and data quality can reach grade A or B. Once promoted, its own history is
