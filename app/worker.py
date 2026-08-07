@@ -99,6 +99,20 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                     heartbeat_details["state"] = "polling"
                     container = Container(session, helius_client=helius_client)
                     container.setup()
+                    discovered = 0
+                    if settings.discovery_enabled:
+                        for program_id in settings.discovery_programs:
+                            discovery = (
+                                await container.dex_discovery_service.scan_program(
+                                    program_id
+                                )
+                            )
+                            if not discovery.complete:
+                                logger.warning(
+                                    "dex_discovery_gap_sampled",
+                                    program_id=program_id,
+                                )
+                            discovered += discovery.processed_transactions
                     worker = MonitorWorker(
                         monitors=MonitorRepository(session),
                         scanner=container.scanner,
@@ -110,6 +124,7 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                     heartbeat_details.update(
                         state="idle",
                         processed_transactions=processed,
+                        discovered_transactions=discovered,
                     )
             except Exception:
                 heartbeat_details["state"] = "error"

@@ -6,6 +6,10 @@ All notable changes to Alpha Engine are documented here.
 
 ### Added
 
+- Free on-demand Pump and PumpSwap transaction sampling with persistent source
+  cursors for automatic wallet/token database bootstrapping.
+- Automatic promotion of observed grade A/B wallets into continuous monitoring,
+  with configurable score and capacity limits.
 - Deduplicated top-trader token-buy signals requiring both wallet and token
   scores to meet configurable A/B thresholds.
 - Multi-recipient Telegram Bot API delivery for alpha signals, with a separate

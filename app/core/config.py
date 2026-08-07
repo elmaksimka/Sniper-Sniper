@@ -56,6 +56,12 @@ class Settings(BaseSettings):
     )
     alpha_wallet_score_threshold: float = Field(default=65, ge=0, le=100)
     alpha_token_score_threshold: float = Field(default=65, ge=0, le=100)
+    discovery_enabled: bool = False
+    discovery_program_ids: str = ""
+    discovery_page_size: int = Field(default=10, ge=1, le=40)
+    discovery_max_pages: int = Field(default=1, ge=1, le=10)
+    auto_promote_wallet_score: float = Field(default=65, ge=0, le=100)
+    auto_promote_max_monitors: int = Field(default=100, ge=1, le=10_000)
 
     monitor_poll_interval_seconds: float = Field(default=30, gt=0)
     monitor_page_size: int = Field(default=100, ge=1, le=100)
@@ -91,6 +97,16 @@ class Settings(BaseSettings):
         values = [self.telegram_chat_id, *self.telegram_chat_ids.split(",")]
         return tuple(dict.fromkeys(value.strip() for value in values if value.strip()))
 
+    @property
+    def discovery_programs(self) -> tuple[str, ...]:
+        return tuple(
+            dict.fromkeys(
+                value.strip()
+                for value in self.discovery_program_ids.split(",")
+                if value.strip()
+            )
+        )
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -110,6 +126,10 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_production_settings(self) -> "Settings":
+        if self.discovery_enabled and not self.discovery_programs:
+            raise ValueError(
+                "DISCOVERY_PROGRAM_IDS is required when discovery is enabled"
+            )
         if self.environment.lower() != "production":
             return self
 

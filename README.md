@@ -70,6 +70,8 @@ Wallet and token score alert thresholds are independently configurable with
 `WALLET_SCORE_ALERT_THRESHOLD` and `TOKEN_SCORE_ALERT_THRESHOLD`.
 Top-trader token-buy convergence signals and Telegram delivery are documented
 in [`docs/ALPHA_SIGNALS.md`](docs/ALPHA_SIGNALS.md).
+Automatic Pump/PumpSwap sampling and trader promotion are documented in
+[`docs/TRADER_DISCOVERY.md`](docs/TRADER_DISCOVERY.md).
 In production, monitor mutations and alert acknowledgement require the
 `X-API-Key` header configured by `ADMIN_API_KEY`.
 Production also requires an explicit `ALLOWED_HOSTS` list and disables the
@@ -168,6 +170,8 @@ Native SOL funding extraction is documented in
 [`docs/FUNDING.md`](docs/FUNDING.md).
 Telegram alpha signals are documented in
 [`docs/ALPHA_SIGNALS.md`](docs/ALPHA_SIGNALS.md).
+Automatic top-trader discovery is documented in
+[`docs/TRADER_DISCOVERY.md`](docs/TRADER_DISCOVERY.md).
 Observed holder analytics is documented in
 [`docs/HOLDERS.md`](docs/HOLDERS.md).
 Creator-level launch analytics is documented in

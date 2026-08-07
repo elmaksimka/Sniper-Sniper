@@ -90,6 +90,8 @@ async def test_run_finishes_poll_and_releases_resources(monkeypatch) -> None:
         monitor_page_size=100,
         monitor_max_pages=10,
         monitor_poll_interval_seconds=30,
+        discovery_enabled=False,
+        discovery_programs=(),
     )
     leader = FakeLeader()
     helius_client = FakeHeliusClient()

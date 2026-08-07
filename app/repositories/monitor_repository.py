@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -56,6 +56,14 @@ class MonitorRepository:
             statement.order_by(WalletMonitor.id.asc())
         )
         return list(result.scalars().all())
+
+    async def count_enabled(self) -> int:
+        result = await self.session.execute(
+            select(func.count(WalletMonitor.id)).where(
+                WalletMonitor.enabled.is_(True)
+            )
+        )
+        return result.scalar_one()
 
     async def set_enabled(
         self,

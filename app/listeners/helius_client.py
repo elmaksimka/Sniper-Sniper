@@ -143,9 +143,23 @@ class HeliusClient:
         address: str,
         limit: int = 10,
     ) -> dict[str, Any]:
+        return await self.get_signature_page(address, limit)
+
+    async def get_signature_page(
+        self,
+        address: str,
+        limit: int = 10,
+        before: str | None = None,
+    ) -> dict[str, Any]:
+        config: dict[str, Any] = {
+            "limit": min(max(limit, 1), 1000),
+            "commitment": "finalized",
+        }
+        if before:
+            config["before"] = before
         return await self._request(
             "getSignaturesForAddress",
-            [address, {"limit": limit}],
+            [address, config],
         )
 
     async def get_transaction(self, signature: str) -> dict[str, Any]:

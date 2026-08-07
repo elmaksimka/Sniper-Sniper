@@ -57,7 +57,9 @@ class TransactionScanner:
             if signature is None or signature in seen:
                 continue
             seen.add(signature)
-            normalized.append(self._normalize(transaction, wallet, signature))
+            normalized.append(
+                self.normalize_transaction(transaction, wallet, signature)
+            )
 
         return TransactionScanPage(normalized, page.pagination_token)
 
@@ -155,7 +157,7 @@ class TransactionScanner:
 
         return TransactionCatchUp([], newest_signature, False)
 
-    def _normalize(
+    def normalize_transaction(
         self,
         transaction: dict[str, Any],
         wallet: str,

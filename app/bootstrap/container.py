@@ -9,6 +9,7 @@ from app.collectors.score_collector import ScoreCollector
 from app.collectors.alert_collector import AlertCollector
 from app.collectors.funding_collector import FundingCollector
 from app.collectors.alpha_signal_collector import AlphaSignalCollector
+from app.collectors.trader_promotion_collector import TraderPromotionCollector
 from app.core.config import get_settings
 from app.core.event_bus import EventBus
 from app.core.events import AlphaSignalGenerated
@@ -21,6 +22,8 @@ from app.repositories.token_score_snapshot_repository import (
     TokenScoreSnapshotRepository,
 )
 from app.repositories.wallet_repository import WalletRepository
+from app.repositories.heartbeat_repository import HeartbeatRepository
+from app.repositories.monitor_repository import MonitorRepository
 from app.services.metadata_service import MetadataService
 from app.services.alert_service import AlertService
 from app.services.score_snapshot_service import ScoreSnapshotService
@@ -33,6 +36,8 @@ from app.services.trade_service import TradeService
 from app.services.wallet_service import WalletService
 from app.services.funding_service import FundingService
 from app.services.token_score_snapshot_service import TokenScoreSnapshotService
+from app.services.dex_discovery_service import DexDiscoveryService
+from app.services.monitor_service import MonitorService
 
 
 class Container:
@@ -52,6 +57,7 @@ class Container:
         self.token_score_snapshot_service = TokenScoreSnapshotService(session)
         self.alert_service = AlertService(session)
         self.funding_service = FundingService(session)
+        self.monitor_service = MonitorService(session)
         self.telegram_notifier = TelegramNotifier(
             settings.telegram_bot_token,
             settings.telegram_recipients,
@@ -96,6 +102,13 @@ class Container:
             wallet_threshold=settings.alpha_wallet_score_threshold,
             token_threshold=settings.alpha_token_score_threshold,
         )
+        self.trader_promotion_collector = TraderPromotionCollector(
+            event_bus=self.event_bus,
+            monitors=MonitorRepository(session),
+            monitor_service=self.monitor_service,
+            minimum_score=settings.auto_promote_wallet_score,
+            maximum_monitors=settings.auto_promote_max_monitors,
+        )
 
         self.helius_client = helius_client or HeliusClient()
         self.token_parser = TokenParser()
@@ -114,6 +127,14 @@ class Container:
             metadata=self.metadata_service,
             event_bus=self.event_bus,
         )
+        self.dex_discovery_service = DexDiscoveryService(
+            client=self.helius_client,
+            scanner=self.scanner,
+            detection=self.token_detection_service,
+            cursors=HeartbeatRepository(session),
+            page_size=settings.discovery_page_size,
+            max_pages=settings.discovery_max_pages,
+        )
 
     def setup(self) -> None:
         self.token_collector.register()
@@ -122,6 +143,7 @@ class Container:
         self.alert_collector.register()
         self.funding_collector.register()
         self.alpha_signal_collector.register()
+        self.trader_promotion_collector.register()
         self.event_bus.subscribe(
             AlphaSignalGenerated,
             self.telegram_notifier.handle_alpha_signal,

@@ -52,6 +52,25 @@ def test_telegram_recipient_list_is_trimmed_and_deduplicated() -> None:
     assert settings.telegram_recipients == ("100", "200", "300")
 
 
+def test_discovery_requires_at_least_one_program() -> None:
+    with pytest.raises(ValidationError, match="DISCOVERY_PROGRAM_IDS"):
+        Settings(
+            _env_file=None,
+            discovery_enabled=True,
+            discovery_program_ids="",
+        )
+
+
+def test_discovery_program_list_is_trimmed_and_deduplicated() -> None:
+    settings = Settings(
+        _env_file=None,
+        discovery_enabled=True,
+        discovery_program_ids="program-a, program-b,program-a",
+    )
+
+    assert settings.discovery_programs == ("program-a", "program-b")
+
+
 @pytest.mark.parametrize("scheme", ["postgres", "postgresql"])
 def test_managed_postgres_urls_use_asyncpg(scheme: str) -> None:
     settings = Settings(
