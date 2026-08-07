@@ -68,6 +68,8 @@ In production, monitor mutations and alert acknowledgement require the
 `X-API-Key` header configured by `ADMIN_API_KEY`.
 Production also requires an explicit `ALLOWED_HOSTS` list and disables the
 interactive API documentation endpoints.
+The production Compose file includes an opt-in verified PostgreSQL backup job;
+see [`docs/OPERATIONS.md`](docs/OPERATIONS.md) for backup and restore drills.
 Multiple worker replicas are safe: PostgreSQL advisory-lock leader election
 keeps exactly one replica active while the others wait for failover.
 

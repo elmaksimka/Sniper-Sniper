@@ -37,3 +37,29 @@ and duration. Query strings are intentionally excluded from logs.
 The heartbeat table is created by migration `c4d2b8e71a63`. Until that migration
 is applied and a leader worker writes its first heartbeat, readiness intentionally
 returns `503`.
+
+## Database backups
+
+Create a compressed backup without stopping the API:
+
+```powershell
+docker compose -f docker-compose.prod.yml --profile operations run --rm backup
+```
+
+The backup job uses `pg_dump`'s consistent snapshot, writes the dump under
+`BACKUP_DIR`, and verifies its archive index before reporting success. Files are
+created with a UTC timestamp and restrictive permissions where the host supports
+them. Copy verified backups to encrypted off-host storage and enforce retention
+there; a backup on the database host is not sufficient disaster recovery.
+
+Test restoration into a separate empty database before relying on a backup:
+
+```powershell
+$backup = "/backups/alpha_engine_YYYYMMDDTHHMMSSZ.dump"
+docker compose -f docker-compose.prod.yml exec postgres createdb --username alpha alpha_engine_restore
+docker compose -f docker-compose.prod.yml --profile operations run --rm --entrypoint pg_restore backup --host=postgres --username=alpha --dbname=alpha_engine_restore --exit-on-error $backup
+```
+
+Never use `--clean` against the live database during a restore drill. Production
+cutover is intentionally not automated: validate the restored database first,
+then follow the hosting platform's controlled maintenance and rollback process.

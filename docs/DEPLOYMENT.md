@@ -51,6 +51,10 @@ The deploy must stop if `migrate` exits unsuccessfully. The API and worker both
 depend on successful migration completion, so an incompatible schema is never
 served automatically.
 
+Configure `BACKUP_DIR` on durable storage and run the verified backup job on an
+external schedule. Backup and non-destructive restore-drill commands are
+documented in [`OPERATIONS.md`](OPERATIONS.md).
+
 ## Release images
 
 Set `IMAGE_TAG` to an immutable release or commit identifier. Build and deploy

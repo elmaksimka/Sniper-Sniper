@@ -18,6 +18,9 @@ env/
 # Logs
 *.log
 
+# Local database backups
+backups/
+
 # OS
 .DS_Store
 Thumbs.db

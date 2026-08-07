@@ -73,5 +73,41 @@ services:
       retries: 5
       start_period: 30s
 
+  backup:
+    image: postgres:17
+    profiles: ["operations"]
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      POSTGRES_USER: ${POSTGRES_USER:-alpha}
+      POSTGRES_DB: ${POSTGRES_DB:-alpha_engine}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ${BACKUP_DIR:-./backups}:/backups
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    command:
+      - sh
+      - -ec
+      - |
+        umask 077
+        stamp="$$(date -u +%Y%m%dT%H%M%SZ)"
+        target="/backups/alpha_engine_$${stamp}.dump"
+        test ! -e "$${target}"
+        pg_dump \
+          --host=postgres \
+          --username="$${POSTGRES_USER}" \
+          --dbname="$${POSTGRES_DB}" \
+          --format=custom \
+          --compress=9 \
+          --file="$${target}"
+        pg_restore --list "$${target}" >/dev/null
+        echo "Verified backup: $${target}"
+    restart: "no"
+
 volumes:
   postgres_data:

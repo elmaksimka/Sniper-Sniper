@@ -66,5 +66,13 @@ jobs:
       - name: Test
         run: poetry run pytest -q
 
+      - name: Validate production Compose
+        run: >-
+          docker compose
+          --env-file .env.production.example
+          -f docker-compose.prod.yml
+          --profile operations
+          config --quiet
+
       - name: Build production image
         run: docker build --target runtime -t alpha-engine:${{ github.sha }} .
