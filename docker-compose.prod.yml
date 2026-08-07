@@ -12,6 +12,10 @@ x-alpha-engine: &alpha-engine
   environment:
     ENVIRONMENT: production
     DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set in .env}
+    HELIUS_API_KEY: ${HELIUS_API_KEY:-}
+    HELIUS_RPC_URL: ${HELIUS_RPC_URL:-}
+    ADMIN_API_KEY: ${ADMIN_API_KEY:?ADMIN_API_KEY must be set in .env}
+    ALLOWED_HOSTS: ${ALLOWED_HOSTS:?ALLOWED_HOSTS must be set in .env}
   restart: unless-stopped
 
 services:

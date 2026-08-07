@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from app.infrastructure.models import (
     Alert,
@@ -12,6 +12,7 @@ from app.infrastructure.models import (
     FundingTransfer,
     TokenScoreSnapshot,
 )
+from app.core.solana import validate_solana_address
 
 
 class BuildInfo(BaseModel):
@@ -384,6 +385,8 @@ class AlertPage(BaseModel):
 
 class MonitorCreate(BaseModel):
     address: str
+
+    _validate_address = field_validator("address")(validate_solana_address)
 
 
 class MonitorRead(BaseModel):

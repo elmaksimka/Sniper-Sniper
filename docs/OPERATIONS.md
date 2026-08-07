@@ -25,6 +25,8 @@ stalled dependency cannot leave the HTTP probe hanging indefinitely.
 In production, all endpoints that change monitor state or acknowledge alerts
 require `X-API-Key: <ADMIN_API_KEY>`. Missing or invalid credentials return
 `401`; read-only endpoints and health probes remain available without the key.
+New monitor addresses must be canonical base58 values decoding to a 32-byte
+Solana public key; malformed values are rejected with `422` before persistence.
 
 Every HTTP response includes `X-Request-ID` and defensive browser headers. A
 safe caller-provided request ID is preserved; otherwise the API generates one.

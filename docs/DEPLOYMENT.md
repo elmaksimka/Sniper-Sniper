@@ -30,6 +30,9 @@ environment variables. Verify them after deployment with `GET /version`.
 `DATABASE_URL` must use the Compose hostname `postgres`, not `localhost`. Keep
 `.env` out of version control. In a managed deployment, inject the same variables
 from the platform secret store instead of copying a file.
+Compose passes required database, Helius, admin-key, and host-allowlist values
+explicitly to every application container; missing required values fail during
+configuration instead of silently falling back to an incomplete environment.
 
 Set `ADMIN_API_KEY` to at least 32 random characters. Production startup fails
 fast when the database URL, Helius configuration, or admin key is missing. Send

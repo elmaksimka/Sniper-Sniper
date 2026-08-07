@@ -32,6 +32,9 @@ from app.infrastructure.models import (
 )
 
 
+VALID_MONITOR_ADDRESS = "AUaPMKd13d633cXRRrPRfTeL5XRN64ngDWLEfH5zfBML"
+
+
 class FakeReadService:
     def __init__(self) -> None:
         now = datetime.now(UTC)
@@ -934,13 +937,16 @@ def test_alert_entity_type_validation() -> None:
 def test_monitor_management_api() -> None:
     client, _ = create_client()
 
-    created = client.post("/api/v1/monitors", json={"address": "tracked"})
+    created = client.post(
+        "/api/v1/monitors",
+        json={"address": VALID_MONITOR_ADDRESS},
+    )
     listed = client.get("/api/v1/monitors")
-    disabled = client.delete("/api/v1/monitors/tracked")
-    enabled = client.post("/api/v1/monitors/tracked/enable")
+    disabled = client.delete(f"/api/v1/monitors/{VALID_MONITOR_ADDRESS}")
+    enabled = client.post(f"/api/v1/monitors/{VALID_MONITOR_ADDRESS}/enable")
 
     assert created.status_code == 201
-    assert created.json()["wallet_address"] == "tracked"
+    assert created.json()["wallet_address"] == VALID_MONITOR_ADDRESS
     assert listed.json()["total"] == 1
     assert disabled.json()["enabled"] is False
     assert enabled.json()["enabled"] is True
@@ -952,6 +958,17 @@ def test_unknown_monitor_returns_404() -> None:
     response = client.delete("/api/v1/monitors/missing")
 
     assert response.status_code == 404
+
+
+def test_monitor_rejects_invalid_solana_address() -> None:
+    client, _ = create_client()
+
+    response = client.post(
+        "/api/v1/monitors",
+        json={"address": "staging-probe"},
+    )
+
+    assert response.status_code == 422
 
 
 def test_production_mutations_require_admin_api_key(monkeypatch) -> None:
@@ -968,16 +985,16 @@ def test_production_mutations_require_admin_api_key(monkeypatch) -> None:
         read_response = client.get("/api/v1/monitors")
         missing_key = client.post(
             "/api/v1/monitors",
-            json={"address": "protected"},
+            json={"address": VALID_MONITOR_ADDRESS},
         )
         wrong_key = client.post(
             "/api/v1/monitors",
-            json={"address": "protected"},
+            json={"address": VALID_MONITOR_ADDRESS},
             headers={"X-API-Key": "wrong"},
         )
         authorized = client.post(
             "/api/v1/monitors",
-            json={"address": "protected"},
+            json={"address": VALID_MONITOR_ADDRESS},
             headers={"X-API-Key": "a" * 32},
         )
 
