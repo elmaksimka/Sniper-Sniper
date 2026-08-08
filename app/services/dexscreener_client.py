@@ -48,6 +48,7 @@ class TokenTrendingMetrics:
 class TrendingToken:
     pair_address: str
     token_address: str
+    symbol: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,7 +79,7 @@ class DexScreenerClient:
     )
     _PAIR_PATTERN = re.compile(
         r'"pairAddress":"([^"\\]+)","baseToken":\{[^{}]*?'
-        r'"address":"([^"\\]+)"'
+        r'"address":"([^"\\]+)"[^{}]*?"symbol":"([^"\\]*)"'
     )
 
     def __init__(
@@ -99,12 +100,12 @@ class DexScreenerClient:
         tokens: list[TrendingToken] = []
         seen_pairs: set[str] = set()
         seen_tokens: set[str] = set()
-        for pair_address, token_address in self._PAIR_PATTERN.findall(html):
+        for pair_address, token_address, symbol in self._PAIR_PATTERN.findall(html):
             if pair_address in seen_pairs or token_address in seen_tokens:
                 continue
             seen_pairs.add(pair_address)
             seen_tokens.add(token_address)
-            tokens.append(TrendingToken(pair_address, token_address))
+            tokens.append(TrendingToken(pair_address, token_address, symbol))
         if not tokens:
             raise RuntimeError("DexScreener H24 page contained no Solana pairs")
         return tokens

@@ -216,6 +216,7 @@ async def test_candidate_enrichment_loop_runs_independently(monkeypatch) -> None
         "candidate_last_score_before": 45.0,
         "candidate_last_score_after": 67.0,
         "candidate_history_limit": 75,
+        "candidate_maximum_history_transactions": 1000,
         "candidate_source_tokens": 25,
             "candidate_source_candidates": 80,
             "candidate_source_window_hours": 24,

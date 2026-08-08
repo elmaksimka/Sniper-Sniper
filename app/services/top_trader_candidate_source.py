@@ -18,6 +18,15 @@ class ExternalTraderCandidate:
     source_token_address: str = ""
     token_rank: int = 0
     trader_rank: int = 0
+    label: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ExternalPairCandidateBatch:
+    pair_address: str
+    token_address: str
+    symbol: str
+    candidates: tuple[ExternalTraderCandidate, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,6 +34,7 @@ class ExternalCandidateBatch:
     candidates: tuple[ExternalTraderCandidate, ...]
     token_count: int
     token_addresses: tuple[str, ...] = ()
+    pairs: tuple[ExternalPairCandidateBatch, ...] = ()
 
 
 class TopTraderCandidateSource:
@@ -58,6 +68,7 @@ class TopTraderCandidateSource:
             str,
             tuple[int, int, str, list[DexScreenerTopTrader]],
         ] = {}
+        pair_batches: list[ExternalPairCandidateBatch] = []
         selected = [
             token
             for token in trending
@@ -69,11 +80,24 @@ class TopTraderCandidateSource:
                 token.pair_address,
                 limit=self.traders_per_token,
             )
+            pair_candidates: list[ExternalTraderCandidate] = []
             for trader_rank, trader in enumerate(traders, start=1):
                 if trader.realized_pnl_usd < self.minimum_realized_pnl_usd:
                     continue
                 if trader.realized_roi < self.minimum_realized_roi:
                     continue
+                pair_candidates.append(
+                    ExternalTraderCandidate(
+                        address=trader.wallet,
+                        profitable_tokens=1,
+                        realized_pnl_usd=trader.realized_pnl_usd,
+                        risk_tags=(),
+                        source_token_address=token_address,
+                        token_rank=token_rank,
+                        trader_rank=trader_rank,
+                        label=trader.label,
+                    )
+                )
                 existing = by_wallet.get(trader.wallet)
                 if existing is None:
                     by_wallet[trader.wallet] = (
@@ -84,6 +108,14 @@ class TopTraderCandidateSource:
                     )
                 else:
                     existing[3].append(trader)
+            pair_batches.append(
+                ExternalPairCandidateBatch(
+                    pair_address=token.pair_address,
+                    token_address=token_address,
+                    symbol=token.symbol,
+                    candidates=tuple(pair_candidates),
+                )
+            )
 
         candidates = []
         for wallet, (
@@ -104,6 +136,7 @@ class TopTraderCandidateSource:
                     source_token_address=token_address,
                     token_rank=token_rank,
                     trader_rank=trader_rank,
+                    label=wins[0].label,
                 )
             )
         candidates.sort(
@@ -121,4 +154,5 @@ class TopTraderCandidateSource:
             tuple(candidates),
             len(selected),
             tuple(token.token_address for token in selected),
+            tuple(pair_batches),
         )

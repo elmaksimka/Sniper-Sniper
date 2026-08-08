@@ -160,7 +160,7 @@ async def test_worker_status_notifications_are_delivered() -> None:
 
     assert len(messages) == 5
     assert "Alpha Engine запущено" in messages[0]
-    assert "Джерело кандидатів: DexScreener → Birdeye" in messages[0]
+    assert "Джерело кандидатів: DexScreener Solana H24" in messages[0]
     assert "Черга: 5 монет × топ-10 трейдерів" in messages[0]
     assert "сторінками 75, до 1000 транзакцій" in messages[0]
     assert "усі трейдери монети → наступна монета" in messages[0]
@@ -186,3 +186,42 @@ async def test_worker_status_notifications_are_delivered() -> None:
     assert "RPC перевантажений" in messages[2]
     assert "discovery відновлено" in messages[3]
     assert "Alpha Engine зупинено" in messages[4]
+
+
+def test_candidate_audit_progress_is_formatted_as_pair_table() -> None:
+    messages = TelegramNotifier._candidate_audit_progress_messages(
+        {
+            "candidate_audit_pairs": [
+                {
+                    "symbol": "TOAD",
+                    "token_address": "token",
+                    "started_traders": 1,
+                    "completed_traders": 0,
+                    "total_traders": 10,
+                    "complete": False,
+                    "traders": [
+                        {
+                            "rank": 1,
+                            "wallet": (
+                                "CAPn1yH4oSywsxGU456jfgTrSSUidf9jgeAnHceNUJdw"
+                            ),
+                            "label": "himothy",
+                            "transactions": 75,
+                            "maximum_transactions": 1_000,
+                            "score": 69.33,
+                            "state": "in_progress",
+                            "started": True,
+                        }
+                    ],
+                }
+            ]
+        }
+    )
+
+    assert len(messages) == 1
+    assert "Пари: 1 розпочато · 0 завершено" in messages[0]
+    assert "TOAD · 1/10 топ-трейдерів" in messages[0]
+    assert "himothy (CAPn1y…UJdw)" in messages[0]
+    assert "75/1000" in messages[0]
+    assert "69.33" in messages[0]
+    assert "Очікують аналізу: 9" in messages[0]

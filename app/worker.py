@@ -16,6 +16,9 @@ from app.repositories.heartbeat_repository import HeartbeatRepository
 from app.repositories.monitor_repository import MonitorRepository
 from app.repositories.score_snapshot_repository import ScoreSnapshotRepository
 from app.services.activity_stats_service import ActivityStatsService
+from app.services.candidate_audit_progress_service import (
+    CandidateAuditProgressService,
+)
 from app.services.candidate_enrichment_service import CandidateEnrichmentService
 from app.services.dexscreener_client import DexScreenerClient
 from app.services.monitor_worker import MonitorWorker
@@ -92,6 +95,19 @@ async def telegram_status_loop(
             )
         except Exception:
             logger.exception("worker_activity_stats_failed")
+
+        try:
+            maximum_transactions = int(
+                details.get("candidate_maximum_history_transactions", 1_000)
+            )
+            async with async_session_factory() as session:
+                report_details["candidate_audit_pairs"] = (
+                    await CandidateAuditProgressService(
+                        HeartbeatRepository(session)
+                    ).get(maximum_transactions)
+                )
+        except Exception:
+            logger.exception("worker_candidate_audit_progress_failed")
 
         results = await telegram.send_worker_status(report_details)
         logger.info(
@@ -232,6 +248,9 @@ async def candidate_enrichment_loop(
                         ),
                         candidate_last_score_after=enrichment.last_score_after,
                         candidate_history_limit=enrichment.history_limit,
+                        candidate_maximum_history_transactions=(
+                            maximum_history_transactions
+                        ),
                         candidate_audit_state=enrichment.audit_state,
                         candidate_history_transactions_total=(
                             enrichment.history_transactions_total

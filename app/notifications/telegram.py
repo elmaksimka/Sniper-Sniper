@@ -85,7 +85,7 @@ class TelegramNotifier:
     ) -> None:
         external_status = (
             (
-                "Джерело кандидатів: DexScreener → Birdeye\n"
+                "Джерело кандидатів: DexScreener Solana H24\n"
                 f"Черга: {candidate_token_limit} монет × топ-{traders_per_token} "
                 "трейдерів за realized PnL\n"
                 f"Глибокий аудит: по одному гаманцю, сторінками "
@@ -95,7 +95,7 @@ class TelegramNotifier:
                 f"{candidate_refresh_interval_seconds / 3600:g} год"
             )
             if external_discovery_enabled
-            else "DexScreener/Birdeye discovery: вимкнено"
+            else "DexScreener H24 discovery: вимкнено"
         )
         await self.send_text(
             "\n".join(
@@ -118,7 +118,7 @@ class TelegramNotifier:
         failures = int(details.get("discovery_failures", 0))
         rpc_state = "норма" if failures == 0 else f"backoff ({failures})"
         window_minutes = int(details.get("status_window_minutes", 30))
-        return await self.send_text(
+        results = await self.send_text(
             "\n".join(
                 (
                     "🟢 Alpha Engine працює",
@@ -172,6 +172,11 @@ class TelegramNotifier:
                 )
             )
         )
+        for message in self._candidate_audit_progress_messages(details):
+            progress_results = await self.send_text(message)
+            for recipient, delivered in progress_results.items():
+                results[recipient] = results.get(recipient, True) and delivered
+        return results
 
     async def send_discovery_degraded(
         self,
@@ -318,6 +323,107 @@ class TelegramNotifier:
             f"Воронка {hours} год: {tokens} winner-токенів / "
             f"{candidates} ранніх трейдерів"
         )
+
+    @staticmethod
+    def _candidate_audit_progress_messages(
+        details: dict[str, Any],
+    ) -> tuple[str, ...]:
+        raw_pairs = details.get("candidate_audit_pairs")
+        if not isinstance(raw_pairs, list) or not raw_pairs:
+            return ()
+        pairs = [pair for pair in raw_pairs if isinstance(pair, dict)]
+        if not pairs:
+            return ()
+
+        completed_pairs = sum(bool(pair.get("complete")) for pair in pairs)
+        header = "\n".join(
+            (
+                "📊 DexScreener — прогрес аудиту",
+                (
+                    f"Пари: {len(pairs)} розпочато · "
+                    f"{completed_pairs} завершено"
+                ),
+            )
+        )
+        blocks = [TelegramNotifier._candidate_pair_progress(pair) for pair in pairs]
+        messages: list[str] = []
+        current = header
+        for block in blocks:
+            proposed = f"{current}\n\n{block}"
+            if len(proposed) <= 3_900:
+                current = proposed
+                continue
+            messages.append(current)
+            current = f"📊 Прогрес аудиту — продовження\n\n{block}"
+        messages.append(current)
+        return tuple(messages)
+
+    @staticmethod
+    def _candidate_pair_progress(pair: dict[str, Any]) -> str:
+        symbol = str(pair.get("symbol") or "").strip()
+        token = str(pair.get("token_address") or "").strip()
+        pair_name = symbol or TelegramNotifier._short_address(token)
+        started = TelegramNotifier._safe_int(pair.get("started_traders"))
+        total = TelegramNotifier._safe_int(pair.get("total_traders"))
+        lines = [f"🪙 {pair_name} · {started}/{total} топ-трейдерів"]
+        raw_traders = pair.get("traders")
+        traders = raw_traders if isinstance(raw_traders, list) else []
+        started_traders = [
+            trader
+            for trader in traders
+            if isinstance(trader, dict) and bool(trader.get("started"))
+        ]
+        if started_traders:
+            lines.append("№  Трейдер             Транзакції  Рейтинг")
+        for trader in started_traders:
+            rank = TelegramNotifier._safe_int(trader.get("rank"))
+            wallet = str(trader.get("wallet") or "").strip()
+            label = str(trader.get("label") or "").strip()
+            identity = label or TelegramNotifier._short_address(wallet)
+            if label and wallet:
+                identity = f"{label} ({TelegramNotifier._short_address(wallet)})"
+            if len(identity) > 24:
+                identity = f"{identity[:23]}…"
+            transactions = TelegramNotifier._safe_int(
+                trader.get("transactions")
+            )
+            maximum = TelegramNotifier._safe_int(
+                trader.get("maximum_transactions")
+            )
+            state = str(trader.get("state") or "")
+            transaction_status = f"{transactions}/{maximum}"
+            if state == "complete":
+                transaction_status += " ✓"
+            score = TelegramNotifier._format_optional_score(trader.get("score"))
+            lines.append(
+                f"{rank:<2} {identity:<25} {transaction_status:<11} {score}"
+            )
+        waiting = max(0, total - started)
+        if waiting:
+            lines.append(f"Очікують аналізу: {waiting}")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _safe_int(value: object) -> int:
+        if not isinstance(value, (int, float, str, bytes, bytearray)):
+            return 0
+        try:
+            return max(0, int(value))
+        except (TypeError, ValueError):
+            return 0
+
+    @staticmethod
+    def _format_optional_score(value: object) -> str:
+        try:
+            return f"{float(value):.2f}"  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return "—"
+
+    @staticmethod
+    def _short_address(address: str) -> str:
+        if len(address) <= 13:
+            return address or "невідомо"
+        return f"{address[:6]}…{address[-4:]}"
 
     @staticmethod
     def _top_wallets_status(details: dict[str, Any]) -> str:

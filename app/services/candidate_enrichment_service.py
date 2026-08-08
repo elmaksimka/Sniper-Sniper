@@ -109,6 +109,29 @@ class CandidateEnrichmentService:
                     {"tokens": list(dict.fromkeys(processed_tokens))},
                 )
             batch_order = int(datetime.now(UTC).timestamp() * 1_000)
+            for pair in external.pairs:
+                await self.cursors.beat(
+                    f"candidate-pair:{pair.token_address}",
+                    "dexscreener-pair-audit",
+                    {
+                        "queue_version": self.EXTERNAL_QUEUE_VERSION,
+                        "batch_order": batch_order,
+                        "pair_address": pair.pair_address,
+                        "token_address": pair.token_address,
+                        "symbol": pair.symbol,
+                        "traders": [
+                            {
+                                "rank": candidate.trader_rank,
+                                "wallet": candidate.address,
+                                "label": candidate.label,
+                                "realized_pnl_usd": (
+                                    candidate.realized_pnl_usd
+                                ),
+                            }
+                            for candidate in pair.candidates
+                        ],
+                    },
+                )
             for candidate in external.candidates:
                 source_name = f"candidate-source:{candidate.address}"
                 existing_source = await self.cursors.get(source_name)
@@ -158,6 +181,7 @@ class CandidateEnrichmentService:
                         "profitable_tokens": candidate.profitable_tokens,
                         "realized_pnl_usd": candidate.realized_pnl_usd,
                         "risk_tags": list(candidate.risk_tags),
+                        "label": candidate.label,
                     },
                 )
             external_token_count = external.token_count
