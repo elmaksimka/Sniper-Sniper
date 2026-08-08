@@ -40,6 +40,9 @@ class HeliusClient:
         self.retry_base_seconds = settings.helius_retry_base_seconds
         self.retry_max_seconds = settings.helius_retry_max_seconds
         self._timeout = settings.helius_timeout_seconds
+        self.standard_transaction_delay = (
+            settings.standard_rpc_transaction_delay_seconds
+        )
         self._semaphore = asyncio.Semaphore(settings.helius_max_concurrency)
         self._client = http_client
         self._owns_client = http_client is None
@@ -275,8 +278,13 @@ class HeliusClient:
         # Fetch details sequentially so one history page does not launch a
         # synchronized wave of requests and retries after a 429 response.
         responses = []
-        for signature in signatures:
+        for index, signature in enumerate(signatures):
             responses.append(await self.get_transaction(signature))
+            if (
+                self.standard_transaction_delay > 0
+                and index < len(signatures) - 1
+            ):
+                await asyncio.sleep(self.standard_transaction_delay)
         transactions = [
             transaction
             for item in responses

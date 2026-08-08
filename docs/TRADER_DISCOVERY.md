@@ -48,7 +48,8 @@ free mode. A dedicated RPC or streaming indexer would be required for
 comprehensive, low-latency market coverage.
 
 The fully free local profile serializes RPC calls with
-`HELIUS_MAX_CONCURRENCY=1`. Discovery, candidate enrichment, and monitored
+`HELIUS_MAX_CONCURRENCY=1` and spaces standard `getTransaction` calls by 0.3
+seconds. Discovery, candidate enrichment, and monitored
 wallet polling remain independent tasks, but share this single request slot to
 avoid simultaneous bursts against the public endpoint.
 
