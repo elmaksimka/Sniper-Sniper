@@ -1,8 +1,8 @@
 import asyncio
-from contextlib import suppress
 import os
 import signal
 import socket
+from contextlib import suppress
 from typing import Any
 
 from app.bootstrap.container import Container
@@ -12,14 +12,13 @@ from app.infrastructure.database import async_session_factory, engine
 from app.infrastructure.leader_election import PostgresLeaderElector
 from app.listeners.helius_client import HeliusClient
 from app.notifications.telegram import TelegramNotifier
-from app.repositories.monitor_repository import MonitorRepository
 from app.repositories.heartbeat_repository import HeartbeatRepository
+from app.repositories.monitor_repository import MonitorRepository
 from app.repositories.score_snapshot_repository import ScoreSnapshotRepository
-from app.services.candidate_enrichment_service import CandidateEnrichmentService
-from app.services.monitor_worker import MonitorWorker
 from app.services.activity_stats_service import ActivityStatsService
-from app.services.birdeye_client import BirdeyeClient
+from app.services.candidate_enrichment_service import CandidateEnrichmentService
 from app.services.dexscreener_client import DexScreenerClient
+from app.services.monitor_worker import MonitorWorker
 from app.services.top_trader_candidate_source import TopTraderCandidateSource
 
 
@@ -121,7 +120,6 @@ async def candidate_enrichment_loop(
     source_early_entry_max_multiple: float,
     details: dict[str, Any],
     stop_event: asyncio.Event,
-    birdeye_api_key: str = "",
     external_discovery_interval_seconds: float = 21_600,
     external_token_limit: int = 5,
     external_minimum_realized_pnl_usd: float = 1_000,
@@ -143,7 +141,7 @@ async def candidate_enrichment_loop(
             details["candidate_state"] = "polling"
             try:
                 now = asyncio.get_running_loop().time()
-                use_external_source = bool(birdeye_api_key) and (
+                use_external_source = bool(dexscreener_renderer_url) and (
                     last_external_discovery_at is None
                     or now - last_external_discovery_at
                     >= external_discovery_interval_seconds
@@ -188,7 +186,6 @@ async def candidate_enrichment_loop(
                                         dexscreener_renderer_timeout_seconds
                                     ),
                                 ),
-                                BirdeyeClient(birdeye_api_key),
                                 token_limit=external_token_limit,
                                 traders_per_token=source_traders_per_token,
                                 minimum_realized_pnl_usd=(
@@ -217,7 +214,9 @@ async def candidate_enrichment_loop(
                         )
                     if use_external_source:
                         last_external_discovery_at = now
-                        details["candidate_external_source"] = "birdeye"
+                        details["candidate_external_source"] = (
+                            "dexscreener-h24-pnl"
+                        )
                     details.update(
                         candidate_state="idle",
                         candidate_wallets_enriched=enrichment.wallets_enriched,
@@ -431,7 +430,7 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                         settings.candidate_enrichment_maximum_history_transactions
                     ),
                     external_discovery_enabled=bool(
-                        settings.birdeye_api_key
+                        getattr(settings, "dexscreener_renderer_url", "")
                         and settings.candidate_enrichment_enabled
                     ),
                 )
@@ -467,7 +466,6 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                             settings.candidate_source_early_entry_max_multiple,
                             heartbeat_details,
                             stop_event,
-                            birdeye_api_key=settings.birdeye_api_key,
                             external_discovery_interval_seconds=(
                                 settings.candidate_external_discovery_interval_seconds
                             ),

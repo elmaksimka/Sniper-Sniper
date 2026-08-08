@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import httpx
 
 from app.core.logging import get_logger
-from app.services.birdeye_client import BirdeyeClient, TokenTopTrader
-from app.services.dexscreener_client import DexScreenerClient
+from app.services.dexscreener_client import (
+    DexScreenerClient,
+    DexScreenerTopTrader,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,12 +30,9 @@ class ExternalCandidateBatch:
 class TopTraderCandidateSource:
     """Find profitable wallets in DexScreener's Solana H24 order."""
 
-    RISK_TAGS = frozenset({"dev", "bundler", "sniper", "insider"})
-
     def __init__(
         self,
         dexscreener: DexScreenerClient,
-        birdeye: BirdeyeClient,
         *,
         token_limit: int = 5,
         traders_per_token: int = 10,
@@ -43,7 +41,6 @@ class TopTraderCandidateSource:
         excluded_token_addresses: tuple[str, ...] = (),
     ) -> None:
         self.dexscreener = dexscreener
-        self.birdeye = birdeye
         self.token_limit = token_limit
         self.traders_per_token = traders_per_token
         self.minimum_realized_pnl_usd = minimum_realized_pnl_usd
@@ -57,7 +54,10 @@ class TopTraderCandidateSource:
     async def discover(self) -> ExternalCandidateBatch:
         trending = await self.dexscreener.get_solana_trending_h24()
 
-        by_wallet: dict[str, tuple[int, int, str, list[TokenTopTrader]]] = {}
+        by_wallet: dict[
+            str,
+            tuple[int, int, str, list[DexScreenerTopTrader]],
+        ] = {}
         selected = [
             token
             for token in trending
@@ -65,17 +65,10 @@ class TopTraderCandidateSource:
         ][: self.token_limit]
         for token_rank, token in enumerate(selected, start=1):
             token_address = token.token_address
-            try:
-                traders = await self.birdeye.get_top_traders(
-                    token_address,
-                    limit=self.traders_per_token,
-                )
-            except httpx.HTTPError:
-                self.logger.exception(
-                    "token_top_traders_fetch_failed",
-                    token=token_address,
-                )
-                raise
+            traders = await self.dexscreener.get_pair_top_traders(
+                token.pair_address,
+                limit=self.traders_per_token,
+            )
             for trader_rank, trader in enumerate(traders, start=1):
                 if trader.realized_pnl_usd < self.minimum_realized_pnl_usd:
                     continue
@@ -99,16 +92,7 @@ class TopTraderCandidateSource:
             token_address,
             wins,
         ) in by_wallet.items():
-            risk_tags = tuple(
-                sorted(
-                    {
-                        tag
-                        for win in wins
-                        for tag in win.tags
-                        if tag in self.RISK_TAGS
-                    }
-                )
-            )
+            risk_tags: tuple[str, ...] = ()
             candidates.append(
                 ExternalTraderCandidate(
                     address=wallet,

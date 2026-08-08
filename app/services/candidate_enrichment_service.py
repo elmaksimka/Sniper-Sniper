@@ -34,7 +34,7 @@ class CandidateEnrichmentService:
     """Backfill bounded history for the strongest not-yet-promoted wallets."""
 
     H24_DISCOVERY_CURSOR = "candidate-discovery:dexscreener-h24"
-    EXTERNAL_QUEUE_VERSION = 3
+    EXTERNAL_QUEUE_VERSION = 4
 
     def __init__(
         self,

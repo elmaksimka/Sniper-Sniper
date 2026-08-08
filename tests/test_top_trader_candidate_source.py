@@ -1,83 +1,74 @@
 import pytest
 
-from app.services.birdeye_client import TokenTopTrader
-from app.services.dexscreener_client import TrendingToken
+from app.services.dexscreener_client import DexScreenerTopTrader, TrendingToken
 from app.services.top_trader_candidate_source import TopTraderCandidateSource
 
 
 class FakeDexScreener:
+    def __init__(self) -> None:
+        self.pairs: list[str] = []
+
     async def get_solana_trending_h24(self) -> list[TrendingToken]:
         return [
             TrendingToken("pair-strong", "strong"),
             TrendingToken("pair-weak", "weak"),
         ]
 
-
-class FakeBirdeye:
-    def __init__(self) -> None:
-        self.tokens: list[str] = []
-
-    async def get_top_traders(
+    async def get_pair_top_traders(
         self,
-        token: str,
+        pair: str,
         *,
         limit: int,
-    ) -> list[TokenTopTrader]:
-        self.tokens.append(token)
+    ) -> list[DexScreenerTopTrader]:
+        self.pairs.append(pair)
         return [
-            TokenTopTrader(
+            DexScreenerTopTrader(
                 wallet="profitable",
-                token_address=token,
-                realized_pnl_usd=5_000,
-                total_pnl_usd=5_000,
                 buy_volume_usd=1_000,
                 sell_volume_usd=6_000,
-                tags=("smart_trader",),
+                buys=1,
+                sells=1,
             ),
-            TokenTopTrader(
+            DexScreenerTopTrader(
                 wallet="risky",
-                token_address=token,
-                realized_pnl_usd=10_000,
-                total_pnl_usd=10_000,
                 buy_volume_usd=1_000,
                 sell_volume_usd=11_000,
-                tags=("dev", "bundler"),
+                buys=1,
+                sells=1,
             ),
         ]
 
 
 @pytest.mark.asyncio
-async def test_source_ranks_dex_tokens_and_prioritizes_safe_wallets() -> None:
-    birdeye = FakeBirdeye()
+async def test_source_preserves_dex_token_and_trader_order() -> None:
+    dexscreener = FakeDexScreener()
     source = TopTraderCandidateSource(
-        FakeDexScreener(),  # type: ignore[arg-type]
-        birdeye,  # type: ignore[arg-type]
+        dexscreener,  # type: ignore[arg-type]
         token_limit=1,
     )
 
     result = await source.discover()
 
-    assert birdeye.tokens == ["strong"]
+    assert dexscreener.pairs == ["pair-strong"]
     assert result.token_count == 1
     assert result.token_addresses == ("strong",)
     assert [item.address for item in result.candidates] == [
         "profitable",
         "risky",
     ]
-    assert result.candidates[1].risk_tags == ("bundler", "dev")
+    assert all(not item.risk_tags for item in result.candidates)
 
 
 @pytest.mark.asyncio
 async def test_source_skips_tokens_already_processed_by_the_cursor() -> None:
-    birdeye = FakeBirdeye()
+    dexscreener = FakeDexScreener()
     source = TopTraderCandidateSource(
-        FakeDexScreener(),  # type: ignore[arg-type]
-        birdeye,  # type: ignore[arg-type]
+        dexscreener,  # type: ignore[arg-type]
         token_limit=1,
         excluded_token_addresses=("strong",),
     )
 
     result = await source.discover()
 
-    assert birdeye.tokens == ["weak"]
+    assert dexscreener.pairs == ["pair-weak"]
     assert result.token_addresses == ("weak",)
