@@ -34,6 +34,7 @@ class CandidateEnrichmentService:
     """Backfill bounded history for the strongest not-yet-promoted wallets."""
 
     H24_DISCOVERY_CURSOR = "candidate-discovery:dexscreener-h24"
+    EXTERNAL_QUEUE_VERSION = 3
 
     def __init__(
         self,
@@ -114,7 +115,8 @@ class CandidateEnrichmentService:
                 existing_details = getattr(existing_source, "details", None)
                 if (
                     isinstance(existing_details, dict)
-                    and existing_details.get("queue_version") == 2
+                    and existing_details.get("queue_version")
+                    == self.EXTERNAL_QUEUE_VERSION
                 ):
                     known_tokens = existing_details.get("source_tokens")
                     source_tokens = (
@@ -146,7 +148,7 @@ class CandidateEnrichmentService:
                     source_name,
                     "top-trader-source",
                     {
-                        "queue_version": 2,
+                        "queue_version": self.EXTERNAL_QUEUE_VERSION,
                         "batch_order": batch_order,
                         "token_rank": candidate.token_rank,
                         "trader_rank": candidate.trader_rank,
@@ -160,7 +162,13 @@ class CandidateEnrichmentService:
                 )
             external_token_count = external.token_count
 
-        queued = await self.cursors.list_by_prefix("candidate-source:")
+        queued = [
+            item
+            for item in await self.cursors.list_by_prefix("candidate-source:")
+            if isinstance(item.details, dict)
+            and item.details.get("queue_version")
+            == self.EXTERNAL_QUEUE_VERSION
+        ]
         queued.sort(
             key=lambda item: self._source_priority(item.details),
         )
@@ -402,7 +410,11 @@ class CandidateEnrichmentService:
 
     @staticmethod
     def _source_priority(details: object) -> tuple[int, int, int]:
-        if not isinstance(details, dict) or details.get("queue_version") != 2:
+        if (
+            not isinstance(details, dict)
+            or details.get("queue_version")
+            != CandidateEnrichmentService.EXTERNAL_QUEUE_VERSION
+        ):
             return (2**63 - 1, 0, 0)
         try:
             batch_order = int(details.get("batch_order", 0))
