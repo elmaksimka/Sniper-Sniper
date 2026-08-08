@@ -67,9 +67,13 @@ When `BIRDEYE_API_KEY` is configured, the primary candidate source is external:
    volume, transactions, liquidity, and positive price change;
 3. query Birdeye's token top-trader endpoint, sorted by realized PnL rather
    than unrealized holdings;
-4. require at least $1,000 realized PnL and 1x realized ROI on the token;
-5. prioritize wallets without `dev`, `bundler`, `sniper`, or `insider` tags;
-6. backfill wallet history and promote only wallets whose complete local score
+4. persist the top ten traders for token 1 in PnL order and audit them one by
+   one before moving to token 2;
+5. retain `dev`, `bundler`, `sniper`, and `insider` tags as risk evidence
+   without changing the requested PnL order;
+6. deduplicate a wallet repeated across tokens and count the repeat as
+   additional evidence instead of downloading the same 1,000 transactions;
+7. backfill wallet history and promote only wallets whose complete local score
    reaches grade A or B.
 
 DexScreener protects the exact web-only `trendingScoreH6` feed with Cloudflare
@@ -86,8 +90,9 @@ continues between external refreshes.
 BIRDEYE_API_KEY=replace-with-a-private-key
 CANDIDATE_EXTERNAL_DISCOVERY_INTERVAL_SECONDS=21600
 CANDIDATE_EXTERNAL_TOKEN_LIMIT=5
-CANDIDATE_EXTERNAL_MINIMUM_REALIZED_PNL_USD=1000
-CANDIDATE_EXTERNAL_MINIMUM_REALIZED_ROI=1
+CANDIDATE_SOURCE_TRADERS_PER_TOKEN=10
+CANDIDATE_EXTERNAL_MINIMUM_REALIZED_PNL_USD=0
+CANDIDATE_EXTERNAL_MINIMUM_REALIZED_ROI=0
 ```
 
 The free mode cannot query a market-wide "top traders" index from standard

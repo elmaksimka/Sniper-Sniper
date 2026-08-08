@@ -65,3 +65,35 @@ async def test_top_traders_retries_rate_limit(monkeypatch) -> None:
     assert traders == []
     assert calls == 2
     sleep.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_top_traders_pages_when_more_than_ten_are_requested() -> None:
+    offsets: list[str] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        offsets.append(request.url.params["offset"])
+        count = int(request.url.params["limit"])
+        start = int(request.url.params["offset"])
+        return httpx.Response(
+            200,
+            json={
+                "success": True,
+                "data": {
+                    "items": [
+                        {"owner": f"wallet-{index}", "realizedPnl": 100 - index}
+                        for index in range(start, start + count)
+                    ]
+                },
+            },
+            request=request,
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        traders = await BirdeyeClient("secret", http).get_top_traders(
+            "mint",
+            limit=15,
+        )
+
+    assert offsets == ["0", "10"]
+    assert len(traders) == 15

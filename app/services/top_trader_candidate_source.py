@@ -16,6 +16,9 @@ class ExternalTraderCandidate:
     profitable_tokens: int
     realized_pnl_usd: float
     risk_tags: tuple[str, ...]
+    source_token_address: str = ""
+    token_rank: int = 0
+    trader_rank: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,8 +40,8 @@ class TopTraderCandidateSource:
         token_limit: int = 5,
         traders_per_token: int = 10,
         maximum_pair_age_hours: float = 24,
-        minimum_realized_pnl_usd: float = 1_000,
-        minimum_realized_roi: float = 1,
+        minimum_realized_pnl_usd: float = 0,
+        minimum_realized_roi: float = 0,
     ) -> None:
         self.dexscreener = dexscreener
         self.birdeye = birdeye
@@ -65,9 +68,9 @@ class TopTraderCandidateSource:
             ranked.append((metrics.trend_score, token_address))
         ranked.sort(reverse=True)
 
-        by_wallet: dict[str, list[TokenTopTrader]] = {}
+        by_wallet: dict[str, tuple[int, int, str, list[TokenTopTrader]]] = {}
         selected = ranked[: self.token_limit]
-        for _, token_address in selected:
+        for token_rank, (_, token_address) in enumerate(selected, start=1):
             try:
                 traders = await self.birdeye.get_top_traders(
                     token_address,
@@ -79,15 +82,29 @@ class TopTraderCandidateSource:
                     token=token_address,
                 )
                 continue
-            for trader in traders:
+            for trader_rank, trader in enumerate(traders, start=1):
                 if trader.realized_pnl_usd < self.minimum_realized_pnl_usd:
                     continue
                 if trader.realized_roi < self.minimum_realized_roi:
                     continue
-                by_wallet.setdefault(trader.wallet, []).append(trader)
+                existing = by_wallet.get(trader.wallet)
+                if existing is None:
+                    by_wallet[trader.wallet] = (
+                        token_rank,
+                        trader_rank,
+                        token_address,
+                        [trader],
+                    )
+                else:
+                    existing[3].append(trader)
 
         candidates = []
-        for wallet, wins in by_wallet.items():
+        for wallet, (
+            token_rank,
+            trader_rank,
+            token_address,
+            wins,
+        ) in by_wallet.items():
             risk_tags = tuple(
                 sorted(
                     {
@@ -106,15 +123,13 @@ class TopTraderCandidateSource:
                         win.realized_pnl_usd for win in wins
                     ),
                     risk_tags=risk_tags,
+                    source_token_address=token_address,
+                    token_rank=token_rank,
+                    trader_rank=trader_rank,
                 )
             )
         candidates.sort(
-            key=lambda candidate: (
-                not candidate.risk_tags,
-                candidate.profitable_tokens,
-                candidate.realized_pnl_usd,
-            ),
-            reverse=True,
+            key=lambda candidate: (candidate.token_rank, candidate.trader_rank),
         )
         self.logger.info(
             "top_trader_candidates_discovered",

@@ -83,11 +83,25 @@ class CandidateEnrichmentService:
         external_token_count = 0
         if self.external_source is not None:
             external = await self.external_source.discover()
+            batch_order = int(datetime.now(UTC).timestamp() * 1_000)
             for candidate in external.candidates:
+                source_name = f"candidate-source:{candidate.address}"
+                existing_source = await self.cursors.get(source_name)
+                existing_details = getattr(existing_source, "details", None)
+                if (
+                    isinstance(existing_details, dict)
+                    and existing_details.get("queue_version") == 2
+                ):
+                    continue
                 await self.cursors.beat(
-                    f"candidate-source:{candidate.address}",
+                    source_name,
                     "top-trader-source",
                     {
+                        "queue_version": 2,
+                        "batch_order": batch_order,
+                        "token_rank": candidate.token_rank,
+                        "trader_rank": candidate.trader_rank,
+                        "source_token": candidate.source_token_address,
                         "wallet": candidate.address,
                         "profitable_tokens": candidate.profitable_tokens,
                         "realized_pnl_usd": candidate.realized_pnl_usd,
@@ -99,7 +113,6 @@ class CandidateEnrichmentService:
         queued = await self.cursors.list_by_prefix("candidate-source:")
         queued.sort(
             key=lambda item: self._source_priority(item.details),
-            reverse=True,
         )
         external_addresses = [
             item.service_name.removeprefix("candidate-source:")
@@ -326,17 +339,19 @@ class CandidateEnrichmentService:
         )
 
     @staticmethod
-    def _source_priority(details: object) -> tuple[bool, int, float]:
-        if not isinstance(details, dict):
-            return (False, 0, 0.0)
-        risk_tags = details.get("risk_tags")
-        safe = not isinstance(risk_tags, list) or not risk_tags
+    def _source_priority(details: object) -> tuple[int, int, int]:
+        if not isinstance(details, dict) or details.get("queue_version") != 2:
+            return (2**63 - 1, 0, 0)
         try:
-            profitable_tokens = int(details.get("profitable_tokens", 0))
+            batch_order = int(details.get("batch_order", 0))
         except (TypeError, ValueError):
-            profitable_tokens = 0
+            batch_order = 0
         try:
-            realized_pnl = float(details.get("realized_pnl_usd", 0))
+            token_rank = int(details.get("token_rank", 0))
         except (TypeError, ValueError):
-            realized_pnl = 0.0
-        return (safe, profitable_tokens, realized_pnl)
+            token_rank = 0
+        try:
+            trader_rank = int(details.get("trader_rank", 0))
+        except (TypeError, ValueError):
+            trader_rank = 0
+        return (batch_order, token_rank, trader_rank)

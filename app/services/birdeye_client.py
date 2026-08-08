@@ -44,15 +44,52 @@ class BirdeyeClient:
         if not self.api_key:
             return []
         url = "https://public-api.birdeye.so/defi/v2/tokens/top_traders"
-        params: dict[str, str | int] = {
-            "address": token_address,
-            "time_frame": "all_time",
-            "sort_by": "realized_pnl",
-            "sort_type": "desc",
-            "offset": 0,
-            "limit": max(1, min(limit, 10)),
-        }
         headers = {"X-API-KEY": self.api_key, "x-chain": "solana"}
+        traders: list[TokenTopTrader] = []
+        requested = max(1, min(limit, 50))
+        for offset in range(0, requested, 10):
+            page_limit = min(10, requested - offset)
+            params: dict[str, str | int] = {
+                "address": token_address,
+                "time_frame": "all_time",
+                "sort_by": "realized_pnl",
+                "sort_type": "desc",
+                "offset": offset,
+                "limit": page_limit,
+            }
+            items = await self._get_page(url, params, headers)
+            for item in items:
+                wallet = item.get("owner")
+                if not isinstance(wallet, str) or not wallet:
+                    continue
+                tags = item.get("tags")
+                traders.append(
+                    TokenTopTrader(
+                        wallet=wallet,
+                        token_address=token_address,
+                        realized_pnl_usd=self._float(item.get("realizedPnl")),
+                        total_pnl_usd=self._float(item.get("totalPnl")),
+                        buy_volume_usd=self._float(item.get("volumeBuyUSD")),
+                        sell_volume_usd=self._float(item.get("volumeSellUSD")),
+                        tags=tuple(
+                            str(tag).lower()
+                            for tag in tags
+                            if isinstance(tag, str)
+                        )
+                        if isinstance(tags, list)
+                        else (),
+                    )
+                )
+            if len(items) < page_limit:
+                break
+        return traders
+
+    async def _get_page(
+        self,
+        url: str,
+        params: dict[str, str | int],
+        headers: dict[str, str],
+    ) -> list[dict[str, Any]]:
         response: httpx.Response | None = None
         for attempt in range(3):
             if self._client is not None:
@@ -79,33 +116,7 @@ class BirdeyeClient:
         items = data.get("items") if isinstance(data, dict) else None
         if not isinstance(items, list):
             return []
-
-        traders: list[TokenTopTrader] = []
-        for item in items:
-            if not isinstance(item, dict):
-                continue
-            wallet = item.get("owner")
-            if not isinstance(wallet, str) or not wallet:
-                continue
-            tags = item.get("tags")
-            traders.append(
-                TokenTopTrader(
-                    wallet=wallet,
-                    token_address=token_address,
-                    realized_pnl_usd=self._float(item.get("realizedPnl")),
-                    total_pnl_usd=self._float(item.get("totalPnl")),
-                    buy_volume_usd=self._float(item.get("volumeBuyUSD")),
-                    sell_volume_usd=self._float(item.get("volumeSellUSD")),
-                    tags=tuple(
-                        str(tag).lower()
-                        for tag in tags
-                        if isinstance(tag, str)
-                    )
-                    if isinstance(tags, list)
-                    else (),
-                )
-            )
-        return traders
+        return [item for item in items if isinstance(item, dict)]
 
     @staticmethod
     def _float(value: Any) -> float:

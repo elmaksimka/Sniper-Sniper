@@ -106,10 +106,10 @@ class Settings(BaseSettings):
     )
     candidate_external_token_limit: int = Field(default=5, ge=1, le=25)
     candidate_external_minimum_realized_pnl_usd: float = Field(
-        default=1_000,
+        default=0,
         ge=0,
     )
-    candidate_external_minimum_realized_roi: float = Field(default=1, ge=0)
+    candidate_external_minimum_realized_roi: float = Field(default=0, ge=0)
     auto_promote_wallet_score: float = Field(default=65, ge=0, le=100)
     auto_promote_max_monitors: int = Field(default=100, ge=1, le=10_000)
 
