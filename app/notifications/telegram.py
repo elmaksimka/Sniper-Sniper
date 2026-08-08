@@ -145,6 +145,8 @@ class TelegramNotifier:
                         "Нових топ-гаманців: "
                         f"{int(details.get('candidate_wallets_promoted', 0))}"
                     ),
+                    "",
+                    TelegramNotifier._top_wallets_status(details),
                     "Система продовжує моніторинг.",
                 )
             )
@@ -285,3 +287,32 @@ class TelegramNotifier:
         except (TypeError, ValueError):
             score_change = "score unavailable"
         return f"Останній кандидат: {wallet} ({score_change})"
+
+    @staticmethod
+    def _top_wallets_status(details: dict[str, Any]) -> str:
+        wallets = details.get("top_wallets", ())
+        if not isinstance(wallets, (list, tuple)) or not wallets:
+            return "Активні топ-гаманці A/B: немає"
+
+        eligible_wallets = [
+            wallet
+            for wallet in wallets
+            if isinstance(wallet, dict)
+            and str(wallet.get("grade", "")).strip() in {"A", "B"}
+        ]
+        if not eligible_wallets:
+            return "Активні топ-гаманці A/B: немає"
+
+        lines = [f"Активні топ-гаманці A/B ({len(eligible_wallets)}):"]
+        for wallet in eligible_wallets:
+            address = str(wallet.get("address", "")).strip()
+            if not address:
+                continue
+            try:
+                score = f"{float(wallet.get('score')):.2f}"
+            except (TypeError, ValueError):
+                score = "рейтинг недоступний"
+            grade = str(wallet.get("grade", "")).strip()
+            suffix = f" ({grade})" if grade else ""
+            lines.append(f"• {address} — {score}{suffix}")
+        return "\n".join(lines)

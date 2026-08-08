@@ -60,12 +60,33 @@ async def telegram_status_loop(
         try:
             async with async_session_factory() as session:
                 stats = await ActivityStatsService(session).get(window_minutes)
+                monitors = await MonitorRepository(session).list_all(
+                    enabled_only=True
+                )
+                scores = ScoreSnapshotRepository(session)
+                top_wallets: list[dict[str, Any]] = []
+                for monitor in monitors:
+                    snapshot = await scores.get_by_wallet_id(monitor.wallet_id)
+                    if snapshot is None or snapshot.grade not in {"A", "B"}:
+                        continue
+                    top_wallets.append(
+                        {
+                            "address": monitor.wallet.address,
+                            "score": snapshot.score,
+                            "grade": snapshot.grade,
+                        }
+                    )
+                top_wallets.sort(
+                    key=lambda wallet: float(wallet["score"]),
+                    reverse=True,
+                )
             report_details.update(
                 total_transactions=stats.total_transactions,
                 total_tokens=stats.total_tokens,
                 recent_transactions=stats.recent_transactions,
                 recent_tokens=stats.recent_tokens,
                 status_window_minutes=stats.window_minutes,
+                top_wallets=top_wallets,
             )
         except Exception:
             logger.exception("worker_activity_stats_failed")

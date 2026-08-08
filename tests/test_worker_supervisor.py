@@ -67,11 +67,38 @@ async def test_telegram_status_loop_runs_independently(monkeypatch) -> None:
                 window_minutes=window_minutes,
             )
 
+    class FakeMonitorRepository:
+        def __init__(self, session: object) -> None:
+            pass
+
+        async def list_all(self, enabled_only: bool = False) -> list[SimpleNamespace]:
+            assert enabled_only is True
+            return [
+                SimpleNamespace(
+                    wallet_id=7,
+                    wallet=SimpleNamespace(address="top-wallet"),
+                )
+            ]
+
+    class FakeScoreRepository:
+        def __init__(self, session: object) -> None:
+            pass
+
+        async def get_by_wallet_id(self, wallet_id: int) -> SimpleNamespace:
+            assert wallet_id == 7
+            return SimpleNamespace(score=88.35, grade="A")
+
     @asynccontextmanager
     async def fake_session_factory():
         yield object()
 
     monkeypatch.setattr(worker_module, "ActivityStatsService", FakeStatsService)
+    monkeypatch.setattr(worker_module, "MonitorRepository", FakeMonitorRepository)
+    monkeypatch.setattr(
+        worker_module,
+        "ScoreSnapshotRepository",
+        FakeScoreRepository,
+    )
     monkeypatch.setattr(worker_module, "async_session_factory", fake_session_factory)
 
     await telegram_status_loop(
@@ -91,6 +118,9 @@ async def test_telegram_status_loop_runs_independently(monkeypatch) -> None:
             "recent_transactions": 12,
             "recent_tokens": 4,
             "status_window_minutes": 30,
+            "top_wallets": [
+                {"address": "top-wallet", "score": 88.35, "grade": "A"}
+            ],
         }
     ]
 

@@ -121,6 +121,23 @@ async def test_worker_status_notifications_are_delivered() -> None:
                 "candidate_last_score_before": 39.4,
                 "candidate_last_score_after": 42.1,
                 "candidate_history_limit": 20,
+                "top_wallets": [
+                    {
+                        "address": "Gb2HfReRRLpp8w5zkKhu1SSTpkpWbTMdjwduvLiiDivC",
+                        "score": 88.35,
+                        "grade": "A",
+                    },
+                    {
+                        "address": "BUs3UHJgT3sfUmddBJyMJ5pLSKaxWKLMqjoXx5TqgCuB",
+                        "score": 78.28,
+                        "grade": "B",
+                    },
+                    {
+                        "address": "2PfoPwHGD33wB8tjMuV7F7G1wkxMSBGULzy6UKWFW12X",
+                        "score": 64.84,
+                        "grade": "C",
+                    },
+                ],
             }
         )
         await notifier.send_discovery_degraded(1, 240)
@@ -138,6 +155,10 @@ async def test_worker_status_notifications_are_delivered() -> None:
     assert "Останній кандидат: candidate-wallet (39.40 → 42.10)" in messages[1]
     assert "Історію кандидата завантажено: 20 транзакцій (ліміт 20)" in messages[1]
     assert "Нових топ-гаманців: 1" in messages[1]
+    assert "Активні топ-гаманці A/B (2):" in messages[1]
+    assert "Gb2HfReRRLpp8w5zkKhu1SSTpkpWbTMdjwduvLiiDivC — 88.35 (A)" in messages[1]
+    assert "BUs3UHJgT3sfUmddBJyMJ5pLSKaxWKLMqjoXx5TqgCuB — 78.28 (B)" in messages[1]
+    assert "2PfoPwHGD33wB8tjMuV7F7G1wkxMSBGULzy6UKWFW12X" not in messages[1]
     assert "RPC перевантажений" in messages[2]
     assert "discovery відновлено" in messages[3]
     assert "Alpha Engine зупинено" in messages[4]
