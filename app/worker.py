@@ -396,10 +396,31 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
 
             if not worker_announced:
                 await telegram.send_worker_started(
-                    settings.monitor_poll_interval_seconds,
-                    settings.discovery_poll_interval_seconds,
-                    settings.discovery_page_size,
-                    len(settings.discovery_programs),
+                    monitor_interval_seconds=(
+                        settings.monitor_poll_interval_seconds
+                    ),
+                    rpc_discovery_interval_seconds=(
+                        settings.discovery_poll_interval_seconds
+                    ),
+                    candidate_refresh_interval_seconds=(
+                        settings.candidate_external_discovery_interval_seconds
+                    ),
+                    candidate_token_limit=(
+                        settings.candidate_external_token_limit
+                    ),
+                    traders_per_token=(
+                        settings.candidate_source_traders_per_token
+                    ),
+                    history_page_size=(
+                        settings.candidate_enrichment_history_limit
+                    ),
+                    maximum_history_transactions=(
+                        settings.candidate_enrichment_maximum_history_transactions
+                    ),
+                    external_discovery_enabled=bool(
+                        settings.birdeye_api_key
+                        and settings.candidate_enrichment_enabled
+                    ),
                 )
                 worker_announced = True
                 status_task = asyncio.create_task(

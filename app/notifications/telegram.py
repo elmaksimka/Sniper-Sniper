@@ -75,21 +75,39 @@ class TelegramNotifier:
     async def send_worker_started(
         self,
         monitor_interval_seconds: float,
-        discovery_interval_seconds: float,
-        discovery_page_size: int,
-        discovery_source_count: int,
+        rpc_discovery_interval_seconds: float,
+        candidate_refresh_interval_seconds: float,
+        candidate_token_limit: int,
+        traders_per_token: int,
+        history_page_size: int,
+        maximum_history_transactions: int,
+        external_discovery_enabled: bool,
     ) -> None:
+        external_status = (
+            (
+                "Джерело кандидатів: DexScreener → Birdeye\n"
+                f"Черга: {candidate_token_limit} монет × топ-{traders_per_token} "
+                "трейдерів за realized PnL\n"
+                f"Глибокий аудит: по одному гаманцю, сторінками "
+                f"{history_page_size}, до {maximum_history_transactions} "
+                "транзакцій\n"
+                f"Оновлення монет: кожні "
+                f"{candidate_refresh_interval_seconds / 3600:g} год"
+            )
+            if external_discovery_enabled
+            else "DexScreener/Birdeye discovery: вимкнено"
+        )
         await self.send_text(
             "\n".join(
                 (
                     "✅ Alpha Engine запущено",
                     "",
-                    f"Топ-гаманці: кожні {monitor_interval_seconds:g} с",
-                    f"DEX discovery: кожні {discovery_interval_seconds:g} с",
+                    external_status,
+                    "Порядок: усі трейдери монети → наступна монета",
+                    f"Моніторинг A/B: кожні {monitor_interval_seconds:g} с",
                     (
-                        "Охоплення discovery: "
-                        f"{discovery_page_size} транзакцій × "
-                        f"{discovery_source_count} джерела"
+                        "Фоновий RPC discovery: кожні "
+                        f"{rpc_discovery_interval_seconds:g} с"
                     ),
                     "Telegram alpha-сигнали активні.",
                 )
