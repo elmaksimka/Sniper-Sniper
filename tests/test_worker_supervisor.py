@@ -160,8 +160,11 @@ async def test_candidate_enrichment_loop_runs_independently(monkeypatch) -> None
                 history_limit=75,
                 source_token_count=25,
                 source_candidate_count=80,
-                source_window_hours=24,
-            )
+                    source_window_hours=24,
+                    audit_state="complete",
+                    history_transactions_total=75,
+                    history_capped=False,
+                )
 
     @asynccontextmanager
     async def fake_session_factory():
@@ -210,9 +213,12 @@ async def test_candidate_enrichment_loop_runs_independently(monkeypatch) -> None
         "candidate_last_score_after": 67.0,
         "candidate_history_limit": 75,
         "candidate_source_tokens": 25,
-        "candidate_source_candidates": 80,
-        "candidate_source_window_hours": 24,
-    }
+            "candidate_source_candidates": 80,
+            "candidate_source_window_hours": 24,
+            "candidate_audit_state": "complete",
+            "candidate_history_transactions_total": 75,
+            "candidate_history_capped": False,
+        }
 
 
 @pytest.mark.asyncio

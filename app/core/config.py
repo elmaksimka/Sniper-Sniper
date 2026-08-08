@@ -83,6 +83,11 @@ class Settings(BaseSettings):
     candidate_enrichment_enabled: bool = False
     candidate_enrichment_min_score: float = Field(default=35, ge=0, le=65)
     candidate_enrichment_history_limit: int = Field(default=75, ge=1, le=100)
+    candidate_enrichment_maximum_history_transactions: int = Field(
+        default=1_000,
+        ge=100,
+        le=10_000,
+    )
     candidate_enrichment_max_per_cycle: int = Field(default=1, ge=1, le=10)
     candidate_enrichment_retry_seconds: float = Field(default=1800, gt=0)
     candidate_source_window_hours: int = Field(default=24, ge=1, le=168)

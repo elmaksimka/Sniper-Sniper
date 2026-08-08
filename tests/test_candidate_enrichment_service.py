@@ -54,9 +54,17 @@ class FakeMonitors:
 
 
 class FakeScanner:
-    async def scan_address(self, address: str, limit: int) -> list[dict[str, str]]:
+    async def scan_page(
+        self,
+        address: str,
+        limit: int,
+        pagination_token: str | None,
+    ) -> object:
         assert limit == 20
-        return [{"signature": "new"}, {"signature": "old"}]
+        return SimpleNamespace(
+            transactions=[{"signature": "new"}, {"signature": "old"}],
+            pagination_token=None,
+        )
 
 
 class FakeDetection:
@@ -71,6 +79,7 @@ class FakeCursors:
     def __init__(self, existing: object | None = None) -> None:
         self.existing = existing
         self.saved: dict[str, object] | None = None
+        self.source_records: list[object] = []
 
     async def get(self, name: str) -> object | None:
         return self.existing
@@ -82,7 +91,18 @@ class FakeCursors:
         details: dict[str, object],
     ) -> object:
         self.saved = details
+        if name.startswith("candidate-source:"):
+            self.source_records.append(
+                SimpleNamespace(service_name=name, details=details)
+            )
         return SimpleNamespace(details=details)
+
+    async def list_by_prefix(self, prefix: str) -> list[object]:
+        return [
+            item
+            for item in self.source_records
+            if item.service_name.startswith(prefix)
+        ]
 
 
 def service(cursors: FakeCursors, detection: FakeDetection) -> CandidateEnrichmentService:
@@ -117,6 +137,8 @@ async def test_candidate_history_is_ingested_oldest_first_and_promoted() -> None
     assert result.source_token_count == 1
     assert result.source_candidate_count == 1
     assert result.source_window_hours == 24
+    assert result.audit_state == "complete"
+    assert result.history_transactions_total == 2
     assert cursors.saved is not None
     assert cursors.saved["state"] == "complete"
     assert cursors.saved["score_after"] == 67
@@ -125,7 +147,7 @@ async def test_candidate_history_is_ingested_oldest_first_and_promoted() -> None
 @pytest.mark.asyncio
 async def test_completed_candidate_is_not_fetched_again() -> None:
     cursor = SimpleNamespace(
-        details={"state": "complete"},
+        details={"state": "complete", "audit_version": 2},
         last_heartbeat_at=datetime.now(UTC),
     )
     detection = FakeDetection()
@@ -186,11 +208,12 @@ async def test_failed_candidates_are_bounded_by_attempt_limit() -> None:
         def __init__(self) -> None:
             self.calls = 0
 
-        async def scan_address(
+        async def scan_page(
             self,
             address: str,
             limit: int,
-        ) -> list[dict[str, str]]:
+            pagination_token: str | None,
+        ) -> object:
             self.calls += 1
             raise RuntimeError("rate limited")
 
@@ -250,3 +273,46 @@ async def test_external_top_trader_is_enriched_before_local_candidates() -> None
     assert result.last_score_after == 68
     assert result.source_token_count == 5
     assert result.source_candidate_count == 1
+
+
+@pytest.mark.asyncio
+async def test_candidate_history_resumes_from_saved_pagination_token() -> None:
+    cursor = SimpleNamespace(
+        details={
+            "state": "in_progress",
+            "audit_version": 2,
+            "pagination_token": "before-signature",
+            "transactions_processed_total": 75,
+        },
+        last_heartbeat_at=datetime.now(UTC),
+    )
+
+    class ResumingScanner(FakeScanner):
+        async def scan_page(
+            self,
+            address: str,
+            limit: int,
+            pagination_token: str | None,
+        ) -> object:
+            assert pagination_token == "before-signature"
+            return SimpleNamespace(
+                transactions=[{"signature": "older"}],
+                pagination_token=None,
+            )
+
+    enrichment = CandidateEnrichmentService(
+        scores=FakeScores(),  # type: ignore[arg-type]
+        monitors=FakeMonitors(),  # type: ignore[arg-type]
+        scanner=ResumingScanner(),  # type: ignore[arg-type]
+        detection=FakeDetection(),  # type: ignore[arg-type]
+        cursors=FakeCursors(cursor),  # type: ignore[arg-type]
+        minimum_score=35,
+        history_limit=20,
+        maximum_candidates=1,
+        retry_seconds=1800,
+    )
+
+    result = await enrichment.run_once()
+
+    assert result.audit_state == "complete"
+    assert result.history_transactions_total == 76

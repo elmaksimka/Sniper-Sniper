@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.infrastructure.models import ServiceHeartbeat
 
@@ -13,6 +14,20 @@ class HeartbeatRepository:
 
     async def get(self, service_name: str) -> ServiceHeartbeat | None:
         return await self.session.get(ServiceHeartbeat, service_name)
+
+    async def list_by_prefix(
+        self,
+        prefix: str,
+        *,
+        limit: int = 1_000,
+    ) -> list[ServiceHeartbeat]:
+        result = await self.session.execute(
+            select(ServiceHeartbeat)
+            .where(ServiceHeartbeat.service_name.startswith(prefix))
+            .order_by(ServiceHeartbeat.last_heartbeat_at.asc())
+            .limit(limit)
+        )
+        return list(result.scalars().all())
 
     async def beat(
         self,

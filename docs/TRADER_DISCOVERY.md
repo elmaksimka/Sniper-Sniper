@@ -127,12 +127,13 @@ CANDIDATE_SOURCE_EARLY_ENTRY_MAX_MULTIPLE=2
 
 ## Candidate history enrichment
 
-The free local mode closes the sparse-history gap without promoting weak
-wallets prematurely. Its independent background loop selects the highest-scored
-unmonitored wallet at or above 35, loads its latest 75 transactions, ingests
-them oldest-first, and recalculates the wallet score. A
-persistent `candidate:<wallet>` record prevents repeated backfills. Transient
-errors are retried after 30 minutes.
+The free local mode closes the sparse-history gap without rushing wallet
+classification. Its independent background loop selects one candidate, loads
+one page of up to 75 transactions, ingests it oldest-first, recalculates the
+wallet score, and persists the pagination token. Later cycles resume from that
+exact checkpoint until the address history is exhausted or the 1,000
+transaction safety cap is reached. Transient errors retain the checkpoint and
+are retried after 30 minutes, so an RPC limit does not discard completed work.
 
 Only one candidate is enriched per background cycle by default. This caps the
 additional public-RPC load without blocking DEX discovery. Existing A/B
@@ -145,6 +146,7 @@ normal promotion collector adds it to continuous monitoring.
 CANDIDATE_ENRICHMENT_ENABLED=true
 CANDIDATE_ENRICHMENT_MIN_SCORE=35
 CANDIDATE_ENRICHMENT_HISTORY_LIMIT=75
+CANDIDATE_ENRICHMENT_MAXIMUM_HISTORY_TRANSACTIONS=1000
 CANDIDATE_ENRICHMENT_MAX_PER_CYCLE=1
 CANDIDATE_ENRICHMENT_RETRY_SECONDS=1800
 ```

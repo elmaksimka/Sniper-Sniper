@@ -126,6 +126,7 @@ async def candidate_enrichment_loop(
     external_token_limit: int = 5,
     external_minimum_realized_pnl_usd: float = 1_000,
     external_minimum_realized_roi: float = 1,
+    maximum_history_transactions: int = 1_000,
 ) -> None:
     """Enrich candidate wallets without delaying DEX discovery."""
     logger = get_logger("candidate-enrichment-supervisor")
@@ -197,6 +198,9 @@ async def candidate_enrichment_loop(
                             if use_external_source
                             else None
                         ),
+                        maximum_history_transactions=(
+                            maximum_history_transactions
+                        ),
                     ).run_once()
                     if use_external_source:
                         last_external_discovery_at = now
@@ -216,6 +220,11 @@ async def candidate_enrichment_loop(
                         ),
                         candidate_last_score_after=enrichment.last_score_after,
                         candidate_history_limit=enrichment.history_limit,
+                        candidate_audit_state=enrichment.audit_state,
+                        candidate_history_transactions_total=(
+                            enrichment.history_transactions_total
+                        ),
+                        candidate_history_capped=enrichment.history_capped,
                         candidate_source_tokens=(
                             enrichment.source_token_count
                         ),
@@ -436,6 +445,9 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                             ),
                             external_minimum_realized_roi=(
                                 settings.candidate_external_minimum_realized_roi
+                            ),
+                            maximum_history_transactions=(
+                                settings.candidate_enrichment_maximum_history_transactions
                             ),
                         )
                     )

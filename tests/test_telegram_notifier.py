@@ -116,6 +116,8 @@ async def test_worker_status_notifications_are_delivered() -> None:
                 "status_window_minutes": 30,
                 "candidate_wallets_enriched": 1,
                 "candidate_history_transactions": 20,
+                "candidate_history_transactions_total": 95,
+                "candidate_audit_state": "in_progress",
                 "candidate_wallets_promoted": 1,
                 "candidate_last_wallet": "candidate-wallet",
                 "candidate_last_score_before": 39.4,
@@ -157,7 +159,10 @@ async def test_worker_status_notifications_are_delivered() -> None:
     assert "Кандидатів оброблено: 1" in messages[1]
     assert "Воронка 24 год: 25 winner-токенів / 80 ранніх трейдерів" in messages[1]
     assert "Останній кандидат: candidate-wallet (39.40 → 42.10)" in messages[1]
-    assert "Історію кандидата завантажено: 20 транзакцій (ліміт 20)" in messages[1]
+    assert (
+        "Історія кандидата: 95 транзакцій загалом; "
+        "остання сторінка 20 транзакцій; стан in_progress"
+    ) in messages[1]
     assert "Нових топ-гаманців: 1" in messages[1]
     assert "Активні топ-гаманці A/B (2):" in messages[1]
     assert "Gb2HfReRRLpp8w5zkKhu1SSTpkpWbTMdjwduvLiiDivC — 88.35 (A)" in messages[1]

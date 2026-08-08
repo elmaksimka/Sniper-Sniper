@@ -25,6 +25,9 @@ class CandidateEnrichmentResult:
     source_token_count: int
     source_candidate_count: int
     source_window_hours: int
+    audit_state: str = "idle"
+    history_transactions_total: int = 0
+    history_capped: bool = False
 
 
 class CandidateEnrichmentService:
@@ -51,6 +54,7 @@ class CandidateEnrichmentService:
         source_early_entry_minutes: float = 30,
         source_early_entry_max_multiple: float = 2,
         external_source: TopTraderCandidateSource | None = None,
+        maximum_history_transactions: int = 1_000,
     ) -> None:
         self.scores = scores
         self.monitors = monitors
@@ -71,6 +75,7 @@ class CandidateEnrichmentService:
         self.source_early_entry_minutes = source_early_entry_minutes
         self.source_early_entry_max_multiple = source_early_entry_max_multiple
         self.external_source = external_source
+        self.maximum_history_transactions = maximum_history_transactions
         self.logger = get_logger("candidate-enrichment")
 
     async def run_once(self) -> CandidateEnrichmentResult:
@@ -78,10 +83,28 @@ class CandidateEnrichmentService:
         external_token_count = 0
         if self.external_source is not None:
             external = await self.external_source.discover()
-            external_addresses = [
-                candidate.address for candidate in external.candidates
-            ]
+            for candidate in external.candidates:
+                await self.cursors.beat(
+                    f"candidate-source:{candidate.address}",
+                    "top-trader-source",
+                    {
+                        "wallet": candidate.address,
+                        "profitable_tokens": candidate.profitable_tokens,
+                        "realized_pnl_usd": candidate.realized_pnl_usd,
+                        "risk_tags": list(candidate.risk_tags),
+                    },
+                )
             external_token_count = external.token_count
+
+        queued = await self.cursors.list_by_prefix("candidate-source:")
+        queued.sort(
+            key=lambda item: self._source_priority(item.details),
+            reverse=True,
+        )
+        external_addresses = [
+            item.service_name.removeprefix("candidate-source:")
+            for item in queued
+        ]
 
         priority_candidates, source_token_count = (
             await self.scores.list_top_token_trader_candidates(
@@ -134,16 +157,13 @@ class CandidateEnrichmentService:
         last_wallet: str | None = None
         last_score_before: float | None = None
         last_score_after: float | None = None
+        last_audit_state = "idle"
+        last_history_total = 0
+        last_history_capped = False
 
         for address, candidate_snapshot in candidate_rows:
             if attempted >= self.maximum_candidates:
                 break
-            if (
-                candidate_snapshot is not None
-                and candidate_snapshot.score < self.minimum_score
-            ):
-                continue
-
             existing_monitor = await self.monitors.get_by_address(address)
             if existing_monitor is not None and existing_monitor.enabled:
                 continue
@@ -151,17 +171,51 @@ class CandidateEnrichmentService:
             cursor = await self.cursors.get(cursor_name)
             if not self._ready(cursor):
                 continue
+            cursor_details = getattr(cursor, "details", None)
+            saved = cursor_details if isinstance(cursor_details, dict) else {}
+            resumable = (
+                saved.get("audit_version") == 2
+                and saved.get("state") in {"in_progress", "error"}
+            )
+            if (
+                candidate_snapshot is not None
+                and candidate_snapshot.score < self.minimum_score
+                and not resumable
+            ):
+                continue
 
             attempted += 1
+            pagination_token = (
+                saved.get("pagination_token")
+                if resumable and isinstance(saved.get("pagination_token"), str)
+                else None
+            )
+            history_total = (
+                int(saved.get("transactions_processed_total", 0))
+                if resumable
+                else 0
+            )
             try:
-                transactions = await self.scanner.scan_address(
-                    address,
-                    limit=self.history_limit,
+                remaining = max(
+                    self.maximum_history_transactions - history_total,
+                    0,
                 )
+                page = await self.scanner.scan_page(
+                    address,
+                    limit=min(self.history_limit, remaining),
+                    pagination_token=pagination_token,
+                )
+                transactions = page.transactions
                 if transactions:
                     await self.detection.process_transactions(
                         list(reversed(transactions))
                     )
+                history_total += len(transactions)
+                history_capped = (
+                    history_total >= self.maximum_history_transactions
+                )
+                audit_complete = page.pagination_token is None or history_capped
+                audit_state = "complete" if audit_complete else "in_progress"
                 updated = (
                     await self.scores.get_by_wallet_id(
                         candidate_snapshot.wallet_id
@@ -185,9 +239,15 @@ class CandidateEnrichmentService:
                     cursor_name,
                     "candidate-enrichment",
                     {
-                        "state": "complete",
+                        "state": audit_state,
+                        "audit_version": 2,
                         "wallet": address,
                         "transactions_processed": len(transactions),
+                        "transactions_processed_total": history_total,
+                        "pagination_token": (
+                            None if audit_complete else page.pagination_token
+                        ),
+                        "history_capped": history_capped,
                         "score_before": (
                             candidate_snapshot.score
                             if candidate_snapshot is not None
@@ -206,14 +266,20 @@ class CandidateEnrichmentService:
                     else None
                 )
                 last_score_after = updated.score if updated is not None else None
+                last_audit_state = audit_state
+                last_history_total = history_total
+                last_history_capped = history_capped
             except Exception as error:
                 await self.cursors.beat(
                     cursor_name,
                     "candidate-enrichment",
                     {
                         "state": "error",
+                        "audit_version": 2,
                         "wallet": address,
                         "error": str(error)[:256],
+                        "transactions_processed_total": history_total,
+                        "pagination_token": pagination_token,
                     },
                 )
                 self.logger.exception(
@@ -232,6 +298,9 @@ class CandidateEnrichmentService:
             external_token_count or source_token_count,
             len(external_addresses) or len(priority_candidates),
             self.source_window_hours,
+            last_audit_state,
+            last_history_total,
+            last_history_capped,
         )
 
     def _ready(self, cursor: object | None) -> bool:
@@ -240,8 +309,13 @@ class CandidateEnrichmentService:
         details = getattr(cursor, "details", None)
         if not isinstance(details, dict):
             return True
-        if details.get("state") == "complete":
+        if (
+            details.get("state") == "complete"
+            and details.get("audit_version") == 2
+        ):
             return False
+        if details.get("state") == "in_progress":
+            return True
         last_attempt = getattr(cursor, "last_heartbeat_at", None)
         if not isinstance(last_attempt, datetime):
             return True
@@ -250,3 +324,19 @@ class CandidateEnrichmentService:
         return datetime.now(UTC) - last_attempt >= timedelta(
             seconds=self.retry_seconds
         )
+
+    @staticmethod
+    def _source_priority(details: object) -> tuple[bool, int, float]:
+        if not isinstance(details, dict):
+            return (False, 0, 0.0)
+        risk_tags = details.get("risk_tags")
+        safe = not isinstance(risk_tags, list) or not risk_tags
+        try:
+            profitable_tokens = int(details.get("profitable_tokens", 0))
+        except (TypeError, ValueError):
+            profitable_tokens = 0
+        try:
+            realized_pnl = float(details.get("realized_pnl_usd", 0))
+        except (TypeError, ValueError):
+            realized_pnl = 0.0
+        return (safe, profitable_tokens, realized_pnl)

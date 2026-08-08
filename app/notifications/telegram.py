@@ -137,10 +137,12 @@ class TelegramNotifier:
                     TelegramNotifier._candidate_source_status(details),
                     TelegramNotifier._candidate_status(details),
                     (
-                        "Історію кандидата завантажено: "
+                        "Історія кандидата: "
+                        f"{int(details.get('candidate_history_transactions_total', 0))} "
+                        "транзакцій загалом; остання сторінка "
                         f"{int(details.get('candidate_history_transactions', 0))} "
-                        "транзакцій "
-                        f"(ліміт {int(details.get('candidate_history_limit', 0))})"
+                        "транзакцій; стан "
+                        f"{str(details.get('candidate_audit_state', 'idle'))}"
                     ),
                     (
                         "Нових топ-гаманців: "
