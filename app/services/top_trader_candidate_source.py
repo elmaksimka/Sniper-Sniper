@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
-
 import httpx
 
 from app.core.logging import get_logger
@@ -25,10 +23,11 @@ class ExternalTraderCandidate:
 class ExternalCandidateBatch:
     candidates: tuple[ExternalTraderCandidate, ...]
     token_count: int
+    token_addresses: tuple[str, ...] = ()
 
 
 class TopTraderCandidateSource:
-    """Find profitable wallets behind fresh profiled DexScreener tokens."""
+    """Find profitable wallets in DexScreener's Solana H24 order."""
 
     RISK_TAGS = frozenset({"dev", "bundler", "sniper", "insider"})
 
@@ -39,38 +38,33 @@ class TopTraderCandidateSource:
         *,
         token_limit: int = 5,
         traders_per_token: int = 10,
-        maximum_pair_age_hours: float = 24,
         minimum_realized_pnl_usd: float = 0,
         minimum_realized_roi: float = 0,
+        excluded_token_addresses: tuple[str, ...] = (),
     ) -> None:
         self.dexscreener = dexscreener
         self.birdeye = birdeye
         self.token_limit = token_limit
         self.traders_per_token = traders_per_token
-        self.maximum_pair_age_hours = maximum_pair_age_hours
         self.minimum_realized_pnl_usd = minimum_realized_pnl_usd
         self.minimum_realized_roi = minimum_realized_roi
+        self.excluded_token_addresses = set(excluded_token_addresses)
         self.logger = get_logger("top-trader-candidate-source")
 
+    def exclude_tokens(self, token_addresses: list[str]) -> None:
+        self.excluded_token_addresses = set(token_addresses)
+
     async def discover(self) -> ExternalCandidateBatch:
-        profiles = await self.dexscreener.get_latest_solana_profiles()
-        ranked: list[tuple[float, str]] = []
-        now_ms = datetime.now(UTC).timestamp() * 1000
-        for token_address in profiles:
-            metrics = await self.dexscreener.get_token_trending_metrics(
-                token_address
-            )
-            if metrics is None or metrics.pair_created_at_ms is None:
-                continue
-            age_hours = (now_ms - metrics.pair_created_at_ms) / 3_600_000
-            if age_hours < 0 or age_hours > self.maximum_pair_age_hours:
-                continue
-            ranked.append((metrics.trend_score, token_address))
-        ranked.sort(reverse=True)
+        trending = await self.dexscreener.get_solana_trending_h24()
 
         by_wallet: dict[str, tuple[int, int, str, list[TokenTopTrader]]] = {}
-        selected = ranked[: self.token_limit]
-        for token_rank, (_, token_address) in enumerate(selected, start=1):
+        selected = [
+            token
+            for token in trending
+            if token.token_address not in self.excluded_token_addresses
+        ][: self.token_limit]
+        for token_rank, token in enumerate(selected, start=1):
+            token_address = token.token_address
             try:
                 traders = await self.birdeye.get_top_traders(
                     token_address,
@@ -81,7 +75,7 @@ class TopTraderCandidateSource:
                     "token_top_traders_fetch_failed",
                     token=token_address,
                 )
-                continue
+                raise
             for trader_rank, trader in enumerate(traders, start=1):
                 if trader.realized_pnl_usd < self.minimum_realized_pnl_usd:
                     continue
@@ -139,4 +133,8 @@ class TopTraderCandidateSource:
                 not candidate.risk_tags for candidate in candidates
             ),
         )
-        return ExternalCandidateBatch(tuple(candidates), len(selected))
+        return ExternalCandidateBatch(
+            tuple(candidates),
+            len(selected),
+            tuple(token.token_address for token in selected),
+        )

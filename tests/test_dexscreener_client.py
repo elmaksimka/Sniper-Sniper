@@ -1,3 +1,5 @@
+import json
+
 import httpx
 import pytest
 
@@ -75,3 +77,40 @@ async def test_latest_profiles_only_returns_solana_addresses() -> None:
         profiles = await DexScreenerClient(http).get_latest_solana_profiles()
 
     assert profiles == ["mint"]
+
+
+@pytest.mark.asyncio
+async def test_h24_trending_preserves_page_order_and_deduplicates_tokens() -> None:
+    html = "".join(
+        [
+            '"pairAddress":"pair-1","baseToken":{"$typeName":"Token",'
+            '"address":"mint-1","symbol":"ONE"}',
+            '"pairAddress":"pair-2","baseToken":{"$typeName":"Token",'
+            '"address":"mint-2","symbol":"TWO"}',
+            '"pairAddress":"pair-3","baseToken":{"$typeName":"Token",'
+            '"address":"mint-1","symbol":"ONE"}',
+        ]
+    )
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url == "http://renderer:8191/v1"
+        request_payload = json.loads(request.content)
+        assert request_payload["url"].endswith(
+            "rankBy=trendingScoreH24&order=desc"
+        )
+        return httpx.Response(
+            200,
+            json={"status": "ok", "solution": {"response": html}},
+            request=request,
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        tokens = await DexScreenerClient(
+            http,
+            renderer_url="http://renderer:8191/v1",
+        ).get_solana_trending_h24()
+
+    assert [(item.pair_address, item.token_address) for item in tokens] == [
+        ("pair-1", "mint-1"),
+        ("pair-2", "mint-2"),
+    ]

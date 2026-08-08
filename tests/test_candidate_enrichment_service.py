@@ -239,6 +239,9 @@ async def test_failed_candidates_are_bounded_by_attempt_limit() -> None:
 @pytest.mark.asyncio
 async def test_external_top_trader_is_enriched_before_local_candidates() -> None:
     class FakeExternalSource:
+        def exclude_tokens(self, token_addresses: list[str]) -> None:
+            assert token_addresses == []
+
         async def discover(self) -> ExternalCandidateBatch:
             return ExternalCandidateBatch(
                 (
@@ -250,6 +253,7 @@ async def test_external_top_trader_is_enriched_before_local_candidates() -> None
                     ),
                 ),
                 token_count=5,
+                token_addresses=("source-token",),
             )
 
     detection = FakeDetection()

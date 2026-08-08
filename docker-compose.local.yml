@@ -14,7 +14,8 @@ x-local-app: &local-app
     DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-alpha}:${POSTGRES_PASSWORD:-alpha-local-only}@postgres:5432/${POSTGRES_DB:-alpha_engine}
     SOLANA_RPC_URL: ${SOLANA_RPC_URL:-https://api.mainnet.solana.com}
     TRANSACTION_HISTORY_MODE: ${TRANSACTION_HISTORY_MODE:-enhanced}
-    BIRDEYE_API_KEY: ${BIRDEYE_API_KEY:-}
+    DEXSCREENER_RENDERER_URL: ${DEXSCREENER_RENDERER_URL:-http://flaresolverr:8191/v1}
+    DEXSCREENER_RENDERER_TIMEOUT_SECONDS: ${DEXSCREENER_RENDERER_TIMEOUT_SECONDS:-75}
     HELIUS_TIMEOUT_SECONDS: ${HELIUS_TIMEOUT_SECONDS:-15}
     HELIUS_MAX_RETRIES: ${HELIUS_MAX_RETRIES:-4}
     HELIUS_RETRY_BASE_SECONDS: ${HELIUS_RETRY_BASE_SECONDS:-1}
@@ -69,7 +70,7 @@ x-local-app: &local-app
     CANDIDATE_SOURCE_EARLY_ENTRY_MINUTES: ${CANDIDATE_SOURCE_EARLY_ENTRY_MINUTES:-30}
     CANDIDATE_SOURCE_EARLY_ENTRY_MAX_MULTIPLE: ${CANDIDATE_SOURCE_EARLY_ENTRY_MAX_MULTIPLE:-2}
     CANDIDATE_EXTERNAL_DISCOVERY_INTERVAL_SECONDS: ${CANDIDATE_EXTERNAL_DISCOVERY_INTERVAL_SECONDS:-21600}
-    CANDIDATE_EXTERNAL_TOKEN_LIMIT: ${CANDIDATE_EXTERNAL_TOKEN_LIMIT:-5}
+    CANDIDATE_EXTERNAL_TOKEN_LIMIT: ${CANDIDATE_EXTERNAL_TOKEN_LIMIT:-1}
     CANDIDATE_EXTERNAL_MINIMUM_REALIZED_PNL_USD: ${CANDIDATE_EXTERNAL_MINIMUM_REALIZED_PNL_USD:-0}
     CANDIDATE_EXTERNAL_MINIMUM_REALIZED_ROI: ${CANDIDATE_EXTERNAL_MINIMUM_REALIZED_ROI:-0}
     AUTO_PROMOTE_WALLET_SCORE: ${AUTO_PROMOTE_WALLET_SCORE:-65}
@@ -79,6 +80,13 @@ x-local-app: &local-app
   restart: "no"
 
 services:
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:v3.5.0
+    environment:
+      LOG_LEVEL: ${FLARESOLVERR_LOG_LEVEL:-info}
+    shm_size: 512mb
+    restart: "no"
+
   postgres:
     image: postgres:17
     environment:
@@ -107,6 +115,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      flaresolverr:
+        condition: service_started
     stop_grace_period: 60s
 
   api:

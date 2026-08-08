@@ -14,11 +14,20 @@ x-alpha-engine: &alpha-engine
     DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set in .env}
     HELIUS_API_KEY: ${HELIUS_API_KEY:-}
     HELIUS_RPC_URL: ${HELIUS_RPC_URL:-}
+    DEXSCREENER_RENDERER_URL: ${DEXSCREENER_RENDERER_URL:-http://flaresolverr:8191/v1}
+    DEXSCREENER_RENDERER_TIMEOUT_SECONDS: ${DEXSCREENER_RENDERER_TIMEOUT_SECONDS:-75}
     ADMIN_API_KEY: ${ADMIN_API_KEY:?ADMIN_API_KEY must be set in .env}
     ALLOWED_HOSTS: ${ALLOWED_HOSTS:?ALLOWED_HOSTS must be set in .env}
   restart: unless-stopped
 
 services:
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:v3.5.0
+    environment:
+      LOG_LEVEL: ${FLARESOLVERR_LOG_LEVEL:-info}
+    shm_size: 512mb
+    restart: unless-stopped
+
   postgres:
     image: postgres:17
     environment:
@@ -49,6 +58,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      flaresolverr:
+        condition: service_started
 
   api:
     <<: *alpha-engine

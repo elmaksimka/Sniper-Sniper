@@ -33,6 +33,8 @@ class CandidateEnrichmentResult:
 class CandidateEnrichmentService:
     """Backfill bounded history for the strongest not-yet-promoted wallets."""
 
+    H24_DISCOVERY_CURSOR = "candidate-discovery:dexscreener-h24"
+
     def __init__(
         self,
         scores: ScoreSnapshotRepository,
@@ -82,7 +84,29 @@ class CandidateEnrichmentService:
         external_addresses: list[str] = []
         external_token_count = 0
         if self.external_source is not None:
+            discovery_cursor = await self.cursors.get(
+                self.H24_DISCOVERY_CURSOR
+            )
+            discovery_details = getattr(discovery_cursor, "details", None)
+            processed_tokens = (
+                [str(token) for token in discovery_details.get("tokens", [])]
+                if isinstance(discovery_details, dict)
+                and isinstance(discovery_details.get("tokens"), list)
+                else []
+            )
+            self.external_source.exclude_tokens(processed_tokens)
             external = await self.external_source.discover()
+            if not external.token_addresses and processed_tokens:
+                processed_tokens = []
+                self.external_source.exclude_tokens(processed_tokens)
+                external = await self.external_source.discover()
+            if external.token_addresses:
+                processed_tokens.extend(external.token_addresses)
+                await self.cursors.beat(
+                    self.H24_DISCOVERY_CURSOR,
+                    "dexscreener-h24",
+                    {"tokens": list(dict.fromkeys(processed_tokens))},
+                )
             batch_order = int(datetime.now(UTC).timestamp() * 1_000)
             for candidate in external.candidates:
                 source_name = f"candidate-source:{candidate.address}"

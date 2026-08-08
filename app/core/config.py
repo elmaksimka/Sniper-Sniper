@@ -38,6 +38,8 @@ class Settings(BaseSettings):
         default="",
         description="Birdeye Data Services API key",
     )
+    dexscreener_renderer_url: str = ""
+    dexscreener_renderer_timeout_seconds: float = Field(default=75, gt=0)
 
     helius_timeout_seconds: float = Field(default=10, gt=0)
     helius_max_retries: int = Field(default=3, ge=0, le=10)
@@ -104,7 +106,7 @@ class Settings(BaseSettings):
         default=21_600,
         gt=0,
     )
-    candidate_external_token_limit: int = Field(default=5, ge=1, le=25)
+    candidate_external_token_limit: int = Field(default=1, ge=1, le=25)
     candidate_external_minimum_realized_pnl_usd: float = Field(
         default=0,
         ge=0,

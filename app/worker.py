@@ -127,6 +127,8 @@ async def candidate_enrichment_loop(
     external_minimum_realized_pnl_usd: float = 1_000,
     external_minimum_realized_roi: float = 1,
     maximum_history_transactions: int = 1_000,
+    dexscreener_renderer_url: str = "",
+    dexscreener_renderer_timeout_seconds: float = 75,
 ) -> None:
     """Enrich candidate wallets without delaying DEX discovery."""
     logger = get_logger("candidate-enrichment-supervisor")
@@ -180,11 +182,15 @@ async def candidate_enrichment_loop(
                         ),
                         external_source=(
                             TopTraderCandidateSource(
-                                DexScreenerClient(),
+                                DexScreenerClient(
+                                    renderer_url=dexscreener_renderer_url,
+                                    renderer_timeout_seconds=(
+                                        dexscreener_renderer_timeout_seconds
+                                    ),
+                                ),
                                 BirdeyeClient(birdeye_api_key),
                                 token_limit=external_token_limit,
                                 traders_per_token=source_traders_per_token,
-                                maximum_pair_age_hours=source_window_hours,
                                 minimum_realized_pnl_usd=(
                                     external_minimum_realized_pnl_usd
                                 ),
@@ -476,6 +482,12 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                             ),
                             maximum_history_transactions=(
                                 settings.candidate_enrichment_maximum_history_transactions
+                            ),
+                            dexscreener_renderer_url=(
+                                settings.dexscreener_renderer_url
+                            ),
+                            dexscreener_renderer_timeout_seconds=(
+                                settings.dexscreener_renderer_timeout_seconds
                             ),
                         )
                     )

@@ -48,9 +48,9 @@ class TokenService:
 
         token = Token(
             address=address,
-            symbol=symbol,
-            name=name,
-            creator=creator,
+            symbol=self._bounded(symbol, 32),
+            name=self._bounded(name, 128),
+            creator=self._bounded(creator, 64),
             decimals=decimals,
             supply=supply,
         )
@@ -58,3 +58,7 @@ class TokenService:
         return await self.repository.create(
             token
         )
+
+    @staticmethod
+    def _bounded(value: str | None, maximum_length: int) -> str | None:
+        return value[:maximum_length] if value is not None else None

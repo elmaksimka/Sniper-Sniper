@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from typing import Any
 
 import httpx
@@ -41,11 +42,64 @@ class TokenTrendingMetrics:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class TrendingToken:
+    pair_address: str
+    token_address: str
+
+
 class DexScreenerClient:
     """Fetch a best-liquidity USD quote from the free Dexscreener API."""
 
-    def __init__(self, http_client: httpx.AsyncClient | None = None) -> None:
+    SOLANA_TRENDING_H24_URL = (
+        "https://dexscreener.com/solana?rankBy=trendingScoreH24&order=desc"
+    )
+    _PAIR_PATTERN = re.compile(
+        r'"pairAddress":"([^"\\]+)","baseToken":\{[^{}]*?'
+        r'"address":"([^"\\]+)"'
+    )
+
+    def __init__(
+        self,
+        http_client: httpx.AsyncClient | None = None,
+        *,
+        renderer_url: str = "",
+        renderer_timeout_seconds: float = 75,
+    ) -> None:
         self._client = http_client
+        self._renderer_url = renderer_url
+        self._renderer_timeout_seconds = renderer_timeout_seconds
+
+    async def get_solana_trending_h24(self) -> list[TrendingToken]:
+        if not self._renderer_url:
+            raise RuntimeError("DEXSCREENER_RENDERER_URL is not configured")
+        payload = await self._post_json(
+            self._renderer_url,
+            {
+                "cmd": "request.get",
+                "url": self.SOLANA_TRENDING_H24_URL,
+                "maxTimeout": int(self._renderer_timeout_seconds * 1000),
+            },
+        )
+        if not isinstance(payload, dict):
+            raise RuntimeError("DexScreener renderer returned invalid JSON")
+        solution = payload.get("solution")
+        html = solution.get("response") if isinstance(solution, dict) else None
+        if payload.get("status") != "ok" or not isinstance(html, str):
+            raise RuntimeError("DexScreener renderer returned no page")
+
+        tokens: list[TrendingToken] = []
+        seen_pairs: set[str] = set()
+        seen_tokens: set[str] = set()
+        for pair_address, token_address in self._PAIR_PATTERN.findall(html):
+            if pair_address in seen_pairs or token_address in seen_tokens:
+                continue
+            seen_pairs.add(pair_address)
+            seen_tokens.add(token_address)
+            tokens.append(TrendingToken(pair_address, token_address))
+        if not tokens:
+            raise RuntimeError("DexScreener H24 page contained no Solana pairs")
+        return tokens
 
     async def get_latest_solana_profiles(self) -> list[str]:
         payload = await self._get_json(
@@ -177,6 +231,17 @@ class DexScreenerClient:
         else:
             async with httpx.AsyncClient(timeout=10) as client:
                 response = await client.get(url)
+        response.raise_for_status()
+        return response.json()
+
+    async def _post_json(self, url: str, payload: dict[str, Any]) -> Any:
+        if self._client is not None:
+            response = await self._client.post(url, json=payload)
+        else:
+            async with httpx.AsyncClient(
+                timeout=self._renderer_timeout_seconds + 5
+            ) as client:
+                response = await client.post(url, json=payload)
         response.raise_for_status()
         return response.json()
 
