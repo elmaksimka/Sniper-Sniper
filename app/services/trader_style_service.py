@@ -23,12 +23,14 @@ class TraderStyleService:
         max_side_switches_per_token: int,
         rapid_round_trip_seconds: float,
         max_rapid_round_trips: int,
+        side_switch_window_minutes: float = 10,
     ) -> None:
         self.analytics = AnalyticsRepository(session)
         self.min_history_trades = min_history_trades
         self.min_hold_seconds = min_hold_minutes * 60
         self.max_distinct_tokens_60s = max_distinct_tokens_60s
         self.max_side_switches_per_token = max_side_switches_per_token
+        self.side_switch_window_seconds = side_switch_window_minutes * 60
         self.rapid_round_trip_seconds = rapid_round_trip_seconds
         self.max_rapid_round_trips = max_rapid_round_trips
 
@@ -53,9 +55,9 @@ class TraderStyleService:
         max_per_token = max((len(items) for items in per_token.values()), default=0)
         max_side_switches = max(
             (
-                sum(
-                    left.side != right.side
-                    for left, right in zip(items, items[1:], strict=False)
+                self._maximum_rolling_side_switches(
+                    items,
+                    self.side_switch_window_seconds,
                 )
                 for items in per_token.values()
             ),
@@ -148,6 +150,27 @@ class TraderStyleService:
                 if trade.token is not None:
                     addresses.add(trade.token.address)
             maximum = max(maximum, len(addresses))
+        return maximum
+
+    @classmethod
+    def _maximum_rolling_side_switches(
+        cls,
+        trades: list[Trade],
+        seconds: float,
+    ) -> int:
+        maximum = 0
+        for left, first in enumerate(trades):
+            switches = 0
+            previous_side = first.side
+            for trade in trades[left + 1 :]:
+                if (
+                    cls._aware(trade.timestamp) - cls._aware(first.timestamp)
+                ).total_seconds() > seconds:
+                    break
+                if trade.side != previous_side:
+                    switches += 1
+                previous_side = trade.side
+            maximum = max(maximum, switches)
         return maximum
 
     @staticmethod

@@ -18,6 +18,9 @@ from app.repositories.score_snapshot_repository import ScoreSnapshotRepository
 from app.services.candidate_enrichment_service import CandidateEnrichmentService
 from app.services.monitor_worker import MonitorWorker
 from app.services.activity_stats_service import ActivityStatsService
+from app.services.birdeye_client import BirdeyeClient
+from app.services.dexscreener_client import DexScreenerClient
+from app.services.top_trader_candidate_source import TopTraderCandidateSource
 
 
 async def heartbeat_loop(
@@ -107,11 +110,26 @@ async def candidate_enrichment_loop(
     history_limit: int,
     maximum_candidates: int,
     retry_seconds: float,
+    source_window_hours: int,
+    source_token_limit: int,
+    source_traders_per_token: int,
+    source_minimum_token_trades: int,
+    source_minimum_token_wallets: int,
+    source_minimum_observed_minutes: float,
+    source_minimum_current_multiple: float,
+    source_early_entry_minutes: float,
+    source_early_entry_max_multiple: float,
     details: dict[str, Any],
     stop_event: asyncio.Event,
+    birdeye_api_key: str = "",
+    external_discovery_interval_seconds: float = 21_600,
+    external_token_limit: int = 5,
+    external_minimum_realized_pnl_usd: float = 1_000,
+    external_minimum_realized_roi: float = 1,
 ) -> None:
     """Enrich candidate wallets without delaying DEX discovery."""
     logger = get_logger("candidate-enrichment-supervisor")
+    last_external_discovery_at: float | None = None
 
     # Let the first discovery cycle claim the shared RPC capacity.
     if await wait_for_stop(stop_event, interval_seconds):
@@ -121,9 +139,18 @@ async def candidate_enrichment_loop(
         if leader.is_leader:
             details["candidate_state"] = "polling"
             try:
+                now = asyncio.get_running_loop().time()
+                use_external_source = bool(birdeye_api_key) and (
+                    last_external_discovery_at is None
+                    or now - last_external_discovery_at
+                    >= external_discovery_interval_seconds
+                )
                 async with async_session_factory() as session:
                     container = Container(session, helius_client=helius_client)
                     container.setup()
+                    reconciled = (
+                        await container.trader_promotion_collector.reconcile()
+                    )
                     enrichment = await CandidateEnrichmentService(
                         scores=ScoreSnapshotRepository(session),
                         monitors=MonitorRepository(session),
@@ -134,10 +161,46 @@ async def candidate_enrichment_loop(
                         history_limit=history_limit,
                         maximum_candidates=maximum_candidates,
                         retry_seconds=retry_seconds,
+                        source_window_hours=source_window_hours,
+                        source_token_limit=source_token_limit,
+                        source_traders_per_token=source_traders_per_token,
+                        source_minimum_token_trades=(
+                            source_minimum_token_trades
+                        ),
+                        source_minimum_token_wallets=(
+                            source_minimum_token_wallets
+                        ),
+                        source_minimum_observed_minutes=(
+                            source_minimum_observed_minutes
+                        ),
+                        source_minimum_current_multiple=(
+                            source_minimum_current_multiple
+                        ),
+                        source_early_entry_minutes=source_early_entry_minutes,
+                        source_early_entry_max_multiple=(
+                            source_early_entry_max_multiple
+                        ),
+                        external_source=(
+                            TopTraderCandidateSource(
+                                DexScreenerClient(),
+                                BirdeyeClient(birdeye_api_key),
+                                token_limit=external_token_limit,
+                                traders_per_token=source_traders_per_token,
+                                maximum_pair_age_hours=source_window_hours,
+                                minimum_realized_pnl_usd=(
+                                    external_minimum_realized_pnl_usd
+                                ),
+                                minimum_realized_roi=(
+                                    external_minimum_realized_roi
+                                ),
+                            )
+                            if use_external_source
+                            else None
+                        ),
                     ).run_once()
-                    reconciled = (
-                        await container.trader_promotion_collector.reconcile()
-                    )
+                    if use_external_source:
+                        last_external_discovery_at = now
+                        details["candidate_external_source"] = "birdeye"
                     details.update(
                         candidate_state="idle",
                         candidate_wallets_enriched=enrichment.wallets_enriched,
@@ -153,6 +216,15 @@ async def candidate_enrichment_loop(
                         ),
                         candidate_last_score_after=enrichment.last_score_after,
                         candidate_history_limit=enrichment.history_limit,
+                        candidate_source_tokens=(
+                            enrichment.source_token_count
+                        ),
+                        candidate_source_candidates=(
+                            enrichment.source_candidate_count
+                        ),
+                        candidate_source_window_hours=(
+                            enrichment.source_window_hours
+                        ),
                     )
             except Exception:
                 details["candidate_state"] = "error"
@@ -341,8 +413,30 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                             settings.candidate_enrichment_history_limit,
                             settings.candidate_enrichment_max_per_cycle,
                             settings.candidate_enrichment_retry_seconds,
+                            settings.candidate_source_window_hours,
+                            settings.candidate_source_token_limit,
+                            settings.candidate_source_traders_per_token,
+                            settings.candidate_source_minimum_token_trades,
+                            settings.candidate_source_minimum_token_wallets,
+                            settings.candidate_source_minimum_observed_minutes,
+                            settings.candidate_source_minimum_current_multiple,
+                            settings.candidate_source_early_entry_minutes,
+                            settings.candidate_source_early_entry_max_multiple,
                             heartbeat_details,
                             stop_event,
+                            birdeye_api_key=settings.birdeye_api_key,
+                            external_discovery_interval_seconds=(
+                                settings.candidate_external_discovery_interval_seconds
+                            ),
+                            external_token_limit=(
+                                settings.candidate_external_token_limit
+                            ),
+                            external_minimum_realized_pnl_usd=(
+                                settings.candidate_external_minimum_realized_pnl_usd
+                            ),
+                            external_minimum_realized_roi=(
+                                settings.candidate_external_minimum_realized_roi
+                            ),
                         )
                     )
                 if settings.discovery_enabled:

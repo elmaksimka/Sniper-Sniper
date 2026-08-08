@@ -158,6 +158,9 @@ async def test_candidate_enrichment_loop_runs_independently(monkeypatch) -> None
                 last_score_before=45.0,
                 last_score_after=67.0,
                 history_limit=75,
+                source_token_count=25,
+                source_candidate_count=80,
+                source_window_hours=24,
             )
 
     @asynccontextmanager
@@ -184,6 +187,15 @@ async def test_candidate_enrichment_loop_runs_independently(monkeypatch) -> None
         75,
         1,
         1800,
+        24,
+        25,
+        10,
+        10,
+        5,
+        30,
+        3,
+        30,
+        2,
         details,
         stop_event,
     )
@@ -197,6 +209,9 @@ async def test_candidate_enrichment_loop_runs_independently(monkeypatch) -> None
         "candidate_last_score_before": 45.0,
         "candidate_last_score_after": 67.0,
         "candidate_history_limit": 75,
+        "candidate_source_tokens": 25,
+        "candidate_source_candidates": 80,
+        "candidate_source_window_hours": 24,
     }
 
 

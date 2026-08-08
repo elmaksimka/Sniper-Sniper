@@ -139,4 +139,38 @@ def test_repeated_buy_sell_switching_is_rejected_even_if_position_stays_open() -
 
     assert profile.eligible is False
     assert profile.reason == "repeated_buy_sell_switching"
-    assert profile.max_side_switches_per_token == 5
+    assert profile.max_side_switches_per_token == 3
+
+
+def test_side_switches_spread_over_time_are_not_treated_as_bot_burst() -> None:
+    started = datetime(2026, 1, 1, tzinfo=UTC)
+    sides = ["buy", "sell", "buy", "sell", "buy", "sell"]
+    trades = [
+        Trade(
+            id=index,
+            token_id=1,
+            wallet_id=1,
+            token=Token(address="patient-active-token"),
+            side=side,
+            amount=10 if index == 1 else 1,
+            price=0,
+            sol_change=-1 if side == "buy" else 1,
+            signature=f"patient-active-{index}",
+            timestamp=started + timedelta(minutes=(index - 1) * 15),
+        )
+        for index, side in enumerate(sides, start=1)
+    ] + [
+        observed_trade(
+            index + 10,
+            f"token-{index}",
+            "buy",
+            started + timedelta(minutes=80 + index * 15),
+        )
+        for index in range(4)
+    ]
+
+    profile = service().evaluate_trades(trades, started + timedelta(hours=3))
+
+    assert profile.eligible is True
+    assert profile.reason is None
+    assert profile.max_side_switches_per_token == 0

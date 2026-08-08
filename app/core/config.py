@@ -34,6 +34,10 @@ class Settings(BaseSettings):
         default="",
         description="Helius RPC endpoint",
     )
+    birdeye_api_key: str = Field(
+        default="",
+        description="Birdeye Data Services API key",
+    )
 
     helius_timeout_seconds: float = Field(default=10, gt=0)
     helius_max_retries: int = Field(default=3, ge=0, le=10)
@@ -66,6 +70,7 @@ class Settings(BaseSettings):
     alpha_trader_min_hold_minutes: float = Field(default=30, gt=0)
     alpha_trader_max_distinct_tokens_60s: int = Field(default=4, ge=1)
     alpha_trader_max_side_switches_per_token: int = Field(default=2, ge=0)
+    alpha_trader_side_switch_window_minutes: float = Field(default=10, gt=0)
     alpha_trader_rapid_round_trip_seconds: float = Field(default=120, gt=0)
     alpha_trader_max_rapid_round_trips: int = Field(default=0, ge=0)
     alpha_signal_max_age_seconds: float = Field(default=300, gt=0)
@@ -80,6 +85,25 @@ class Settings(BaseSettings):
     candidate_enrichment_history_limit: int = Field(default=75, ge=1, le=100)
     candidate_enrichment_max_per_cycle: int = Field(default=1, ge=1, le=10)
     candidate_enrichment_retry_seconds: float = Field(default=1800, gt=0)
+    candidate_source_window_hours: int = Field(default=24, ge=1, le=168)
+    candidate_source_token_limit: int = Field(default=25, ge=1, le=100)
+    candidate_source_traders_per_token: int = Field(default=10, ge=1, le=100)
+    candidate_source_minimum_token_trades: int = Field(default=10, ge=1)
+    candidate_source_minimum_token_wallets: int = Field(default=5, ge=1)
+    candidate_source_minimum_observed_minutes: float = Field(default=30, gt=0)
+    candidate_source_minimum_current_multiple: float = Field(default=3, gt=1)
+    candidate_source_early_entry_minutes: float = Field(default=30, gt=0)
+    candidate_source_early_entry_max_multiple: float = Field(default=2, gt=1)
+    candidate_external_discovery_interval_seconds: float = Field(
+        default=21_600,
+        gt=0,
+    )
+    candidate_external_token_limit: int = Field(default=5, ge=1, le=25)
+    candidate_external_minimum_realized_pnl_usd: float = Field(
+        default=1_000,
+        ge=0,
+    )
+    candidate_external_minimum_realized_roi: float = Field(default=1, ge=0)
     auto_promote_wallet_score: float = Field(default=65, ge=0, le=100)
     auto_promote_max_monitors: int = Field(default=100, ge=1, le=10_000)
 

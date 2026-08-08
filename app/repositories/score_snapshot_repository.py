@@ -1,14 +1,20 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import distinct, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.scoring import WalletScore
-from app.infrastructure.models import Token, Trade, Wallet, WalletScoreSnapshot
+from app.infrastructure.models import (
+    Token,
+    Trade,
+    Wallet,
+    WalletMonitor,
+    WalletScoreSnapshot,
+)
 
 
 class ScoreSnapshotRepository:
@@ -51,6 +57,19 @@ class ScoreSnapshotRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_by_wallet_address(
+        self,
+        address: str,
+    ) -> WalletScoreSnapshot | None:
+        result = await self.session.execute(
+            select(WalletScoreSnapshot)
+            .join(Wallet, Wallet.id == WalletScoreSnapshot.wallet_id)
+            .where(Wallet.address == address)
+            .options(selectinload(WalletScoreSnapshot.wallet))
+            .execution_options(populate_existing=True)
+        )
+        return result.scalar_one_or_none()
+
     async def list_leaderboard(
         self,
         limit: int,
@@ -76,6 +95,144 @@ class ScoreSnapshotRepository:
             .offset(offset)
         )
         return list(result.scalars().all())
+
+    async def list_top_token_trader_candidates(
+        self,
+        *,
+        minimum_score: float,
+        window_hours: int,
+        token_limit: int,
+        traders_per_token: int,
+        minimum_token_trades: int,
+        minimum_token_wallets: int,
+        minimum_observed_minutes: float,
+        minimum_current_multiple: float,
+        early_entry_minutes: float,
+        early_entry_max_multiple: float,
+    ) -> tuple[list[WalletScoreSnapshot], int]:
+        """Prioritize repeat early buyers of observed launch winners."""
+        cutoff = datetime.now(UTC) - timedelta(hours=window_hours)
+        priced_trades = (
+            select(
+                Trade.id,
+                Trade.token_id,
+                Trade.wallet_id,
+                Trade.signature,
+                Trade.timestamp,
+                Trade.price,
+                func.first_value(Trade.price)
+                .over(
+                    partition_by=Trade.token_id,
+                    order_by=(Trade.timestamp.asc(), Trade.id.asc()),
+                )
+                .label("first_price"),
+                func.first_value(Trade.price)
+                .over(
+                    partition_by=Trade.token_id,
+                    order_by=(Trade.timestamp.desc(), Trade.id.desc()),
+                )
+                .label("last_price"),
+            )
+            .where(Trade.timestamp >= cutoff, Trade.price > 0)
+            .subquery()
+        )
+        transaction_count = func.count(distinct(priced_trades.c.signature))
+        wallet_count = func.count(distinct(priced_trades.c.wallet_id))
+        first_at = func.min(priced_trades.c.timestamp)
+        last_at = func.max(priced_trades.c.timestamp)
+        first_price = func.max(priced_trades.c.first_price)
+        last_price = func.max(priced_trades.c.last_price)
+        current_multiple = last_price / func.nullif(first_price, 0)
+        observed_minutes = func.extract("epoch", last_at - first_at) / 60
+        token_rows = await self.session.execute(
+            select(
+                priced_trades.c.token_id,
+                transaction_count.label("transaction_count"),
+                wallet_count.label("wallet_count"),
+                first_at.label("first_at"),
+                first_price.label("first_price"),
+                current_multiple.label("current_multiple"),
+            )
+            .group_by(priced_trades.c.token_id)
+            .having(transaction_count >= minimum_token_trades)
+            .having(wallet_count >= minimum_token_wallets)
+            .having(observed_minutes >= minimum_observed_minutes)
+            .having(current_multiple >= minimum_current_multiple)
+            .order_by(
+                wallet_count.desc(),
+                current_multiple.desc(),
+                transaction_count.desc(),
+                priced_trades.c.token_id.asc(),
+            )
+            .limit(token_limit)
+        )
+        winner_tokens = list(token_rows.all())
+
+        ranked: dict[int, tuple[WalletScoreSnapshot, int, int]] = {}
+        for token in winner_tokens:
+            early_deadline = token.first_at + timedelta(minutes=early_entry_minutes)
+            early_price_ceiling = float(token.first_price) * early_entry_max_multiple
+            candidate_rows = await self.session.execute(
+                select(
+                    WalletScoreSnapshot,
+                    func.count(Trade.id).label("early_buys"),
+                )
+                .join(
+                    Trade,
+                    Trade.wallet_id == WalletScoreSnapshot.wallet_id,
+                )
+                .outerjoin(
+                    WalletMonitor,
+                    WalletMonitor.wallet_id == WalletScoreSnapshot.wallet_id,
+                )
+                .options(selectinload(WalletScoreSnapshot.wallet))
+                .where(
+                    Trade.token_id == token.token_id,
+                    Trade.side == "buy",
+                    Trade.timestamp >= token.first_at,
+                    Trade.timestamp <= early_deadline,
+                    Trade.price > 0,
+                    Trade.price <= early_price_ceiling,
+                    WalletScoreSnapshot.score >= minimum_score,
+                    or_(
+                        WalletMonitor.id.is_(None),
+                        WalletMonitor.enabled.is_(False),
+                    ),
+                )
+                .group_by(WalletScoreSnapshot.id)
+                .order_by(
+                    WalletScoreSnapshot.score.desc(),
+                    func.count(Trade.id).desc(),
+                    WalletScoreSnapshot.updated_at.desc(),
+                )
+                .limit(traders_per_token)
+            )
+            for row in candidate_rows.all():
+                snapshot = row[0]
+                early_buys = int(row.early_buys)
+                existing = ranked.get(snapshot.wallet_id)
+                if existing is None:
+                    ranked[snapshot.wallet_id] = (snapshot, 1, early_buys)
+                    continue
+                ranked[snapshot.wallet_id] = (
+                    snapshot,
+                    existing[1] + 1,
+                    existing[2] + early_buys,
+                )
+
+        candidates = [
+            item[0]
+            for item in sorted(
+                ranked.values(),
+                key=lambda item: (
+                    item[1],
+                    item[0].score,
+                    item[2],
+                ),
+                reverse=True,
+            )
+        ]
+        return candidates, len(winner_tokens)
 
     async def count(self, grade: str | None = None) -> int:
         statement = select(func.count(WalletScoreSnapshot.id))

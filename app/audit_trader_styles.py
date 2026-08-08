@@ -22,6 +22,9 @@ async def run() -> None:
             max_side_switches_per_token=(
                 settings.alpha_trader_max_side_switches_per_token
             ),
+            side_switch_window_minutes=(
+                settings.alpha_trader_side_switch_window_minutes
+            ),
             rapid_round_trip_seconds=(
                 settings.alpha_trader_rapid_round_trip_seconds
             ),

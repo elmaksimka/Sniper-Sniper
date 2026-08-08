@@ -4,11 +4,13 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from app.core.logging import get_logger
+from app.infrastructure.models import WalletScoreSnapshot
 from app.listeners.transaction_scanner import TransactionScanner
 from app.repositories.heartbeat_repository import HeartbeatRepository
 from app.repositories.monitor_repository import MonitorRepository
 from app.repositories.score_snapshot_repository import ScoreSnapshotRepository
 from app.services.token_detection_service import TokenDetectionService
+from app.services.top_trader_candidate_source import TopTraderCandidateSource
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,6 +22,9 @@ class CandidateEnrichmentResult:
     last_score_before: float | None
     last_score_after: float | None
     history_limit: int
+    source_token_count: int
+    source_candidate_count: int
+    source_window_hours: int
 
 
 class CandidateEnrichmentService:
@@ -36,6 +41,16 @@ class CandidateEnrichmentService:
         history_limit: int,
         maximum_candidates: int,
         retry_seconds: float,
+        source_window_hours: int = 24,
+        source_token_limit: int = 25,
+        source_traders_per_token: int = 10,
+        source_minimum_token_trades: int = 10,
+        source_minimum_token_wallets: int = 5,
+        source_minimum_observed_minutes: float = 30,
+        source_minimum_current_multiple: float = 3,
+        source_early_entry_minutes: float = 30,
+        source_early_entry_max_multiple: float = 2,
+        external_source: TopTraderCandidateSource | None = None,
     ) -> None:
         self.scores = scores
         self.monitors = monitors
@@ -46,13 +61,72 @@ class CandidateEnrichmentService:
         self.history_limit = history_limit
         self.maximum_candidates = maximum_candidates
         self.retry_seconds = retry_seconds
+        self.source_window_hours = source_window_hours
+        self.source_token_limit = source_token_limit
+        self.source_traders_per_token = source_traders_per_token
+        self.source_minimum_token_trades = source_minimum_token_trades
+        self.source_minimum_token_wallets = source_minimum_token_wallets
+        self.source_minimum_observed_minutes = source_minimum_observed_minutes
+        self.source_minimum_current_multiple = source_minimum_current_multiple
+        self.source_early_entry_minutes = source_early_entry_minutes
+        self.source_early_entry_max_multiple = source_early_entry_max_multiple
+        self.external_source = external_source
         self.logger = get_logger("candidate-enrichment")
 
     async def run_once(self) -> CandidateEnrichmentResult:
-        candidates = await self.scores.list_leaderboard(
+        external_addresses: list[str] = []
+        external_token_count = 0
+        if self.external_source is not None:
+            external = await self.external_source.discover()
+            external_addresses = [
+                candidate.address for candidate in external.candidates
+            ]
+            external_token_count = external.token_count
+
+        priority_candidates, source_token_count = (
+            await self.scores.list_top_token_trader_candidates(
+                minimum_score=self.minimum_score,
+                window_hours=self.source_window_hours,
+                token_limit=self.source_token_limit,
+                traders_per_token=self.source_traders_per_token,
+                minimum_token_trades=self.source_minimum_token_trades,
+                minimum_token_wallets=self.source_minimum_token_wallets,
+                minimum_observed_minutes=(
+                    self.source_minimum_observed_minutes
+                ),
+                minimum_current_multiple=(
+                    self.source_minimum_current_multiple
+                ),
+                early_entry_minutes=self.source_early_entry_minutes,
+                early_entry_max_multiple=(
+                    self.source_early_entry_max_multiple
+                ),
+            )
+        )
+        leaderboard = await self.scores.list_leaderboard(
             limit=1000,
             offset=0,
         )
+        seen_wallet_ids = {item.wallet_id for item in priority_candidates}
+        snapshots = [
+            *priority_candidates,
+            *(
+                item
+                for item in leaderboard
+                if item.wallet_id not in seen_wallet_ids
+            ),
+        ]
+        candidate_rows: list[tuple[str, WalletScoreSnapshot | None]] = []
+        seen_addresses: set[str] = set()
+        for address in external_addresses:
+            if address not in seen_addresses:
+                candidate_rows.append((address, None))
+                seen_addresses.add(address)
+        for snapshot in snapshots:
+            address = snapshot.wallet.address
+            if address not in seen_addresses:
+                candidate_rows.append((address, snapshot))
+                seen_addresses.add(address)
         enriched = 0
         attempted = 0
         processed = 0
@@ -61,14 +135,17 @@ class CandidateEnrichmentService:
         last_score_before: float | None = None
         last_score_after: float | None = None
 
-        for snapshot in candidates:
+        for address, candidate_snapshot in candidate_rows:
             if attempted >= self.maximum_candidates:
                 break
-            if snapshot.score < self.minimum_score or snapshot.score >= 65:
+            if (
+                candidate_snapshot is not None
+                and candidate_snapshot.score < self.minimum_score
+            ):
                 continue
 
-            address = snapshot.wallet.address
-            if await self.monitors.get_by_address(address) is not None:
+            existing_monitor = await self.monitors.get_by_address(address)
+            if existing_monitor is not None and existing_monitor.enabled:
                 continue
             cursor_name = f"candidate:{address}"
             cursor = await self.cursors.get(cursor_name)
@@ -85,9 +162,15 @@ class CandidateEnrichmentService:
                     await self.detection.process_transactions(
                         list(reversed(transactions))
                     )
-                updated = await self.scores.get_by_wallet_id(snapshot.wallet_id)
-                was_promoted = bool(updated is not None and updated.score >= 65)
+                updated = (
+                    await self.scores.get_by_wallet_id(
+                        candidate_snapshot.wallet_id
+                    )
+                    if candidate_snapshot is not None
+                    else await self.scores.get_by_wallet_address(address)
+                )
                 monitor = await self.monitors.get_by_address(address)
+                was_promoted = bool(monitor is not None and monitor.enabled)
                 if monitor is not None and transactions:
                     newest_signature = transactions[0].get("signature")
                     await self.monitors.mark_success(
@@ -105,7 +188,11 @@ class CandidateEnrichmentService:
                         "state": "complete",
                         "wallet": address,
                         "transactions_processed": len(transactions),
-                        "score_before": snapshot.score,
+                        "score_before": (
+                            candidate_snapshot.score
+                            if candidate_snapshot is not None
+                            else None
+                        ),
                         "score_after": updated.score if updated is not None else None,
                     },
                 )
@@ -113,7 +200,11 @@ class CandidateEnrichmentService:
                 processed += len(transactions)
                 promoted += int(was_promoted)
                 last_wallet = address
-                last_score_before = snapshot.score
+                last_score_before = (
+                    candidate_snapshot.score
+                    if candidate_snapshot is not None
+                    else None
+                )
                 last_score_after = updated.score if updated is not None else None
             except Exception as error:
                 await self.cursors.beat(
@@ -138,6 +229,9 @@ class CandidateEnrichmentService:
             last_score_before,
             last_score_after,
             self.history_limit,
+            external_token_count or source_token_count,
+            len(external_addresses) or len(priority_candidates),
+            self.source_window_hours,
         )
 
     def _ready(self, cursor: object | None) -> bool:

@@ -57,3 +57,21 @@ async def test_quote_returns_none_when_token_is_not_indexed() -> None:
         quote = await DexScreenerClient(http).get_token_quote("mint")
 
     assert quote is None
+
+
+@pytest.mark.asyncio
+async def test_latest_profiles_only_returns_solana_addresses() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=[
+                {"chainId": "solana", "tokenAddress": "mint"},
+                {"chainId": "ethereum", "tokenAddress": "other"},
+            ],
+            request=request,
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        profiles = await DexScreenerClient(http).get_latest_solana_profiles()
+
+    assert profiles == ["mint"]

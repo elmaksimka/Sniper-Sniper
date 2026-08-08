@@ -134,6 +134,7 @@ class TelegramNotifier:
                         "Кандидатів оброблено: "
                         f"{int(details.get('candidate_wallets_enriched', 0))}"
                     ),
+                    TelegramNotifier._candidate_source_status(details),
                     TelegramNotifier._candidate_status(details),
                     (
                         "Історію кандидата завантажено: "
@@ -289,6 +290,16 @@ class TelegramNotifier:
         return f"Останній кандидат: {wallet} ({score_change})"
 
     @staticmethod
+    def _candidate_source_status(details: dict[str, Any]) -> str:
+        hours = int(details.get("candidate_source_window_hours", 24))
+        tokens = int(details.get("candidate_source_tokens", 0))
+        candidates = int(details.get("candidate_source_candidates", 0))
+        return (
+            f"Воронка {hours} год: {tokens} winner-токенів / "
+            f"{candidates} ранніх трейдерів"
+        )
+
+    @staticmethod
     def _top_wallets_status(details: dict[str, Any]) -> str:
         wallets = details.get("top_wallets", ())
         if not isinstance(wallets, (list, tuple)) or not wallets:
@@ -309,7 +320,10 @@ class TelegramNotifier:
             if not address:
                 continue
             try:
-                score = f"{float(wallet.get('score')):.2f}"
+                raw_score = wallet.get("score")
+                if not isinstance(raw_score, (int, float, str)):
+                    raise ValueError
+                score = f"{float(raw_score):.2f}"
             except (TypeError, ValueError):
                 score = "рейтинг недоступний"
             grade = str(wallet.get("grade", "")).strip()
