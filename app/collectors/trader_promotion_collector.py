@@ -41,26 +41,43 @@ class TraderPromotionCollector:
             or event.grade not in {"A", "B"}
         ):
             return
-        if not await self._has_holder_style(event.entity):
-            return
-        existing = await self.monitors.get_by_address(event.entity)
+        await self._promote(event.entity, event.score, event.grade)
+
+    async def promote_address(self, address: str) -> bool:
+        """Promote one fully audited persisted wallet when it remains eligible."""
+        if self.scores is None:
+            return False
+        snapshot = await self.scores.get_by_wallet_address(address)
+        if (
+            snapshot is None
+            or snapshot.score < self.minimum_score
+            or snapshot.grade not in {"A", "B"}
+        ):
+            return False
+        return await self._promote(address, snapshot.score, snapshot.grade)
+
+    async def _promote(self, address: str, score: float, grade: str) -> bool:
+        if not await self._has_holder_style(address):
+            return False
+        existing = await self.monitors.get_by_address(address)
         if existing is not None:
             if not existing.enabled:
                 await self.monitors.set_enabled(existing, True)
-            return
+            return True
         if await self.monitors.count_enabled() >= self.maximum_monitors:
             self.logger.warning(
                 "trader_promotion_capacity_reached",
                 maximum=self.maximum_monitors,
             )
-            return
-        await self.monitor_service.add(event.entity)
+            return False
+        await self.monitor_service.add(address)
         self.logger.info(
             "trader_promoted",
-            wallet=event.entity,
-            score=event.score,
-            grade=event.grade,
+            wallet=address,
+            score=score,
+            grade=grade,
         )
+        return True
 
     async def reconcile(self) -> int:
         """Promote eligible persisted scores missed by an interrupted event."""

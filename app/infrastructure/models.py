@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 
 from sqlalchemy import (
+    BigInteger,
     DateTime,
     Float,
     ForeignKey,
@@ -62,6 +63,7 @@ class Token(Base):
     )
 
     supply: Mapped[int | None] = mapped_column(
+        BigInteger,
         nullable=True,
     )
 

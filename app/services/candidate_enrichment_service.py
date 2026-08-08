@@ -92,6 +92,31 @@ class CandidateEnrichmentService:
                     isinstance(existing_details, dict)
                     and existing_details.get("queue_version") == 2
                 ):
+                    known_tokens = existing_details.get("source_tokens")
+                    source_tokens = (
+                        [str(token) for token in known_tokens]
+                        if isinstance(known_tokens, list)
+                        else [str(existing_details.get("source_token", ""))]
+                    )
+                    if candidate.source_token_address in source_tokens:
+                        continue
+                    source_tokens.append(candidate.source_token_address)
+                    await self.cursors.beat(
+                        source_name,
+                        "top-trader-source",
+                        {
+                            **existing_details,
+                            "source_tokens": source_tokens,
+                            "profitable_tokens": int(
+                                existing_details.get("profitable_tokens", 1)
+                            )
+                            + 1,
+                            "realized_pnl_usd": float(
+                                existing_details.get("realized_pnl_usd", 0)
+                            )
+                            + candidate.realized_pnl_usd,
+                        },
+                    )
                     continue
                 await self.cursors.beat(
                     source_name,
@@ -102,6 +127,7 @@ class CandidateEnrichmentService:
                         "token_rank": candidate.token_rank,
                         "trader_rank": candidate.trader_rank,
                         "source_token": candidate.source_token_address,
+                        "source_tokens": [candidate.source_token_address],
                         "wallet": candidate.address,
                         "profitable_tokens": candidate.profitable_tokens,
                         "realized_pnl_usd": candidate.realized_pnl_usd,
@@ -118,6 +144,7 @@ class CandidateEnrichmentService:
             item.service_name.removeprefix("candidate-source:")
             for item in queued
         ]
+        external_address_set = set(external_addresses)
 
         priority_candidates, source_token_count = (
             await self.scores.list_top_token_trader_candidates(
@@ -177,15 +204,26 @@ class CandidateEnrichmentService:
         for address, candidate_snapshot in candidate_rows:
             if attempted >= self.maximum_candidates:
                 break
-            existing_monitor = await self.monitors.get_by_address(address)
-            if existing_monitor is not None and existing_monitor.enabled:
-                continue
             cursor_name = f"candidate:{address}"
             cursor = await self.cursors.get(cursor_name)
-            if not self._ready(cursor):
-                continue
             cursor_details = getattr(cursor, "details", None)
             saved = cursor_details if isinstance(cursor_details, dict) else {}
+            existing_monitor = await self.monitors.get_by_address(address)
+            if existing_monitor is not None and existing_monitor.enabled:
+                if address not in external_address_set:
+                    continue
+                if (
+                    saved.get("state") == "complete"
+                    and saved.get("audit_version") == 2
+                ):
+                    continue
+            if not self._ready(cursor):
+                if (
+                    address in external_address_set
+                    and saved.get("state") in {"in_progress", "error"}
+                ):
+                    break
+                continue
             resumable = (
                 saved.get("audit_version") == 2
                 and saved.get("state") in {"in_progress", "error"}

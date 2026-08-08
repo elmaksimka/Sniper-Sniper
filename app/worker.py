@@ -148,10 +148,7 @@ async def candidate_enrichment_loop(
                 )
                 async with async_session_factory() as session:
                     container = Container(session, helius_client=helius_client)
-                    container.setup()
-                    reconciled = (
-                        await container.trader_promotion_collector.reconcile()
-                    )
+                    container.setup(register_trader_promotion=False)
                     enrichment = await CandidateEnrichmentService(
                         scores=ScoreSnapshotRepository(session),
                         monitors=MonitorRepository(session),
@@ -202,6 +199,16 @@ async def candidate_enrichment_loop(
                             maximum_history_transactions
                         ),
                     ).run_once()
+                    promoted_after_audit = 0
+                    if (
+                        enrichment.audit_state == "complete"
+                        and enrichment.last_wallet
+                    ):
+                        promoted_after_audit = int(
+                            await container.trader_promotion_collector.promote_address(
+                                enrichment.last_wallet
+                            )
+                        )
                     if use_external_source:
                         last_external_discovery_at = now
                         details["candidate_external_source"] = "birdeye"
@@ -212,7 +219,7 @@ async def candidate_enrichment_loop(
                             enrichment.transactions_processed
                         ),
                         candidate_wallets_promoted=(
-                            enrichment.wallets_promoted + reconciled
+                            enrichment.wallets_promoted + promoted_after_audit
                         ),
                         candidate_last_wallet=enrichment.last_wallet or "",
                         candidate_last_score_before=(

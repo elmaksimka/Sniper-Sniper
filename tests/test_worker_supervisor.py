@@ -133,6 +133,10 @@ async def test_candidate_enrichment_loop_runs_independently(monkeypatch) -> None
         async def reconcile(self) -> int:
             return 1
 
+        async def promote_address(self, address: str) -> bool:
+            assert address == "candidate"
+            return True
+
     class FakeContainer:
         scanner = object()
         token_detection_service = object()
@@ -141,8 +145,8 @@ async def test_candidate_enrichment_loop_runs_independently(monkeypatch) -> None
         def __init__(self, *args, **kwargs) -> None:
             pass
 
-        def setup(self) -> None:
-            pass
+        def setup(self, **kwargs) -> None:
+            assert kwargs == {"register_trader_promotion": False}
 
     class FakeEnrichmentService:
         def __init__(self, **kwargs) -> None:

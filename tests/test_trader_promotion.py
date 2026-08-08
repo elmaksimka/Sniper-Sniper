@@ -38,6 +38,9 @@ class FakeScores:
             )
         ]
 
+    async def get_by_wallet_address(self, address: str) -> object:
+        return SimpleNamespace(score=82, grade="A")
+
 
 class RejectedStyle:
     async def evaluate(self, address: str) -> TraderStyleProfile:
@@ -137,3 +140,21 @@ async def test_reconcile_promotes_persisted_eligible_wallet() -> None:
 
     assert promoted == 1
     assert service.added == ["persisted-wallet"]
+
+
+@pytest.mark.asyncio
+async def test_completed_audit_can_promote_one_persisted_address() -> None:
+    service = FakeMonitorService()
+    collector = TraderPromotionCollector(
+        EventBus(),
+        FakeMonitors(),  # type: ignore[arg-type]
+        service,  # type: ignore[arg-type]
+        minimum_score=65,
+        maximum_monitors=100,
+        scores=FakeScores(),  # type: ignore[arg-type]
+    )
+
+    promoted = await collector.promote_address("audited-wallet")
+
+    assert promoted is True
+    assert service.added == ["audited-wallet"]

@@ -170,14 +170,15 @@ class Container:
             max_pages=settings.discovery_max_pages,
         )
 
-    def setup(self) -> None:
+    def setup(self, *, register_trader_promotion: bool = True) -> None:
         self.token_collector.register()
         self.trade_collector.register()
         self.score_collector.register()
         self.alert_collector.register()
         self.funding_collector.register()
         self.alpha_signal_collector.register()
-        self.trader_promotion_collector.register()
+        if register_trader_promotion:
+            self.trader_promotion_collector.register()
         self.event_bus.subscribe(
             AlphaSignalGenerated,
             self.telegram_notifier.handle_alpha_signal,
