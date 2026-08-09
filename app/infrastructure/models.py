@@ -248,6 +248,16 @@ class WalletScoreSnapshot(Base):
     unmatched_sell_ratio: Mapped[float] = mapped_column(Float)
     priced_trade_ratio: Mapped[float] = mapped_column(Float, default=0.0)
     realized_cost_basis_sol: Mapped[float] = mapped_column(Float, default=0.0)
+    realized_position_count: Mapped[int] = mapped_column(default=0)
+    profitable_position_count: Mapped[int] = mapped_column(default=0)
+    win_rate: Mapped[float] = mapped_column(Float, default=0.0)
+    pnl_concentration_ratio: Mapped[float] = mapped_column(Float, default=0.0)
+    realized_pnl_ex_top_position_sol: Mapped[float] = mapped_column(
+        Float, default=0.0
+    )
+    realized_roi_ex_top_position: Mapped[float] = mapped_column(
+        Float, default=0.0
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utc_now,

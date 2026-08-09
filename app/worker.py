@@ -143,6 +143,11 @@ async def candidate_enrichment_loop(
     maximum_history_transactions: int = 1_000,
     dexscreener_renderer_url: str = "",
     dexscreener_renderer_timeout_seconds: float = 75,
+    adaptive_initial_transactions: int = 300,
+    adaptive_continuation_score: float = 75,
+    adaptive_max_unmatched_sell_ratio: float = 0.25,
+    adaptive_min_realized_positions: int = 5,
+    adaptive_min_priced_trade_ratio: float = 0.6,
 ) -> None:
     """Enrich candidate wallets without delaying DEX discovery."""
     logger = get_logger("candidate-enrichment-supervisor")
@@ -216,6 +221,21 @@ async def candidate_enrichment_loop(
                         ),
                         maximum_history_transactions=(
                             maximum_history_transactions
+                        ),
+                        adaptive_initial_transactions=(
+                            adaptive_initial_transactions
+                        ),
+                        adaptive_continuation_score=(
+                            adaptive_continuation_score
+                        ),
+                        adaptive_max_unmatched_sell_ratio=(
+                            adaptive_max_unmatched_sell_ratio
+                        ),
+                        adaptive_min_realized_positions=(
+                            adaptive_min_realized_positions
+                        ),
+                        adaptive_min_priced_trade_ratio=(
+                            adaptive_min_priced_trade_ratio
                         ),
                     ).run_once()
                     promoted_after_audit = 0
@@ -379,6 +399,11 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
     telegram = TelegramNotifier(
         settings.telegram_bot_token,
         settings.telegram_recipients,
+        worker_summary_enabled=getattr(
+            settings,
+            "telegram_worker_summary_enabled",
+            True,
+        ),
     )
     leader = PostgresLeaderElector(engine, settings.worker_leader_lock_key)
     logger = get_logger("worker-supervisor")
@@ -505,6 +530,31 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                             ),
                             dexscreener_renderer_timeout_seconds=(
                                 settings.dexscreener_renderer_timeout_seconds
+                            ),
+                            adaptive_initial_transactions=getattr(
+                                settings,
+                                "candidate_adaptive_initial_transactions",
+                                300,
+                            ),
+                            adaptive_continuation_score=getattr(
+                                settings,
+                                "candidate_adaptive_continuation_score",
+                                75,
+                            ),
+                            adaptive_max_unmatched_sell_ratio=getattr(
+                                settings,
+                                "candidate_adaptive_max_unmatched_sell_ratio",
+                                0.25,
+                            ),
+                            adaptive_min_realized_positions=getattr(
+                                settings,
+                                "candidate_adaptive_min_realized_positions",
+                                5,
+                            ),
+                            adaptive_min_priced_trade_ratio=getattr(
+                                settings,
+                                "candidate_adaptive_min_priced_trade_ratio",
+                                0.6,
                             ),
                         )
                     )

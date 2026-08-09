@@ -29,6 +29,10 @@ def alpha_signal() -> AlphaSignalGenerated:
         trader_long_hold_positions=2,
         trader_max_trades_60s=3,
         trader_rapid_round_trips=0,
+        trader_entry_price_sol=0.00001,
+        trader_entry_price_usd=0.002,
+        trader_buy_value_usd=500,
+        market_price_vs_entry=1.25,
     )
 
 
@@ -64,6 +68,9 @@ async def test_alpha_signal_is_sent_to_each_unique_recipient() -> None:
     assert [payload["chat_id"] for payload in payloads] == ["100", "200"]
     assert all("STRONG CONSENSUS" in payload["text"] for payload in payloads)
     assert all("2.750000 SOL" in payload["text"] for payload in payloads)
+    assert all("Trader entry price: $0.00200000" in payload["text"] for payload in payloads)
+    assert all("Trader buy value: 2.750000 SOL / ~$500.00" in payload["text"] for payload in payloads)
+    assert all("1.25x vs trader entry" in payload["text"] for payload in payloads)
     assert all("~$12.35 (current DEX price)" in payload["text"] for payload in payloads)
     assert all("5 trades / 3 wallets" in payload["text"] for payload in payloads)
     assert all("$20,000 liquidity / $7,500 5m volume" in payload["text"] for payload in payloads)
@@ -119,6 +126,41 @@ async def test_delivery_retries_after_a_transient_failure() -> None:
 
     assert results == {"100": True}
     assert calls == 2
+
+
+@pytest.mark.asyncio
+async def test_worker_summary_can_be_hidden_while_audit_progress_is_sent() -> None:
+    messages: list[str] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        messages.append(str(json.loads(request.content)["text"]))
+        return httpx.Response(200, json={"ok": True}, request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        notifier = TelegramNotifier(
+            "secret-token",
+            ["100"],
+            http_client=http,
+            worker_summary_enabled=False,
+        )
+        results = await notifier.send_worker_status(
+            {
+                "candidate_audit_pairs": [
+                    {
+                        "symbol": "TOAD",
+                        "started_traders": 0,
+                        "total_traders": 10,
+                        "complete": False,
+                        "traders": [],
+                    }
+                ]
+            }
+        )
+
+    assert results == {"100": True}
+    assert len(messages) == 1
+    assert "DexScreener" in messages[0]
+    assert "Alpha Engine" not in messages[0]
 
 
 @pytest.mark.asyncio

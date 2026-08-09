@@ -58,7 +58,7 @@ def make_position(
 def test_maximum_wallet_score_is_explainable() -> None:
     score = WalletScoreCalculator().calculate(
         make_analytics(),
-        [make_position()],
+        [make_position() for _ in range(5)],
     )
 
     assert score.score == 100
@@ -68,7 +68,7 @@ def test_maximum_wallet_score_is_explainable() -> None:
     assert score.exit_experience_score == 20
     assert score.realized_performance_score == 35
     assert score.data_quality_score == 10
-    assert score.methodology_version == "wallet-v2"
+    assert score.methodology_version == "wallet-v3"
 
 
 def test_empty_wallet_receives_no_unearned_baseline_points() -> None:
@@ -107,7 +107,26 @@ def test_open_inventory_does_not_dilute_realized_roi() -> None:
     )
 
     assert score.realized_roi == 1
-    assert score.realized_performance_score == 35
+    assert score.realized_performance_score == 20
+
+
+def test_one_outlier_winner_is_penalized_by_consistency_metrics() -> None:
+    score = WalletScoreCalculator().calculate(
+        make_analytics(total_trades=6, buy_count=3, sell_count=3),
+        [
+            make_position(realized_pnl=100, realized_cost_basis=10),
+            make_position(realized_pnl=-5, realized_cost_basis=10),
+            make_position(realized_pnl=-5, realized_cost_basis=10),
+        ],
+    )
+
+    assert score.realized_position_count == 3
+    assert score.profitable_position_count == 1
+    assert score.win_rate == pytest.approx(1 / 3, abs=1e-6)
+    assert score.pnl_concentration_ratio == 1
+    assert score.realized_pnl_ex_top_position_sol == -10
+    assert score.realized_roi_ex_top_position == -0.5
+    assert score.realized_performance_score == 13.33
 
 
 def test_unpriced_trades_reduce_quality_coverage() -> None:

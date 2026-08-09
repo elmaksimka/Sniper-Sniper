@@ -282,5 +282,13 @@ class ScoreSnapshotRepository:
             "unmatched_sell_ratio": score.unmatched_sell_ratio,
             "priced_trade_ratio": score.priced_trade_ratio,
             "realized_cost_basis_sol": score.realized_cost_basis_sol,
+            "realized_position_count": score.realized_position_count,
+            "profitable_position_count": score.profitable_position_count,
+            "win_rate": score.win_rate,
+            "pnl_concentration_ratio": score.pnl_concentration_ratio,
+            "realized_pnl_ex_top_position_sol": (
+                score.realized_pnl_ex_top_position_sol
+            ),
+            "realized_roi_ex_top_position": score.realized_roi_ex_top_position,
             "updated_at": datetime.now(UTC),
         }

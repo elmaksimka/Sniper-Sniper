@@ -21,11 +21,13 @@ class TelegramNotifier:
         http_client: httpx.AsyncClient | None = None,
         market_data_client: DexScreenerClient | None = None,
         retry_delays_seconds: tuple[float, ...] = (1.0, 3.0),
+        worker_summary_enabled: bool = True,
     ) -> None:
         self.bot_token = bot_token.strip()
         self.recipients = tuple(dict.fromkeys(str(item).strip() for item in recipients))
         self._client = http_client
         self._retry_delays_seconds = retry_delays_seconds
+        self.worker_summary_enabled = worker_summary_enabled
         self.market_data = market_data_client or DexScreenerClient()
         self.logger = get_logger("telegram-notifier")
 
@@ -205,7 +207,7 @@ class TelegramNotifier:
                     "Система продовжує моніторинг.",
                 )
             )
-        )
+        ) if self.worker_summary_enabled else {}
         for message in self._candidate_audit_progress_messages(details):
             progress_results = await self.send_text(message)
             for recipient, delivered in progress_results.items():
@@ -301,7 +303,28 @@ class TelegramNotifier:
                     f"max {event.trader_max_side_switches_per_token} side switches"
                 ),
                 f"Buy size: {sol_size}",
-                f"Estimated buy value: {usd_size}",
+                (
+                    "Trader entry price: "
+                    f"{TelegramNotifier._format_token_usd(event.trader_entry_price_usd)} / "
+                    f"{event.trader_entry_price_sol:.12g} SOL per token"
+                    if event.trader_entry_price_sol is not None
+                    and event.trader_entry_price_usd is not None
+                    else "Trader entry price: unavailable"
+                ),
+                (
+                    f"Trader buy value: {sol_size} / "
+                    f"~${event.trader_buy_value_usd:,.2f}"
+                    if event.trader_buy_value_usd is not None
+                    else f"Trader buy value: {sol_size} / USD unavailable"
+                ),
+                (
+                    f"Current price: {TelegramNotifier._format_token_usd(quote.price_usd)} "
+                    f"({event.market_price_vs_entry:.2f}x vs trader entry)"
+                    if quote is not None
+                    and event.market_price_vs_entry is not None
+                    else "Current price: unavailable"
+                ),
+                f"Current position value: {usd_size}",
                 (
                     "Market: "
                     f"{TelegramNotifier._format_usd_amount(quote.liquidity_usd)} "
@@ -332,6 +355,12 @@ class TelegramNotifier:
     @staticmethod
     def _format_usd_amount(value: float) -> str:
         return f"${value:,.0f}"
+
+    @staticmethod
+    def _format_token_usd(value: float | None) -> str:
+        if value is None:
+            return "unavailable"
+        return f"${value:,.8f}" if value < 1 else f"${value:,.4f}"
 
     @staticmethod
     def _candidate_status(details: dict[str, Any]) -> str:

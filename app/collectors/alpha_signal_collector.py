@@ -15,6 +15,8 @@ from app.services.trader_style_service import TraderStyleService
 class AlphaSignalCollector:
     """Create a signal when a top wallet buys a promising early token."""
 
+    WRAPPED_SOL_ADDRESS = "So11111111111111111111111111111111111111112"
+
     def __init__(
         self,
         event_bus: EventBus,
@@ -84,7 +86,7 @@ class AlphaSignalCollector:
             return
 
         trader_style = await self.trader_style.evaluate(event.wallet)
-        if not trader_style.eligible:
+        if not self._signal_eligible_style(trader_style):
             return
 
         market = await self._qualifying_market(event.token_address)
@@ -101,7 +103,7 @@ class AlphaSignalCollector:
                 if address == event.wallet
                 else await self.trader_style.evaluate(address)
             )
-            if profile.eligible:
+            if self._signal_eligible_style(profile):
                 top_trader_count += 1
 
         alert = await self.alerts.create_alpha_signal(
@@ -114,6 +116,10 @@ class AlphaSignalCollector:
         )
         if alert is None:
             return
+
+        entry_price_sol, entry_price_usd, buy_value_usd, price_vs_entry = (
+            self._entry_metrics(event, market)
+        )
 
         await self.event_bus.publish(
             AlphaSignalGenerated(
@@ -137,6 +143,10 @@ class AlphaSignalCollector:
                 market_volume_5m_usd=market.volume_5m_usd,
                 market_buys_5m=market.buys_5m,
                 market_sells_5m=market.sells_5m,
+                trader_entry_price_sol=entry_price_sol,
+                trader_entry_price_usd=entry_price_usd,
+                trader_buy_value_usd=buy_value_usd,
+                market_price_vs_entry=price_vs_entry,
                 observed_top_trader_count=top_trader_count,
                 trader_long_hold_positions=trader_style.long_hold_positions,
                 trader_max_trades_60s=trader_style.max_trades_60s,
@@ -175,3 +185,34 @@ class AlphaSignalCollector:
         ):
             return None
         return market
+
+    @staticmethod
+    def _signal_eligible_style(profile: object) -> bool:
+        """Allow curated fast traders while retaining structural bot filters."""
+        return bool(getattr(profile, "eligible", False)) or (
+            getattr(profile, "reason", None) == "rapid_round_trip"
+        )
+
+    @classmethod
+    def _entry_metrics(
+        cls,
+        event: TradeScored,
+        market: TokenMarketQuote,
+    ) -> tuple[float | None, float | None, float | None, float | None]:
+        sol_amount = abs(event.sol_change)
+        if sol_amount <= 0 or event.amount <= 0:
+            return None, None, None, None
+        entry_sol = sol_amount / event.amount
+        if (
+            market.price_native is None
+            or market.price_native <= 0
+            or market.quote_token_address != cls.WRAPPED_SOL_ADDRESS
+        ):
+            return entry_sol, None, None, None
+        sol_price_usd = market.price_usd / market.price_native
+        return (
+            entry_sol,
+            entry_sol * sol_price_usd,
+            sol_amount * sol_price_usd,
+            market.price_native / entry_sol,
+        )

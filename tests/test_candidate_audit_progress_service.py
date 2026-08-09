@@ -43,7 +43,16 @@ class FakeHeartbeats:
                     "transactions_processed_total": 75,
                     "score_after": 69.33,
                 },
-            )
+            ),
+            SimpleNamespace(
+                service_name="candidate:wallet-2",
+                details={
+                    "state": "complete",
+                    "transactions_processed_total": 330,
+                    "history_capped": False,
+                    "score_after": 95.7,
+                },
+            ),
         ]
 
 
@@ -55,8 +64,8 @@ async def test_progress_combines_pair_queue_with_wallet_audits() -> None:
 
     assert len(result) == 1
     assert result[0]["symbol"] == "TOAD"
-    assert result[0]["started_traders"] == 1
-    assert result[0]["completed_traders"] == 0
+    assert result[0]["started_traders"] == 2
+    assert result[0]["completed_traders"] == 1
     assert result[0]["complete"] is False
     assert result[0]["traders"][0] == {
         "rank": 1,
@@ -68,4 +77,6 @@ async def test_progress_combines_pair_queue_with_wallet_audits() -> None:
         "state": "in_progress",
         "started": True,
     }
-    assert result[0]["traders"][1]["started"] is False
+    assert result[0]["traders"][1]["started"] is True
+    assert result[0]["traders"][1]["transactions"] == 330
+    assert result[0]["traders"][1]["maximum_transactions"] == 330

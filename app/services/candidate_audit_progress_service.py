@@ -50,6 +50,12 @@ class CandidateAuditProgressService:
                     audit.get("transactions_processed_total", 0)
                 )
                 state = str(audit.get("state", "pending"))
+                history_capped = bool(audit.get("history_capped", False))
+                displayed_maximum = (
+                    total
+                    if state == "complete" and not history_capped
+                    else maximum_transactions
+                )
                 started = total > 0 or state == "complete"
                 traders.append(
                     {
@@ -59,7 +65,7 @@ class CandidateAuditProgressService:
                         "wallet": wallet,
                         "label": str(raw_trader.get("label") or "").strip(),
                         "transactions": total,
-                        "maximum_transactions": maximum_transactions,
+                        "maximum_transactions": displayed_maximum,
                         "score": self._optional_float(audit.get("score_after")),
                         "state": state,
                         "started": started,

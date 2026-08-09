@@ -91,6 +91,17 @@ class Settings(BaseSettings):
         ge=100,
         le=10_000,
     )
+    candidate_adaptive_initial_transactions: int = Field(default=300, ge=100)
+    candidate_adaptive_continuation_score: float = Field(
+        default=75, ge=0, le=100
+    )
+    candidate_adaptive_max_unmatched_sell_ratio: float = Field(
+        default=0.25, ge=0, le=1
+    )
+    candidate_adaptive_min_realized_positions: int = Field(default=5, ge=1)
+    candidate_adaptive_min_priced_trade_ratio: float = Field(
+        default=0.6, ge=0, le=1
+    )
     candidate_enrichment_max_per_cycle: int = Field(default=1, ge=1, le=10)
     candidate_enrichment_retry_seconds: float = Field(default=1800, gt=0)
     candidate_source_window_hours: int = Field(default=24, ge=1, le=168)
@@ -145,6 +156,7 @@ class Settings(BaseSettings):
     telegram_chat_ids: str = ""
     telegram_status_interval_seconds: float = Field(default=1800, gt=0)
     telegram_status_window_minutes: int = Field(default=30, ge=1, le=1440)
+    telegram_worker_summary_enabled: bool = True
 
     @property
     def telegram_recipients(self) -> tuple[str, ...]:

@@ -13,6 +13,8 @@ import httpx
 class TokenMarketQuote:
     price_usd: float
     pair_url: str | None
+    price_native: float | None = None
+    quote_token_address: str | None = None
     liquidity_usd: float = 0.0
     volume_5m_usd: float = 0.0
     buys_5m: int = 0
@@ -263,6 +265,13 @@ class DexScreenerClient:
             quote = TokenMarketQuote(
                 price_usd=price_usd,
                 pair_url=pair_url if isinstance(pair_url, str) else None,
+                price_native=self._positive_float(item.get("priceNative")),
+                quote_token_address=(
+                    str(item["quoteToken"].get("address"))
+                    if isinstance(item.get("quoteToken"), dict)
+                    and item["quoteToken"].get("address")
+                    else None
+                ),
                 liquidity_usd=liquidity_usd,
                 volume_5m_usd=volume_5m_usd,
                 buys_5m=buys_5m,

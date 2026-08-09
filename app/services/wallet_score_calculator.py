@@ -4,7 +4,7 @@ from app.core.analytics import TokenPosition, WalletAnalytics
 from app.core.scoring import WalletScore
 
 
-METHODOLOGY_VERSION = "wallet-v2"
+METHODOLOGY_VERSION = "wallet-v3"
 
 
 class WalletScoreCalculator:
@@ -32,8 +32,57 @@ class WalletScoreCalculator:
             if realized_cost_basis > 0
             else 0.0
         )
-        performance_score = (
-            self._clamp(realized_roi, 0, 0.5) / 0.5 * 35
+        realized_positions = [
+            position
+            for position in positions
+            if position.realized_cost_basis_sol > 0
+        ]
+        profitable_positions = [
+            position
+            for position in realized_positions
+            if position.realized_pnl_sol > 0
+        ]
+        win_rate = (
+            len(profitable_positions) / len(realized_positions)
+            if realized_positions
+            else 0.0
+        )
+        gross_profit = sum(
+            position.realized_pnl_sol for position in profitable_positions
+        )
+        top_position = max(
+            profitable_positions,
+            key=lambda position: position.realized_pnl_sol,
+            default=None,
+        )
+        top_pnl = top_position.realized_pnl_sol if top_position else 0.0
+        top_cost_basis = (
+            top_position.realized_cost_basis_sol if top_position else 0.0
+        )
+        pnl_concentration = (
+            self._clamp(top_pnl / gross_profit, 0, 1)
+            if gross_profit > 0
+            else 0.0
+        )
+        pnl_ex_top = realized_pnl - top_pnl
+        cost_basis_ex_top = max(realized_cost_basis - top_cost_basis, 0.0)
+        roi_ex_top = (
+            pnl_ex_top / cost_basis_ex_top
+            if cost_basis_ex_top > 0
+            else 0.0
+        )
+        roi_score = self._clamp(realized_roi, 0, 0.5) / 0.5 * 10
+        win_rate_score = win_rate * 10
+        concentration_score = (
+            self._clamp((1 - pnl_concentration) / 0.8, 0, 1) * 5
+            if gross_profit > 0
+            else 0.0
+        )
+        robust_roi_score = (
+            self._clamp(roi_ex_top, 0, 0.5) / 0.5 * 10
+        )
+        performance_score = sum(
+            (roi_score, win_rate_score, concentration_score, robust_roi_score)
         )
 
         total_sold = sum(position.total_sold for position in positions)
@@ -83,6 +132,12 @@ class WalletScoreCalculator:
             unmatched_sell_ratio=round(unmatched_ratio, 6),
             priced_trade_ratio=round(priced_trade_ratio, 6),
             realized_cost_basis_sol=round(realized_cost_basis, 9),
+            realized_position_count=len(realized_positions),
+            profitable_position_count=len(profitable_positions),
+            win_rate=round(win_rate, 6),
+            pnl_concentration_ratio=round(pnl_concentration, 6),
+            realized_pnl_ex_top_position_sol=round(pnl_ex_top, 9),
+            realized_roi_ex_top_position=round(roi_ex_top, 6),
         )
 
     @staticmethod

@@ -119,6 +119,33 @@ def service(cursors: FakeCursors, detection: FakeDetection) -> CandidateEnrichme
     )
 
 
+def test_adaptive_audit_only_stops_when_low_score_data_is_complete_enough() -> None:
+    enrichment = service(FakeCursors(), FakeDetection())
+    complete_low_score = SimpleNamespace(
+        score=60,
+        unmatched_sell_ratio=0.1,
+        priced_trade_ratio=0.9,
+        realized_position_count=10,
+    )
+    incomplete_low_score = SimpleNamespace(
+        score=55,
+        unmatched_sell_ratio=0.8,
+        priced_trade_ratio=0.9,
+        realized_position_count=10,
+    )
+    strong_score = SimpleNamespace(
+        score=76,
+        unmatched_sell_ratio=0,
+        priced_trade_ratio=1,
+        realized_position_count=20,
+    )
+
+    assert enrichment._should_stop_early(299, complete_low_score) is False  # type: ignore[arg-type]
+    assert enrichment._should_stop_early(300, incomplete_low_score) is False  # type: ignore[arg-type]
+    assert enrichment._should_stop_early(300, strong_score) is False  # type: ignore[arg-type]
+    assert enrichment._should_stop_early(300, complete_low_score) is True  # type: ignore[arg-type]
+
+
 @pytest.mark.asyncio
 async def test_candidate_history_is_ingested_oldest_first_and_promoted() -> None:
     cursors = FakeCursors()

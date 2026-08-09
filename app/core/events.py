@@ -142,6 +142,10 @@ class AlphaSignalGenerated(Event):
     market_volume_5m_usd: float | None = None
     market_buys_5m: int | None = None
     market_sells_5m: int | None = None
+    trader_entry_price_sol: float | None = None
+    trader_entry_price_usd: float | None = None
+    trader_buy_value_usd: float | None = None
+    market_price_vs_entry: float | None = None
     observed_top_trader_count: int = 1
     trader_long_hold_positions: int = 0
     trader_max_trades_60s: int = 0

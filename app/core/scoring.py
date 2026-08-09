@@ -19,6 +19,12 @@ class WalletScore:
     unmatched_sell_ratio: float
     priced_trade_ratio: float = 0.0
     realized_cost_basis_sol: float = 0.0
+    realized_position_count: int = 0
+    profitable_position_count: int = 0
+    win_rate: float = 0.0
+    pnl_concentration_ratio: float = 0.0
+    realized_pnl_ex_top_position_sol: float = 0.0
+    realized_roi_ex_top_position: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)

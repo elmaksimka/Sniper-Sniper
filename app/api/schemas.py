@@ -268,6 +268,12 @@ class WalletScoreRead(BaseModel):
     unmatched_sell_ratio: float
     priced_trade_ratio: float
     realized_cost_basis_sol: float
+    realized_position_count: int
+    profitable_position_count: int
+    win_rate: float
+    pnl_concentration_ratio: float
+    realized_pnl_ex_top_position_sol: float
+    realized_roi_ex_top_position: float
 
 
 class TokenScoreRead(BaseModel):
@@ -360,6 +366,20 @@ class WalletScoreSnapshotRead(WalletScoreRead):
             priced_trade_ratio=float(snapshot.priced_trade_ratio or 0),
             realized_cost_basis_sol=float(
                 snapshot.realized_cost_basis_sol or 0
+            ),
+            realized_position_count=int(snapshot.realized_position_count or 0),
+            profitable_position_count=int(
+                snapshot.profitable_position_count or 0
+            ),
+            win_rate=float(snapshot.win_rate or 0),
+            pnl_concentration_ratio=float(
+                snapshot.pnl_concentration_ratio or 0
+            ),
+            realized_pnl_ex_top_position_sol=float(
+                snapshot.realized_pnl_ex_top_position_sol or 0
+            ),
+            realized_roi_ex_top_position=float(
+                snapshot.realized_roi_ex_top_position or 0
             ),
             updated_at=snapshot.updated_at,
         )

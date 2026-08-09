@@ -58,6 +58,11 @@ class CandidateEnrichmentService:
         source_early_entry_max_multiple: float = 2,
         external_source: TopTraderCandidateSource | None = None,
         maximum_history_transactions: int = 1_000,
+        adaptive_initial_transactions: int = 300,
+        adaptive_continuation_score: float = 75,
+        adaptive_max_unmatched_sell_ratio: float = 0.25,
+        adaptive_min_realized_positions: int = 5,
+        adaptive_min_priced_trade_ratio: float = 0.6,
     ) -> None:
         self.scores = scores
         self.monitors = monitors
@@ -79,6 +84,13 @@ class CandidateEnrichmentService:
         self.source_early_entry_max_multiple = source_early_entry_max_multiple
         self.external_source = external_source
         self.maximum_history_transactions = maximum_history_transactions
+        self.adaptive_initial_transactions = adaptive_initial_transactions
+        self.adaptive_continuation_score = adaptive_continuation_score
+        self.adaptive_max_unmatched_sell_ratio = (
+            adaptive_max_unmatched_sell_ratio
+        )
+        self.adaptive_min_realized_positions = adaptive_min_realized_positions
+        self.adaptive_min_priced_trade_ratio = adaptive_min_priced_trade_ratio
         self.logger = get_logger("candidate-enrichment")
 
     async def run_once(self) -> CandidateEnrichmentResult:
@@ -321,8 +333,6 @@ class CandidateEnrichmentService:
                 history_capped = (
                     history_total >= self.maximum_history_transactions
                 )
-                audit_complete = page.pagination_token is None or history_capped
-                audit_state = "complete" if audit_complete else "in_progress"
                 updated = (
                     await self.scores.get_by_wallet_id(
                         candidate_snapshot.wallet_id
@@ -330,6 +340,13 @@ class CandidateEnrichmentService:
                     if candidate_snapshot is not None
                     else await self.scores.get_by_wallet_address(address)
                 )
+                early_stopped = self._should_stop_early(history_total, updated)
+                audit_complete = (
+                    page.pagination_token is None
+                    or history_capped
+                    or early_stopped
+                )
+                audit_state = "complete" if audit_complete else "in_progress"
                 monitor = await self.monitors.get_by_address(address)
                 was_promoted = bool(monitor is not None and monitor.enabled)
                 if monitor is not None and transactions:
@@ -355,6 +372,7 @@ class CandidateEnrichmentService:
                             None if audit_complete else page.pagination_token
                         ),
                         "history_capped": history_capped,
+                        "early_stopped": early_stopped,
                         "score_before": (
                             candidate_snapshot.score
                             if candidate_snapshot is not None
@@ -408,6 +426,23 @@ class CandidateEnrichmentService:
             last_audit_state,
             last_history_total,
             last_history_capped,
+        )
+
+    def _should_stop_early(
+        self,
+        history_total: int,
+        snapshot: WalletScoreSnapshot | None,
+    ) -> bool:
+        if history_total < self.adaptive_initial_transactions or snapshot is None:
+            return False
+        if snapshot.score >= self.adaptive_continuation_score:
+            return False
+        return (
+            snapshot.unmatched_sell_ratio
+            <= self.adaptive_max_unmatched_sell_ratio
+            and snapshot.priced_trade_ratio >= self.adaptive_min_priced_trade_ratio
+            and snapshot.realized_position_count
+            >= self.adaptive_min_realized_positions
         )
 
     def _ready(self, cursor: object | None) -> bool:

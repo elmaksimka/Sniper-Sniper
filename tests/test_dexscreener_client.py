@@ -75,6 +75,8 @@ async def test_quote_uses_highest_liquidity_pair_for_requested_base_token() -> N
                 {
                     "baseToken": {"address": "mint"},
                     "priceUsd": "0.02",
+                    "priceNative": "0.0001",
+                    "quoteToken": {"address": "So11111111111111111111111111111111111111112"},
                     "liquidity": {"usd": 500},
                     "volume": {"m5": 7500},
                     "txns": {"m5": {"buys": 8, "sells": 4}},
@@ -95,6 +97,8 @@ async def test_quote_uses_highest_liquidity_pair_for_requested_base_token() -> N
 
     assert quote is not None
     assert quote.price_usd == 0.02
+    assert quote.price_native == 0.0001
+    assert quote.quote_token_address == "So11111111111111111111111111111111111111112"
     assert quote.pair_url == "https://dexscreener.com/solana/best"
     assert quote.liquidity_usd == 500
     assert quote.volume_5m_usd == 7500

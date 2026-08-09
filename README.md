@@ -137,7 +137,7 @@ Read endpoints:
 - `POST /api/v1/monitors/{address}/enable`
 - `DELETE /api/v1/monitors/{address}`
 
-### Wallet score v2
+### Wallet score v3
 
 The wallet score is an explainable 0-100 heuristic composed of:
 

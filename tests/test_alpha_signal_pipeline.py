@@ -87,11 +87,31 @@ class FakeTraderStyle:
         )
 
 
+class FakeRapidTraderStyle:
+    async def evaluate(self, wallet_address: str) -> TraderStyleProfile:
+        return TraderStyleProfile(
+            eligible=False,
+            reason="rapid_round_trip",
+            total_trades=312,
+            unique_tokens=89,
+            max_trades_60s=7,
+            max_distinct_tokens_60s=2,
+            max_trades_per_token=39,
+            max_side_switches_per_token=2,
+            rapid_round_trips=21,
+            long_hold_positions=23,
+        )
+
+
 def qualifying_market() -> FakeMarketData:
     return FakeMarketData(
         TokenMarketQuote(
             price_usd=0.01,
             pair_url="https://dexscreener.com/solana/pair",
+            price_native=0.00005,
+            quote_token_address=(
+                "So11111111111111111111111111111111111111112"
+            ),
             liquidity_usd=20_000,
             volume_5m_usd=7_500,
             buys_5m=8,
@@ -149,6 +169,48 @@ async def test_qualifying_buy_emits_alpha_signal() -> None:
     assert generated[0].market_liquidity_usd == 20_000
     assert generated[0].market_volume_5m_usd == 7_500
     assert generated[0].observed_top_trader_count == 2
+    assert generated[0].trader_entry_price_sol == pytest.approx(0.025)
+    assert generated[0].trader_entry_price_usd == pytest.approx(5)
+    assert generated[0].trader_buy_value_usd == pytest.approx(500)
+    assert generated[0].market_price_vs_entry == pytest.approx(0.002)
+
+
+@pytest.mark.asyncio
+async def test_curated_rapid_trader_can_emit_market_qualified_signal() -> None:
+    event_bus = EventBus()
+    alerts = FakeAlerts()
+    collector = AlphaSignalCollector(
+        event_bus=event_bus,
+        wallets=AddressRepository(SimpleNamespace(id=1)),  # type: ignore[arg-type]
+        wallet_scores=ScoreRepository(95.7, "A"),  # type: ignore[arg-type]
+        scoring=EarlyScoring(70),  # type: ignore[arg-type]
+        alerts=alerts,  # type: ignore[arg-type]
+        wallet_threshold=65,
+        token_threshold=45,
+        token_min_trades=3,
+        token_min_wallets=2,
+        maximum_trade_age_seconds=300,
+        market_data=qualifying_market(),  # type: ignore[arg-type]
+        market_min_liquidity_usd=15_000,
+        market_min_volume_5m_usd=5_000,
+        market_min_transactions_5m=10,
+        market_max_pair_age_minutes=60,
+        trader_style=FakeRapidTraderStyle(),  # type: ignore[arg-type]
+    )
+    collector.register()
+
+    await event_bus.publish(
+        TradeScored(
+            token_address="token",
+            wallet="wallet",
+            side="buy",
+            amount=100,
+            sol_change=-2.5,
+            signature="rapid-signature",
+        )
+    )
+
+    assert alerts.calls == 1
 
 
 @pytest.mark.asyncio
