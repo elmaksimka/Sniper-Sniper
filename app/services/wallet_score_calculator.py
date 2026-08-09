@@ -4,7 +4,7 @@ from app.core.analytics import TokenPosition, WalletAnalytics
 from app.core.scoring import WalletScore
 
 
-METHODOLOGY_VERSION = "wallet-v1"
+METHODOLOGY_VERSION = "wallet-v2"
 
 
 class WalletScoreCalculator:
@@ -24,10 +24,17 @@ class WalletScoreCalculator:
         exit_experience_score = exit_ratio * 20
 
         realized_pnl = sum(position.realized_pnl_sol for position in positions)
-        sol_spent = sum(position.sol_spent for position in positions)
-        realized_roi = realized_pnl / sol_spent if sol_spent > 0 else 0.0
-        normalized_roi = (self._clamp(realized_roi, -0.5, 0.5) + 0.5) / 1.0
-        performance_score = normalized_roi * 35
+        realized_cost_basis = sum(
+            position.realized_cost_basis_sol for position in positions
+        )
+        realized_roi = (
+            realized_pnl / realized_cost_basis
+            if realized_cost_basis > 0
+            else 0.0
+        )
+        performance_score = (
+            self._clamp(realized_roi, 0, 0.5) / 0.5 * 35
+        )
 
         total_sold = sum(position.total_sold for position in positions)
         unmatched_sells = sum(
@@ -38,7 +45,18 @@ class WalletScoreCalculator:
             if total_sold > 0
             else 0.0
         )
-        data_quality_score = (1 - unmatched_ratio) * 10
+        priced_trade_ratio = (
+            self._clamp(
+                analytics.priced_trade_count / analytics.total_trades,
+                0,
+                1,
+            )
+            if analytics.total_trades > 0
+            else 0.0
+        )
+        data_quality_score = (
+            (1 - unmatched_ratio) * priced_trade_ratio * 10
+        )
 
         score = sum(
             (
@@ -63,6 +81,8 @@ class WalletScoreCalculator:
             realized_pnl_sol=round(realized_pnl, 9),
             realized_roi=round(realized_roi, 6),
             unmatched_sell_ratio=round(unmatched_ratio, 6),
+            priced_trade_ratio=round(priced_trade_ratio, 6),
+            realized_cost_basis_sol=round(realized_cost_basis, 9),
         )
 
     @staticmethod

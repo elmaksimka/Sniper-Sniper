@@ -1,11 +1,11 @@
 from datetime import UTC, datetime
 
 from sqlalchemy import (
-    BigInteger,
     DateTime,
     Float,
     ForeignKey,
     JSON,
+    Numeric,
     String,
     UniqueConstraint,
 )
@@ -63,7 +63,7 @@ class Token(Base):
     )
 
     supply: Mapped[int | None] = mapped_column(
-        BigInteger,
+        Numeric(20, 0),
         nullable=True,
     )
 
@@ -246,6 +246,8 @@ class WalletScoreSnapshot(Base):
     realized_pnl_sol: Mapped[float] = mapped_column(Float)
     realized_roi: Mapped[float] = mapped_column(Float)
     unmatched_sell_ratio: Mapped[float] = mapped_column(Float)
+    priced_trade_ratio: Mapped[float] = mapped_column(Float, default=0.0)
+    realized_cost_basis_sol: Mapped[float] = mapped_column(Float, default=0.0)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utc_now,

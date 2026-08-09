@@ -266,6 +266,8 @@ class WalletScoreRead(BaseModel):
     realized_pnl_sol: float
     realized_roi: float
     unmatched_sell_ratio: float
+    priced_trade_ratio: float
+    realized_cost_basis_sol: float
 
 
 class TokenScoreRead(BaseModel):
@@ -355,6 +357,10 @@ class WalletScoreSnapshotRead(WalletScoreRead):
             realized_pnl_sol=snapshot.realized_pnl_sol,
             realized_roi=snapshot.realized_roi,
             unmatched_sell_ratio=snapshot.unmatched_sell_ratio,
+            priced_trade_ratio=float(snapshot.priced_trade_ratio or 0),
+            realized_cost_basis_sol=float(
+                snapshot.realized_cost_basis_sol or 0
+            ),
             updated_at=snapshot.updated_at,
         )
 

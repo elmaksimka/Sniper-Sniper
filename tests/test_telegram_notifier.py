@@ -94,6 +94,34 @@ async def test_disabled_notifier_makes_no_request() -> None:
 
 
 @pytest.mark.asyncio
+async def test_delivery_retries_after_a_transient_failure() -> None:
+    calls = 0
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(
+                502,
+                json={"ok": False, "description": "temporary failure"},
+                request=request,
+            )
+        return httpx.Response(200, json={"ok": True}, request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        notifier = TelegramNotifier(
+            "secret-token",
+            ["100"],
+            http_client=http,
+            retry_delays_seconds=(0,),
+        )
+        results = await notifier.send_text("status")
+
+    assert results == {"100": True}
+    assert calls == 2
+
+
+@pytest.mark.asyncio
 async def test_worker_status_notifications_are_delivered() -> None:
     messages: list[str] = []
 

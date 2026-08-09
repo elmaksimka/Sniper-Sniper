@@ -9,6 +9,7 @@ def make_analytics(
     buy_count: int = 10,
     sell_count: int = 10,
     unique_tokens: int = 10,
+    priced_trade_count: int | None = None,
 ) -> WalletAnalytics:
     return WalletAnalytics(
         address="wallet",
@@ -21,6 +22,9 @@ def make_analytics(
         net_sol_change=0,
         first_trade_at=None,
         last_trade_at=None,
+        priced_trade_count=(
+            total_trades if priced_trade_count is None else priced_trade_count
+        ),
     )
 
 
@@ -29,6 +33,7 @@ def make_position(
     sol_spent: float = 10,
     total_sold: float = 10,
     unmatched_sells: float = 0,
+    realized_cost_basis: float | None = None,
 ) -> TokenPosition:
     return TokenPosition(
         token_address="mint",
@@ -42,6 +47,11 @@ def make_position(
         sol_received=15,
         unmatched_sell_quantity=unmatched_sells,
         trade_count=2,
+        realized_cost_basis_sol=(
+            sol_spent
+            if realized_cost_basis is None
+            else realized_cost_basis
+        ),
     )
 
 
@@ -58,19 +68,19 @@ def test_maximum_wallet_score_is_explainable() -> None:
     assert score.exit_experience_score == 20
     assert score.realized_performance_score == 35
     assert score.data_quality_score == 10
-    assert score.methodology_version == "wallet-v1"
+    assert score.methodology_version == "wallet-v2"
 
 
-def test_empty_wallet_has_neutral_performance_baseline() -> None:
+def test_empty_wallet_receives_no_unearned_baseline_points() -> None:
     score = WalletScoreCalculator().calculate(
         make_analytics(0, 0, 0, 0),
         [],
     )
 
-    assert score.score == 27.5
+    assert score.score == 0
     assert score.grade == "E"
-    assert score.realized_performance_score == 17.5
-    assert score.data_quality_score == 10
+    assert score.realized_performance_score == 0
+    assert score.data_quality_score == 0
 
 
 def test_unmatched_sells_reduce_data_quality() -> None:
@@ -81,6 +91,33 @@ def test_unmatched_sells_reduce_data_quality() -> None:
 
     assert score.unmatched_sell_ratio == 0.5
     assert score.data_quality_score == 5
+
+
+def test_open_inventory_does_not_dilute_realized_roi() -> None:
+    score = WalletScoreCalculator().calculate(
+        make_analytics(total_trades=3, buy_count=2, sell_count=1),
+        [
+            make_position(realized_pnl=1, realized_cost_basis=1),
+            make_position(
+                realized_pnl=0,
+                sol_spent=100,
+                realized_cost_basis=0,
+            ),
+        ],
+    )
+
+    assert score.realized_roi == 1
+    assert score.realized_performance_score == 35
+
+
+def test_unpriced_trades_reduce_quality_coverage() -> None:
+    score = WalletScoreCalculator().calculate(
+        make_analytics(total_trades=10, priced_trade_count=6),
+        [make_position()],
+    )
+
+    assert score.priced_trade_ratio == 0.6
+    assert score.data_quality_score == 6
 
 
 @pytest.mark.parametrize(

@@ -16,6 +16,7 @@ class WalletAnalytics:
     net_sol_change: float
     first_trade_at: datetime | None
     last_trade_at: datetime | None
+    priced_trade_count: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +47,7 @@ class TokenPosition:
     sol_received: float
     unmatched_sell_quantity: float
     trade_count: int
+    realized_cost_basis_sol: float = 0.0
 
     @property
     def has_incomplete_history(self) -> bool:

@@ -17,6 +17,8 @@ class WalletScore:
     realized_pnl_sol: float
     realized_roi: float
     unmatched_sell_ratio: float
+    priced_trade_ratio: float = 0.0
+    realized_cost_basis_sol: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)

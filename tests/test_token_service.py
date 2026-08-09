@@ -32,3 +32,14 @@ async def test_token_metadata_is_bounded_to_database_columns() -> None:
     assert token.symbol == "s" * 32
     assert token.name == "n" * 128
     assert token.creator == "c" * 64
+
+
+@pytest.mark.asyncio
+async def test_token_supply_accepts_full_solana_uint64_range() -> None:
+    repository = FakeTokenRepository()
+    service = TokenService.__new__(TokenService)
+    service.repository = repository  # type: ignore[assignment]
+
+    token = await service.create_token("mint", supply=2**64 - 1)
+
+    assert token.supply == 2**64 - 1

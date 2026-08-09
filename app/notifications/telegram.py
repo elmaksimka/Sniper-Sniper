@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Iterable
 from typing import Any
 
@@ -19,10 +20,12 @@ class TelegramNotifier:
         recipients: Iterable[str],
         http_client: httpx.AsyncClient | None = None,
         market_data_client: DexScreenerClient | None = None,
+        retry_delays_seconds: tuple[float, ...] = (1.0, 3.0),
     ) -> None:
         self.bot_token = bot_token.strip()
         self.recipients = tuple(dict.fromkeys(str(item).strip() for item in recipients))
         self._client = http_client
+        self._retry_delays_seconds = retry_delays_seconds
         self.market_data = market_data_client or DexScreenerClient()
         self.logger = get_logger("telegram-notifier")
 
@@ -62,15 +65,46 @@ class TelegramNotifier:
             return {}
         results: dict[str, bool] = {}
         for recipient in self.recipients:
-            try:
-                results[recipient] = await self._send(recipient, text)
-            except Exception:
-                results[recipient] = False
-                self.logger.error(
-                    "telegram_delivery_failed",
-                    recipient=recipient,
-                )
+            attempts = len(self._retry_delays_seconds) + 1
+            for attempt in range(1, attempts + 1):
+                try:
+                    results[recipient] = await self._send(recipient, text)
+                    break
+                except Exception as exc:
+                    if attempt >= attempts:
+                        results[recipient] = False
+                        self._log_delivery_failure(recipient, attempt, exc)
+                        break
+                    self.logger.warning(
+                        "telegram_delivery_retry",
+                        recipient=recipient,
+                        attempt=attempt,
+                        attempts=attempts,
+                        error_type=type(exc).__name__,
+                    )
+                    await asyncio.sleep(self._retry_delays_seconds[attempt - 1])
         return results
+
+    def _log_delivery_failure(
+        self,
+        recipient: str,
+        attempt: int,
+        exc: Exception,
+    ) -> None:
+        fields: dict[str, Any] = {
+            "recipient": recipient,
+            "attempts": attempt,
+            "error_type": type(exc).__name__,
+        }
+        if isinstance(exc, httpx.HTTPStatusError):
+            fields["status_code"] = exc.response.status_code
+            try:
+                body = exc.response.json()
+                if isinstance(body, dict):
+                    fields["description"] = str(body.get("description", ""))[:300]
+            except ValueError:
+                pass
+        self.logger.error("telegram_delivery_failed", **fields)
 
     async def send_worker_started(
         self,

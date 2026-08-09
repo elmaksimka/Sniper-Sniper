@@ -13,8 +13,10 @@ ZERO = Decimal(0)
 @dataclass(slots=True)
 class _PositionState:
     quantity: Decimal = ZERO
+    priced_quantity: Decimal = ZERO
     cost_basis: Decimal = ZERO
     realized_pnl: Decimal = ZERO
+    realized_cost_basis: Decimal = ZERO
     total_bought: Decimal = ZERO
     total_sold: Decimal = ZERO
     sol_spent: Decimal = ZERO
@@ -44,7 +46,9 @@ class PositionCalculator:
                 state.quantity += amount
                 state.total_bought += amount
                 spent = max(-sol_change, ZERO)
-                state.cost_basis += spent
+                if spent > ZERO:
+                    state.priced_quantity += amount
+                    state.cost_basis += spent
                 state.sol_spent += spent
             elif trade.side == "sell":
                 self._apply_sell(state, amount, max(sol_change, ZERO))
@@ -75,16 +79,34 @@ class PositionCalculator:
         if matched == ZERO:
             return
 
-        average_cost = state.cost_basis / state.quantity
-        matched_cost = average_cost * matched
+        priced_matched = (
+            matched * state.priced_quantity / state.quantity
+            if state.quantity > ZERO
+            else ZERO
+        )
+        average_cost = (
+            state.cost_basis / state.priced_quantity
+            if state.priced_quantity > ZERO
+            else ZERO
+        )
+        matched_cost = average_cost * priced_matched
         matched_proceeds = proceeds * (matched / amount)
+        priced_proceeds = (
+            matched_proceeds * (priced_matched / matched)
+            if matched > ZERO
+            else ZERO
+        )
 
-        state.realized_pnl += matched_proceeds - matched_cost
+        if proceeds > ZERO and priced_matched > ZERO:
+            state.realized_pnl += priced_proceeds - matched_cost
+            state.realized_cost_basis += matched_cost
         state.quantity -= matched
+        state.priced_quantity -= priced_matched
         state.cost_basis -= matched_cost
 
-        if state.quantity == ZERO:
+        if state.quantity == ZERO or state.priced_quantity == ZERO:
             state.cost_basis = ZERO
+            state.priced_quantity = ZERO
 
     @staticmethod
     def _to_position(
@@ -92,8 +114,8 @@ class PositionCalculator:
         state: _PositionState,
     ) -> TokenPosition:
         average_entry = (
-            state.cost_basis / state.quantity
-            if state.quantity > ZERO
+            state.cost_basis / state.priced_quantity
+            if state.priced_quantity > ZERO
             else ZERO
         )
         return TokenPosition(
@@ -108,4 +130,5 @@ class PositionCalculator:
             sol_received=float(state.sol_received),
             unmatched_sell_quantity=float(state.unmatched_sells),
             trade_count=state.trade_count,
+            realized_cost_basis_sol=float(state.realized_cost_basis),
         )

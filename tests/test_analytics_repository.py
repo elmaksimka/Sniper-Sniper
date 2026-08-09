@@ -33,6 +33,7 @@ async def test_wallet_analytics_query_and_mapping() -> None:
             buy_count=2,
             sell_count=1,
             unique_tokens=2,
+            priced_trade_count=2,
             sol_spent=2.5,
             sol_received=1,
             net_sol_change=-1.5,
@@ -49,6 +50,7 @@ async def test_wallet_analytics_query_and_mapping() -> None:
     assert "count(DISTINCT trades.token_id)" in session.sql
     assert metrics.total_trades == 3
     assert metrics.sol_spent == 2.5
+    assert metrics.priced_trade_count == 2
 
 
 @pytest.mark.asyncio

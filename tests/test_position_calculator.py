@@ -42,6 +42,7 @@ def test_weighted_cost_basis_and_partial_sell() -> None:
     assert position.cost_basis_sol == pytest.approx(2.25)
     assert position.average_entry_price_sol == pytest.approx(0.15)
     assert position.realized_pnl_sol == pytest.approx(0.25)
+    assert position.realized_cost_basis_sol == pytest.approx(0.75)
     assert position.sol_spent == 3
     assert position.sol_received == 1
     assert position.has_incomplete_history is False
@@ -75,6 +76,33 @@ def test_oversell_allocates_proceeds_only_to_matched_quantity() -> None:
     assert position.quantity == 0
     assert position.unmatched_sell_quantity == 10
     assert position.realized_pnl_sol == pytest.approx(0.5)
+    assert position.realized_cost_basis_sol == pytest.approx(1)
+
+
+def test_unpriced_buy_does_not_create_fake_realized_profit() -> None:
+    token = Token(id=1, address="mint")
+    trades = [
+        make_trade(1, token, "buy", 10, 0),
+        make_trade(2, token, "sell", 10, 1),
+    ]
+
+    position = PositionCalculator().calculate(trades, include_closed=True)[0]
+
+    assert position.realized_pnl_sol == 0
+    assert position.realized_cost_basis_sol == 0
+
+
+def test_unpriced_sell_does_not_create_fake_realized_loss() -> None:
+    token = Token(id=1, address="mint")
+    trades = [
+        make_trade(1, token, "buy", 10, -1),
+        make_trade(2, token, "sell", 10, 0),
+    ]
+
+    position = PositionCalculator().calculate(trades, include_closed=True)[0]
+
+    assert position.realized_pnl_sol == 0
+    assert position.realized_cost_basis_sol == 0
 
 
 def test_closed_positions_are_hidden_by_default() -> None:

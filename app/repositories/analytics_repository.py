@@ -30,6 +30,12 @@ class AnalyticsRepository:
                 .filter(Trade.side == "sell")
                 .label("sell_count"),
                 func.count(distinct(Trade.token_id)).label("unique_tokens"),
+                func.count(Trade.id)
+                .filter(
+                    ((Trade.side == "buy") & (Trade.sol_change < 0))
+                    | ((Trade.side == "sell") & (Trade.sol_change > 0))
+                )
+                .label("priced_trade_count"),
                 func.coalesce(
                     func.sum(
                         case(
@@ -77,6 +83,7 @@ class AnalyticsRepository:
             net_sol_change=float(row.net_sol_change),
             first_trade_at=row.first_trade_at,
             last_trade_at=row.last_trade_at,
+            priced_trade_count=int(row.priced_trade_count),
         )
 
     async def get_token_metrics(self, address: str) -> TokenAnalytics:

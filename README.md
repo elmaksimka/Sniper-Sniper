@@ -137,7 +137,7 @@ Read endpoints:
 - `POST /api/v1/monitors/{address}/enable`
 - `DELETE /api/v1/monitors/{address}`
 
-### Wallet score v1
+### Wallet score v2
 
 The wallet score is an explainable 0-100 heuristic composed of:
 
@@ -147,9 +147,12 @@ The wallet score is an explainable 0-100 heuristic composed of:
 - realized performance: 35 points
 - data quality: 10 points
 
-The API returns every component, the methodology version, realized ROI, and
-the unmatched-sell ratio. It is an analytics heuristic, not a prediction or
-financial advice.
+The API returns every component, the methodology version, realized ROI,
+realized cost basis, unmatched-sell ratio, and priced-trade coverage. Realized
+ROI uses only the cost basis of quantities actually sold with known SOL flows;
+open inventory and unpriced swaps do not create artificial profit or loss. See
+[`docs/WALLET_SCORING.md`](docs/WALLET_SCORING.md). It is an analytics heuristic,
+not a prediction or financial advice.
 
 ### Token score v1
 

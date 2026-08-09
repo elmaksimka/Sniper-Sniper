@@ -280,5 +280,7 @@ class ScoreSnapshotRepository:
             "realized_pnl_sol": score.realized_pnl_sol,
             "realized_roi": score.realized_roi,
             "unmatched_sell_ratio": score.unmatched_sell_ratio,
+            "priced_trade_ratio": score.priced_trade_ratio,
+            "realized_cost_basis_sol": score.realized_cost_basis_sol,
             "updated_at": datetime.now(UTC),
         }
