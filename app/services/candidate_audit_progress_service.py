@@ -49,6 +49,9 @@ class CandidateAuditProgressService:
                 total = self._non_negative_int(
                     audit.get("transactions_processed_total", 0)
                 )
+                available_total = self._optional_non_negative_int(
+                    audit.get("transactions_available_total")
+                )
                 state = str(audit.get("state", "pending"))
                 history_capped = bool(audit.get("history_capped", False))
                 early_stopped = bool(audit.get("early_stopped", False))
@@ -66,6 +69,7 @@ class CandidateAuditProgressService:
                         "wallet": wallet,
                         "label": str(raw_trader.get("label") or "").strip(),
                         "transactions": total,
+                        "total_transactions": available_total,
                         "maximum_transactions": displayed_maximum,
                         "score": self._optional_float(audit.get("score_after")),
                         "copy_score": self._optional_float(audit.get("copy_score")),
@@ -104,6 +108,17 @@ class CandidateAuditProgressService:
             return max(0, int(value))
         except (TypeError, ValueError):
             return 0
+
+    @staticmethod
+    def _optional_non_negative_int(value: object) -> int | None:
+        if value is None:
+            return None
+        if not isinstance(value, (int, float, str, bytes, bytearray)):
+            return None
+        try:
+            return max(0, int(value))
+        except (TypeError, ValueError):
+            return None
 
     @staticmethod
     def _optional_float(value: object) -> float | None:

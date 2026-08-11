@@ -74,6 +74,7 @@ async def test_progress_combines_pair_queue_with_wallet_audits() -> None:
         "wallet": "wallet-1",
         "label": "himothy",
         "transactions": 75,
+        "total_transactions": None,
         "maximum_transactions": 1_000,
         "score": 69.33,
         "copy_score": 61.25,

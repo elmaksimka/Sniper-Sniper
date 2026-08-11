@@ -54,6 +54,11 @@ class FakeMonitors:
 
 
 class FakeScanner:
+    total_transactions = 2
+
+    async def count_address_transactions(self, wallet: str) -> int:
+        return self.total_transactions
+
     async def scan_page(
         self,
         address: str,
@@ -105,11 +110,15 @@ class FakeCursors:
         ]
 
 
-def service(cursors: FakeCursors, detection: FakeDetection) -> CandidateEnrichmentService:
+def service(
+    cursors: FakeCursors,
+    detection: FakeDetection,
+    scanner: FakeScanner | None = None,
+) -> CandidateEnrichmentService:
     return CandidateEnrichmentService(
         scores=FakeScores(),  # type: ignore[arg-type]
         monitors=FakeMonitors(),  # type: ignore[arg-type]
-        scanner=FakeScanner(),  # type: ignore[arg-type]
+        scanner=scanner or FakeScanner(),  # type: ignore[arg-type]
         detection=detection,  # type: ignore[arg-type]
         cursors=cursors,  # type: ignore[arg-type]
         minimum_score=35,
@@ -172,18 +181,158 @@ async def test_candidate_history_is_ingested_oldest_first_and_promoted() -> None
 
 
 @pytest.mark.asyncio
-async def test_completed_candidate_is_not_fetched_again() -> None:
+async def test_completed_candidate_only_backfills_missing_transaction_total() -> None:
     cursor = SimpleNamespace(
         details={"state": "complete", "audit_version": 2},
         last_heartbeat_at=datetime.now(UTC),
     )
     detection = FakeDetection()
+    cursors = FakeCursors(cursor)
 
-    result = await service(FakeCursors(cursor), detection).run_once()
+    result = await service(cursors, detection).run_once()
 
     assert result.wallets_enriched == 0
     assert result.last_wallet is None
     assert detection.signatures == []
+    assert cursors.saved is not None
+    assert cursors.saved["transactions_available_total"] == 2
+
+
+@pytest.mark.asyncio
+async def test_in_progress_full_history_audit_precedes_total_count_backfill() -> None:
+    class PrioritizedScores(FakeScores):
+        async def list_leaderboard(self, **_: Any) -> list[object]:
+            return [
+                SimpleNamespace(
+                    wallet_id=1,
+                    score=45,
+                    wallet=SimpleNamespace(address="needs-total"),
+                ),
+                SimpleNamespace(
+                    wallet_id=2,
+                    score=96,
+                    wallet=SimpleNamespace(address="full-history"),
+                ),
+            ]
+
+    old = datetime(2026, 1, 1, tzinfo=UTC)
+    records = {
+        "needs-total": SimpleNamespace(
+            service_name="candidate:needs-total",
+            details={"state": "complete", "audit_version": 3},
+            last_heartbeat_at=old,
+        ),
+        "full-history": SimpleNamespace(
+            service_name="candidate:full-history",
+            details={
+                "state": "in_progress",
+                "audit_version": 3,
+                "full_history_required": True,
+                "pagination_token": "older-page",
+                "transactions_processed_total": 100,
+                "transactions_available_total": 1_000,
+                "score_after": 96,
+                "copy_score": 83,
+            },
+            last_heartbeat_at=old,
+        ),
+    }
+
+    class PrioritizedCursors(FakeCursors):
+        async def get(self, name: str) -> object | None:
+            return records.get(name.removeprefix("candidate:"))
+
+        async def list_by_prefix(self, prefix: str) -> list[object]:
+            if prefix == "candidate:":
+                return list(records.values())
+            return []
+
+    class RecordingScanner(FakeScanner):
+        def __init__(self) -> None:
+            self.addresses: list[str] = []
+
+        async def scan_page(
+            self,
+            address: str,
+            limit: int,
+            pagination_token: str | None,
+        ) -> object:
+            self.addresses.append(address)
+            return await super().scan_page(address, limit, pagination_token)
+
+    scanner = RecordingScanner()
+    enrichment = CandidateEnrichmentService(
+        scores=PrioritizedScores(),  # type: ignore[arg-type]
+        monitors=FakeMonitors(),  # type: ignore[arg-type]
+        scanner=scanner,  # type: ignore[arg-type]
+        detection=FakeDetection(),  # type: ignore[arg-type]
+        cursors=PrioritizedCursors(),  # type: ignore[arg-type]
+        minimum_score=35,
+        history_limit=20,
+        maximum_candidates=1,
+        retry_seconds=1800,
+    )
+
+    result = await enrichment.run_once()
+
+    assert scanner.addresses == ["full-history"]
+    assert result.last_wallet == "full-history"
+
+
+@pytest.mark.asyncio
+async def test_selected_copy_grade_upgrades_capped_audit_to_full_history() -> None:
+    cursor = SimpleNamespace(
+        details={
+            "state": "complete",
+            "audit_version": 2,
+            "transactions_processed_total": 1_000,
+            "history_capped": True,
+            "score_after": 88,
+            "copy_score": 70,
+        },
+        last_heartbeat_at=datetime.now(UTC),
+    )
+    cursors = FakeCursors(cursor)
+
+    result = await service(cursors, FakeDetection()).run_once()
+
+    assert result.wallets_enriched == 1
+    assert result.history_transactions_total == 2
+    assert cursors.saved is not None
+    assert cursors.saved["audit_version"] == 3
+    assert cursors.saved["full_history_required"] is True
+    assert cursors.saved["history_capped"] is False
+    assert cursors.saved["transactions_available_total"] == 2
+
+
+@pytest.mark.asyncio
+async def test_selected_copy_grade_continues_past_old_thousand_transaction_cap() -> None:
+    cursor = SimpleNamespace(
+        details={
+            "state": "in_progress",
+            "audit_version": 3,
+            "pagination_token": "older-page",
+            "transactions_processed_total": 1_000,
+            "score_after": 79,
+            "copy_score": 80,
+        },
+        last_heartbeat_at=datetime.now(UTC),
+    )
+    cursors = FakeCursors(cursor)
+
+    class LongHistoryScanner(FakeScanner):
+        total_transactions = 1_002
+
+    result = await service(
+        cursors,
+        FakeDetection(),
+        LongHistoryScanner(),
+    ).run_once()
+
+    assert result.history_transactions_total == 1_002
+    assert cursors.saved is not None
+    assert cursors.saved["history_capped"] is False
+    assert cursors.saved["transactions_available_total"] == 1_002
 
 
 @pytest.mark.asyncio

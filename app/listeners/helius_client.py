@@ -199,6 +199,37 @@ class HeliusClient:
             sort_order,
         )
 
+    async def count_transactions_for_address(self, wallet: str) -> int:
+        """Count the complete finalized signature history for a wallet."""
+        total = 0
+        before: str | None = None
+        seen_cursors: set[str] = set()
+        while True:
+            config: dict[str, Any] = {
+                "limit": 1_000,
+                "commitment": "finalized",
+            }
+            if before:
+                config["before"] = before
+            response = await self._request(
+                "getSignaturesForAddress",
+                [wallet, config],
+            )
+            result = response.get("result")
+            signatures = (
+                [item for item in result if isinstance(item, dict)]
+                if isinstance(result, list)
+                else []
+            )
+            total += len(signatures)
+            if len(signatures) < 1_000:
+                return total
+            cursor = signatures[-1].get("signature")
+            if not isinstance(cursor, str) or not cursor or cursor in seen_cursors:
+                return total
+            seen_cursors.add(cursor)
+            before = cursor
+
     async def _get_enhanced_transactions_for_address(
         self,
         wallet: str,
@@ -213,10 +244,6 @@ class HeliusClient:
             "sortOrder": sort_order,
             "limit": min(max(limit, 1), 100),
             "commitment": "finalized",
-            "filters": {
-                "status": "succeeded",
-                "tokenAccounts": "balanceChanged",
-            },
         }
         if pagination_token:
             config["paginationToken"] = pagination_token

@@ -63,6 +63,9 @@ class TransactionScanner:
 
         return TransactionScanPage(normalized, page.pagination_token)
 
+    async def count_address_transactions(self, wallet: str) -> int:
+        return await self.helius.count_transactions_for_address(wallet)
+
     async def scan_address(
         self,
         wallet: str,

@@ -464,6 +464,7 @@ class CopyGradeWalletRead(BaseModel):
     copy_grade: str
     copy_mode: str
     transactions: int
+    total_transactions: int | None = None
     updated_at: datetime
 
 
@@ -473,10 +474,39 @@ class CopyGradeGroupRead(BaseModel):
     items: list[CopyGradeWalletRead]
 
 
+class CopyGradeTokenTraderRead(BaseModel):
+    rank: int
+    wallet: str
+    label: str
+    main_score: float | None
+    copy_score: float | None
+    main_grade: str | None
+    copy_grade: str | None
+    copy_mode: str
+    transactions: int
+    total_transactions: int | None = None
+    maximum_transactions: int
+    state: str
+    started: bool
+
+
+class CopyGradeTokenRead(BaseModel):
+    batch_order: int
+    symbol: str
+    token_address: str
+    pair_address: str
+    complete: bool
+    started_traders: int
+    completed_traders: int
+    total_traders: int
+    traders: list[CopyGradeTokenTraderRead]
+
+
 class CopyGradeDashboardRead(BaseModel):
     updated_at: datetime | None
     total: int
     tokens_total: int
     tokens_completed: int
     tokens_in_progress: int
+    tokens: list[CopyGradeTokenRead]
     groups: list[CopyGradeGroupRead]

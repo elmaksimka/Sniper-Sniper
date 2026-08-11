@@ -66,9 +66,7 @@ class FakeRepository:
     async def get_position(
         self, portfolio_id: int, source_wallet: str, token_address: str
     ) -> PaperCopyPosition | None:
-        if self.position is not None and self.position.quantity > 0:
-            return self.position
-        return None
+        return self.position
 
     async def count_open_positions(self, portfolio_id: int) -> int:
         return int(self.position is not None and self.position.quantity > 0)
@@ -251,6 +249,37 @@ async def test_repeated_buy_is_added_to_the_same_source_position() -> None:
     assert repository.position.quantity == pytest.approx(10 + 10 / 1.01)
     assert repository.position.source_quantity == pytest.approx(200)
     assert account.cash_balance_usd == pytest.approx(90)
+
+
+@pytest.mark.asyncio
+async def test_buy_reopens_existing_closed_position_instead_of_inserting_duplicate() -> None:
+    account = portfolio()
+    repository = FakeRepository(account)
+    closed = PaperCopyPosition(
+        portfolio_id=1,
+        source_wallet=account.source_wallet,
+        token_address="token-address",
+        source_quantity=0,
+        quantity=0,
+        cost_basis_usd=0,
+        entry_price_usd=1,
+        last_price_usd=1,
+        opened_at=datetime(2025, 1, 1, tzinfo=UTC),
+    )
+    repository.position = closed
+    reopened = order("buy")
+    repository.due = reopened
+
+    await PaperCopyService(
+        repository,
+        FakeMarketData(),  # type: ignore[arg-type]
+    ).execute_next()
+
+    assert repository.position is closed
+    assert closed.quantity == pytest.approx(10 / 1.01)
+    assert closed.source_quantity == pytest.approx(100)
+    assert closed.opened_at > datetime(2025, 1, 1, tzinfo=UTC)
+    assert reopened.status == "filled"
 
 
 @pytest.mark.asyncio

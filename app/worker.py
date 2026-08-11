@@ -308,31 +308,30 @@ async def paper_copy_summary_loop(
 ) -> None:
     logger = get_logger("paper-copy-summary")
     while not stop_event.is_set():
+        if leader.is_leader:
+            try:
+                async with async_session_factory() as session:
+                    repository = PaperCopyRepository(session)
+                    portfolio = await repository.get_portfolio(source_wallet)
+                    if portfolio is not None:
+                        orders = await repository.list_unsent(portfolio.id)
+                        if orders:
+                            open_positions = await repository.count_open_positions(
+                                portfolio.id
+                            )
+                            results = await telegram.send_paper_copy_summary(
+                                orders,
+                                portfolio,
+                                open_positions,
+                            )
+                            delivered = not telegram.enabled or (
+                                bool(results) and all(results.values())
+                            )
+                            if delivered:
+                                await repository.mark_notifications_sent(orders)
+            except Exception:
+                logger.exception("paper_copy_summary_failed")
         await wait_for_stop(stop_event, interval_seconds)
-        if stop_event.is_set() or not leader.is_leader:
-            continue
-        try:
-            async with async_session_factory() as session:
-                repository = PaperCopyRepository(session)
-                portfolio = await repository.get_portfolio(source_wallet)
-                if portfolio is None:
-                    continue
-                orders = await repository.list_unsent(portfolio.id)
-                if not orders:
-                    continue
-                open_positions = await repository.count_open_positions(portfolio.id)
-                results = await telegram.send_paper_copy_summary(
-                    orders,
-                    portfolio,
-                    open_positions,
-                )
-                delivered = not telegram.enabled or (
-                    bool(results) and all(results.values())
-                )
-                if delivered and orders:
-                    await repository.mark_notifications_sent(orders)
-        except Exception:
-            logger.exception("paper_copy_summary_failed")
 
 
 async def initialize_paper_copy(
@@ -738,7 +737,7 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                         candidate_enrichment_loop(
                             leader,
                             helius_client,
-                            settings.discovery_poll_interval_seconds,
+                            settings.candidate_enrichment_interval_seconds,
                             settings.candidate_enrichment_min_score,
                             settings.candidate_enrichment_history_limit,
                             settings.candidate_enrichment_max_per_cycle,

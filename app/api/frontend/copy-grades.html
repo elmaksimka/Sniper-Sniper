@@ -18,19 +18,31 @@
         <p class="subtitle">Точні оцінки гаманців, відібраних для аналізу копітрейдингу.</p>
       </div>
       <div class="hero-meta">
+        <button id="homeButton" class="home-button" type="button">Home</button>
         <span id="connection" class="status">Оновлення…</span>
         <span id="updatedAt" class="updated">—</span>
       </div>
     </header>
 
     <section class="audit-strip" aria-label="Прогрес аудиту монет">
-      <div><span>Монет у аудиті</span><strong id="tokensTotal">—</strong></div>
-      <div><span>Пройдено</span><strong id="tokensCompleted">—</strong></div>
-      <div><span>У роботі / черзі</span><strong id="tokensInProgress">—</strong></div>
+      <button type="button" class="audit-counter" data-token-filter="all"><span>Монет у аудиті</span><strong id="tokensTotal">—</strong></button>
+      <button type="button" class="audit-counter" data-token-filter="completed"><span>Пройдено</span><strong id="tokensCompleted">—</strong></button>
+      <button type="button" class="audit-counter" data-token-filter="in-progress"><span>У роботі / черзі</span><strong id="tokensInProgress">—</strong></button>
       <div><span>Наступне оновлення</span><strong id="nextRefresh">—</strong></div>
     </section>
 
     <section id="summary" class="summary" aria-label="Зведення категорій"></section>
+
+    <section id="tokenDetails" class="token-details" aria-live="polite" hidden>
+      <header class="details-header">
+        <div>
+          <p class="details-eyebrow">МОНЕТИ ТА ЇХНІ ТОП-ТРЕЙДЕРИ</p>
+          <h2 id="tokenDetailsTitle">Деталі аудиту</h2>
+        </div>
+        <button id="closeTokenDetails" class="details-close" type="button" aria-label="Закрити">×</button>
+      </header>
+      <div id="tokenList" class="token-list"></div>
+    </section>
 
     <section class="toolbar">
       <label class="search">

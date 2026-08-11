@@ -334,33 +334,14 @@ class TelegramNotifier:
         maximum_history_transactions: int,
         external_discovery_enabled: bool,
     ) -> None:
-        external_status = (
-            (
-                "Джерело кандидатів: DexScreener Solana H24\n"
-                f"Черга: {candidate_token_limit} монет × топ-{traders_per_token} "
-                "трейдерів за realized PnL\n"
-                f"Глибокий аудит: по одному гаманцю, сторінками "
-                f"{history_page_size}, до {maximum_history_transactions} "
-                "транзакцій\n"
-                f"Оновлення монет: кожні "
-                f"{candidate_refresh_interval_seconds / 3600:g} год"
-            )
-            if external_discovery_enabled
-            else "DexScreener H24 discovery: вимкнено"
-        )
         await self.send_text(
             "\n".join(
                 (
-                    "✅ Alpha Engine запущено",
+                    "✅ Alpha Engine — copy-trading запущено",
                     "",
-                    external_status,
-                    "Порядок: усі трейдери монети → наступна монета",
-                    f"Моніторинг A/B: кожні {monitor_interval_seconds:g} с",
-                    (
-                        "Фоновий RPC discovery: кожні "
-                        f"{rpc_discovery_interval_seconds:g} с"
-                    ),
-                    "Telegram alpha-сигнали активні.",
+                    "Активні категорії: A/A, B/A, A/B",
+                    "Оцінки трейдерів і монет доступні на dashboard.",
+                    "Telegram-звіти нашого copy-trading активні.",
                 )
             )
         )
@@ -419,7 +400,7 @@ class TelegramNotifier:
                             f"{int(details.get('candidate_wallets_promoted', 0))}"
                         ),
                         "",
-                        TelegramNotifier._top_wallets_status(details),
+                        "Copy-trading: детальні оцінки доступні на dashboard.",
                         "Система продовжує моніторинг.",
                     )
                 )
@@ -615,16 +596,14 @@ class TelegramNotifier:
         if not pairs:
             return ()
 
-        progress: list[str] = []
+        audited_names: list[str] = []
         completed_names: list[str] = []
         unique_traders: dict[str, tuple[float, float]] = {}
         for pair in pairs:
             symbol = str(pair.get("symbol") or "").strip()
             token = str(pair.get("token_address") or "").strip()
             name = symbol or TelegramNotifier._short_address(token)
-            started = TelegramNotifier._safe_int(pair.get("started_traders"))
-            total = TelegramNotifier._safe_int(pair.get("total_traders"))
-            progress.append(f"{name} {started}/{total}")
+            audited_names.append(name)
             if bool(pair.get("complete")):
                 completed_names.append(name)
 
@@ -648,24 +627,19 @@ class TelegramNotifier:
         ab_count = sum(
             main >= 80 and 55 <= copy < 75 for main, copy in unique_traders.values()
         )
-        bb_count = sum(
-            65 <= main < 80 and 55 <= copy < 75
-            for main, copy in unique_traders.values()
-        )
         completed = ", ".join(completed_names) if completed_names else "немає"
         message = "\n".join(
             (
-                "📊 DexScreener — прогрес аудиту",
+                "📊 Alpha Engine — наш copy-trading",
                 (
-                    f"Пари: {len(pairs)} розпочато "
-                    f"({', '.join(progress)}) · "
+                    f"Монети: {len(audited_names)} в аудиті "
+                    f"({', '.join(audited_names) if audited_names else 'немає'}) · "
                     f"{len(completed_names)} завершено ({completed})"
                 ),
                 "",
                 f"A/A: {aa_count}",
                 f"B/A: {ba_count}",
                 f"A/B: {ab_count}",
-                f"B/B: {bb_count}",
             )
         )
         return (message,)

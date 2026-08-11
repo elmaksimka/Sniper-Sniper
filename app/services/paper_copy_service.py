@@ -72,7 +72,11 @@ class PaperCopyService:
         if order.side == "buy":
             reason = await self._buy_precondition(portfolio, position)
         else:
-            reason = None if position is not None else "no copied position to sell"
+            reason = (
+                None
+                if position is not None and position.quantity > 0
+                else "no copied position to sell"
+            )
         if reason:
             await self.repository.finish_skipped(order, portfolio, reason)
             return order
@@ -132,7 +136,10 @@ class PaperCopyService:
         position: PaperCopyPosition | None,
     ) -> str | None:
         open_positions = await self.repository.count_open_positions(portfolio.id)
-        if position is None and open_positions >= portfolio.max_open_positions:
+        if (
+            (position is None or position.quantity <= 0)
+            and open_positions >= portfolio.max_open_positions
+        ):
             return "maximum open positions reached"
         if portfolio.cash_balance_usd + 1e-9 < portfolio.allocation_usd:
             return "insufficient paper cash"
@@ -167,6 +174,11 @@ class PaperCopyService:
             )
             self.repository.session.add(position)
         else:
+            if position.quantity <= 0:
+                position.source_quantity = 0
+                position.quantity = 0
+                position.cost_basis_usd = 0
+                position.opened_at = datetime.now(UTC)
             position.quantity += quantity
             position.source_quantity += order.source_amount
             position.cost_basis_usd += value

@@ -511,6 +511,7 @@ class FakeCopyGradeDashboardService:
             "tokens_total": 23,
             "tokens_completed": 12,
             "tokens_in_progress": 11,
+            "tokens": [],
             "groups": [
                 {
                     "grade_pair": grade_pair,
@@ -532,7 +533,7 @@ class FakeCopyGradeDashboardService:
                         else []
                     ),
                 }
-                for grade_pair in ("A/A", "B/A", "A/B", "B/B")
+                for grade_pair in ("A/A", "B/A", "A/B")
             ],
         }
 

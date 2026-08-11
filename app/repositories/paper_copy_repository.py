@@ -130,7 +130,6 @@ class PaperCopyRepository:
                 PaperCopyPosition.portfolio_id == portfolio_id,
                 PaperCopyPosition.source_wallet == source_wallet,
                 PaperCopyPosition.token_address == token_address,
-                PaperCopyPosition.quantity > 0,
             )
         )
         return result.scalar_one_or_none()

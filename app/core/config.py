@@ -104,6 +104,7 @@ class Settings(BaseSettings):
     discovery_poll_interval_seconds: float = Field(default=120, gt=0)
     discovery_retry_max_seconds: float = Field(default=900, gt=0)
     candidate_enrichment_enabled: bool = False
+    candidate_enrichment_interval_seconds: float = Field(default=30, gt=0)
     candidate_enrichment_min_score: float = Field(default=35, ge=0, le=65)
     candidate_enrichment_history_limit: int = Field(default=75, ge=1, le=100)
     candidate_enrichment_maximum_history_transactions: int = Field(

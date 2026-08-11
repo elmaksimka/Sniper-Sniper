@@ -48,10 +48,7 @@ async def test_get_transactions_for_address_builds_current_rpc_request() -> None
     assert config["transactionDetails"] == "full"
     assert config["limit"] == 100
     assert config["paginationToken"] == "previous"
-    assert config["filters"] == {
-        "status": "succeeded",
-        "tokenAccounts": "balanceChanged",
-    }
+    assert "filters" not in config
     assert len(page.transactions) == 1
     assert page.pagination_token == "slot:position"
 
@@ -64,6 +61,27 @@ async def test_get_transactions_for_address_handles_rpc_error_shape() -> None:
 
     assert page.transactions == []
     assert page.pagination_token is None
+
+
+@pytest.mark.asyncio
+async def test_count_transactions_for_address_counts_complete_signature_page() -> None:
+    client = StubHeliusClient(
+        {
+            "result": [
+                {"signature": "one"},
+                {"signature": "two"},
+            ]
+        }
+    )
+
+    total = await client.count_transactions_for_address("wallet")
+
+    assert total == 2
+    assert client.method == "getSignaturesForAddress"
+    assert client.params == [
+        "wallet",
+        {"limit": 1_000, "commitment": "finalized"},
+    ]
 
 
 @pytest.mark.asyncio

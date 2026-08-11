@@ -12,7 +12,7 @@ from app.services.candidate_audit_progress_service import (
 class CopyGradeDashboardService:
     """Build a deduplicated dashboard of audited copy-trading candidates."""
 
-    GROUPS = ("A/A", "B/A", "A/B", "B/B")
+    GROUPS = ("A/A", "B/A", "A/B")
 
     def __init__(
         self,
@@ -61,6 +61,9 @@ class CopyGradeDashboardService:
                     "transactions": self._non_negative_int(
                         row.details.get("transactions_processed_total")
                     ),
+                    "total_transactions": self._optional_non_negative_int(
+                        row.details.get("transactions_available_total")
+                    ),
                     "updated_at": row.last_heartbeat_at,
                 }
             )
@@ -69,6 +72,65 @@ class CopyGradeDashboardService:
 
         token_total = len(pairs)
         tokens_completed = sum(bool(pair.get("complete")) for pair in pairs)
+
+        tokens = []
+        for pair in pairs:
+            traders = []
+            for trader in pair.get("traders", []):
+                main_score = self._optional_float(trader.get("score"))
+                copy_score = self._optional_float(trader.get("copy_score"))
+                traders.append(
+                    {
+                        "rank": self._non_negative_int(trader.get("rank")),
+                        "wallet": str(trader.get("wallet") or "").strip(),
+                        "label": str(trader.get("label") or "").strip(),
+                        # Keep the source precision in token details. The rounded
+                        # values above are only for the aggregate wallet table.
+                        "main_score": main_score,
+                        "copy_score": copy_score,
+                        "main_grade": (
+                            self._main_grade(main_score)
+                            if main_score is not None
+                            else None
+                        ),
+                        "copy_grade": (
+                            self._copy_grade(copy_score)
+                            if copy_score is not None
+                            else None
+                        ),
+                        "copy_mode": str(trader.get("copy_mode") or "").strip(),
+                        "transactions": self._non_negative_int(
+                            trader.get("transactions")
+                        ),
+                        "total_transactions": self._optional_non_negative_int(
+                            trader.get("total_transactions")
+                        ),
+                        "maximum_transactions": self._non_negative_int(
+                            trader.get("maximum_transactions")
+                        ),
+                        "state": str(trader.get("state") or "pending"),
+                        "started": bool(trader.get("started")),
+                    }
+                )
+            tokens.append(
+                {
+                    "batch_order": self._non_negative_int(pair.get("batch_order")),
+                    "symbol": str(pair.get("symbol") or "").strip(),
+                    "token_address": str(pair.get("token_address") or "").strip(),
+                    "pair_address": str(pair.get("pair_address") or "").strip(),
+                    "complete": bool(pair.get("complete")),
+                    "started_traders": self._non_negative_int(
+                        pair.get("started_traders")
+                    ),
+                    "completed_traders": self._non_negative_int(
+                        pair.get("completed_traders")
+                    ),
+                    "total_traders": self._non_negative_int(
+                        pair.get("total_traders")
+                    ),
+                    "traders": traders,
+                }
+            )
 
         result_groups = []
         for grade_pair in self.GROUPS:
@@ -93,6 +155,7 @@ class CopyGradeDashboardService:
             "tokens_total": token_total,
             "tokens_completed": tokens_completed,
             "tokens_in_progress": token_total - tokens_completed,
+            "tokens": tokens,
             "groups": result_groups,
         }
 
@@ -125,3 +188,12 @@ class CopyGradeDashboardService:
             return max(0, int(value))  # type: ignore[arg-type]
         except (TypeError, ValueError):
             return 0
+
+    @staticmethod
+    def _optional_non_negative_int(value: object) -> int | None:
+        if value is None:
+            return None
+        try:
+            return max(0, int(value))  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return None

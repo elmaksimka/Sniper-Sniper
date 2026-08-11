@@ -168,8 +168,8 @@ async def test_worker_summary_can_be_hidden_while_audit_progress_is_sent() -> No
 
     assert results == {"100": True}
     assert len(messages) == 1
-    assert "DexScreener" in messages[0]
-    assert "Alpha Engine" not in messages[0]
+    assert "наш copy-trading" in messages[0]
+    assert "Alpha Engine працює" not in messages[0]
 
 
 @pytest.mark.asyncio
@@ -238,14 +238,11 @@ async def test_worker_status_notifications_are_delivered() -> None:
         await notifier.send_worker_stopped()
 
     assert len(messages) == 5
-    assert "Alpha Engine запущено" in messages[0]
-    assert "Джерело кандидатів: DexScreener Solana H24" in messages[0]
-    assert "Черга: 5 монет × топ-10 трейдерів" in messages[0]
-    assert "сторінками 75, до 1000 транзакцій" in messages[0]
-    assert "усі трейдери монети → наступна монета" in messages[0]
-    assert "Моніторинг A/B: кожні 30 с" in messages[0]
-    assert "Оновлення монет: кожні 6 год" in messages[0]
-    assert "Фоновий RPC discovery: кожні 120 с" in messages[0]
+    assert "Alpha Engine — copy-trading запущено" in messages[0]
+    assert "Активні категорії: A/A, B/A, A/B" in messages[0]
+    assert "Telegram-звіти нашого copy-trading активні" in messages[0]
+    assert "DexScreener" not in messages[0]
+    assert "топ-10" not in messages[0]
     assert "Alpha Engine працює" in messages[1]
     assert "125 транзакцій / 48 торгових токенів" in messages[1]
     assert "17 транзакцій / 9 активних токенів" in messages[1]
@@ -258,9 +255,9 @@ async def test_worker_status_notifications_are_delivered() -> None:
         "остання сторінка 20 транзакцій; стан in_progress"
     ) in messages[1]
     assert "Нових топ-гаманців: 1" in messages[1]
-    assert "Активні топ-гаманці A/B (2):" in messages[1]
-    assert "Gb2HfReRRLpp8w5zkKhu1SSTpkpWbTMdjwduvLiiDivC — 88.35 (A)" in messages[1]
-    assert "BUs3UHJgT3sfUmddBJyMJ5pLSKaxWKLMqjoXx5TqgCuB — 78.28 (B)" in messages[1]
+    assert "Copy-trading: детальні оцінки доступні на dashboard." in messages[1]
+    assert "Gb2HfReRRLpp8w5zkKhu1SSTpkpWbTMdjwduvLiiDivC" not in messages[1]
+    assert "BUs3UHJgT3sfUmddBJyMJ5pLSKaxWKLMqjoXx5TqgCuB" not in messages[1]
     assert "2PfoPwHGD33wB8tjMuV7F7G1wkxMSBGULzy6UKWFW12X" not in messages[1]
     assert "RPC перевантажений" in messages[2]
     assert "discovery відновлено" in messages[3]
@@ -318,9 +315,10 @@ def test_candidate_audit_progress_is_formatted_as_compact_grade_summary() -> Non
     )
 
     assert len(messages) == 1
-    assert "Пари: 1 розпочато (TOAD 3/10) · 0 завершено (немає)" in messages[0]
+    assert "Alpha Engine — наш copy-trading" in messages[0]
+    assert "Монети: 1 в аудиті (TOAD) · 0 завершено (немає)" in messages[0]
     assert "A/A: 0" in messages[0]
     assert "B/A: 1" in messages[0]
     assert "A/B: 1" in messages[0]
-    assert "B/B: 0" in messages[0]
+    assert "B/B:" not in messages[0]
     assert "B-wallet-must-not-be-shown" not in messages[0]

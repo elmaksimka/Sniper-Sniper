@@ -68,20 +68,22 @@ class FakeHeartbeats:
 
 
 @pytest.mark.asyncio
-async def test_dashboard_returns_four_exact_grade_groups() -> None:
+async def test_dashboard_returns_selected_copy_grade_groups() -> None:
     result = await CopyGradeDashboardService(FakeHeartbeats()).get()  # type: ignore[arg-type]
 
-    assert result["total"] == 4
+    assert result["total"] == 3
     assert result["tokens_total"] == 2
     assert result["tokens_completed"] == 1
     assert result["tokens_in_progress"] == 1
+    assert [token["symbol"] for token in result["tokens"]] == ["ONE", "TWO"]
+    assert result["tokens"][0]["traders"][0]["main_score"] == 91.234
+    assert result["tokens"][0]["traders"][0]["copy_score"] == 80.126
     assert [group["grade_pair"] for group in result["groups"]] == [
         "A/A",
         "B/A",
         "A/B",
-        "B/B",
     ]
-    assert [group["count"] for group in result["groups"]] == [1, 1, 1, 1]
+    assert [group["count"] for group in result["groups"]] == [1, 1, 1]
     aa_wallet = result["groups"][0]["items"][0]
     assert aa_wallet["wallet"] == "wallet-aa"
     assert aa_wallet["main_score"] == 91.23
