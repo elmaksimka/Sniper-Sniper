@@ -10,6 +10,7 @@ from app.collectors.alert_collector import AlertCollector
 from app.collectors.funding_collector import FundingCollector
 from app.collectors.alpha_signal_collector import AlphaSignalCollector
 from app.collectors.trader_promotion_collector import TraderPromotionCollector
+from app.collectors.paper_copy_collector import PaperCopyCollector
 from app.core.config import get_settings
 from app.core.event_bus import EventBus
 from app.core.events import AlphaSignalGenerated
@@ -20,6 +21,7 @@ from app.repositories.score_snapshot_repository import ScoreSnapshotRepository
 from app.repositories.wallet_repository import WalletRepository
 from app.repositories.heartbeat_repository import HeartbeatRepository
 from app.repositories.monitor_repository import MonitorRepository
+from app.repositories.paper_copy_repository import PaperCopyRepository
 from app.services.metadata_service import MetadataService
 from app.services.alert_service import AlertService
 from app.services.score_snapshot_service import ScoreSnapshotService
@@ -36,6 +38,7 @@ from app.services.dex_discovery_service import DexDiscoveryService
 from app.services.dexscreener_client import DexScreenerClient
 from app.services.monitor_service import MonitorService
 from app.services.trader_style_service import TraderStyleService
+from app.services.paper_copy_service import PaperCopyService
 
 
 class Container:
@@ -61,21 +64,15 @@ class Container:
             session,
             min_history_trades=settings.alpha_trader_min_history_trades,
             min_hold_minutes=settings.alpha_trader_min_hold_minutes,
-            max_distinct_tokens_60s=(
-                settings.alpha_trader_max_distinct_tokens_60s
-            ),
+            max_distinct_tokens_60s=(settings.alpha_trader_max_distinct_tokens_60s),
             max_side_switches_per_token=(
                 settings.alpha_trader_max_side_switches_per_token
             ),
             side_switch_window_minutes=(
                 settings.alpha_trader_side_switch_window_minutes
             ),
-            rapid_round_trip_seconds=(
-                settings.alpha_trader_rapid_round_trip_seconds
-            ),
-            max_rapid_round_trips=(
-                settings.alpha_trader_max_rapid_round_trips
-            ),
+            rapid_round_trip_seconds=(settings.alpha_trader_rapid_round_trip_seconds),
+            max_rapid_round_trips=(settings.alpha_trader_max_rapid_round_trips),
         )
         self.telegram_notifier = TelegramNotifier(
             settings.telegram_bot_token,
@@ -126,12 +123,8 @@ class Container:
             market_data=self.market_data_client,
             market_min_liquidity_usd=settings.alpha_market_min_liquidity_usd,
             market_min_volume_5m_usd=settings.alpha_market_min_volume_5m_usd,
-            market_min_transactions_5m=(
-                settings.alpha_market_min_transactions_5m
-            ),
-            market_max_pair_age_minutes=(
-                settings.alpha_market_max_pair_age_minutes
-            ),
+            market_min_transactions_5m=(settings.alpha_market_min_transactions_5m),
+            market_max_pair_age_minutes=(settings.alpha_market_max_pair_age_minutes),
             trader_style=self.trader_style_service,
         )
         self.trader_promotion_collector = TraderPromotionCollector(
@@ -142,6 +135,19 @@ class Container:
             maximum_monitors=settings.auto_promote_max_monitors,
             scores=ScoreSnapshotRepository(session),
             trader_style=self.trader_style_service,
+        )
+        self.paper_copy_service = PaperCopyService(
+            PaperCopyRepository(session),
+            self.market_data_client,
+            quote_retry_seconds=settings.paper_copy_quote_retry_seconds,
+            quote_max_attempts=settings.paper_copy_quote_max_attempts,
+            source_wallets=settings.paper_copy_sources,
+            portfolio_wallet=settings.paper_copy_portfolio_wallet,
+            minimum_source_value_usd=(settings.paper_copy_minimum_source_value_usd),
+        )
+        self.paper_copy_collector = PaperCopyCollector(
+            self.event_bus,
+            self.paper_copy_service,
         )
 
         self.helius_client = helius_client or HeliusClient()
@@ -170,7 +176,12 @@ class Container:
             max_pages=settings.discovery_max_pages,
         )
 
-    def setup(self, *, register_trader_promotion: bool = True) -> None:
+    def setup(
+        self,
+        *,
+        register_trader_promotion: bool = True,
+        register_paper_copy: bool = False,
+    ) -> None:
         self.token_collector.register()
         self.trade_collector.register()
         self.score_collector.register()
@@ -179,6 +190,8 @@ class Container:
         self.alpha_signal_collector.register()
         if register_trader_promotion:
             self.trader_promotion_collector.register()
+        if register_paper_copy:
+            self.paper_copy_collector.register()
         self.event_bus.subscribe(
             AlphaSignalGenerated,
             self.telegram_notifier.handle_alpha_signal,

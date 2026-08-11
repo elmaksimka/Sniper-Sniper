@@ -77,6 +77,26 @@ class Settings(BaseSettings):
     alpha_trader_rapid_round_trip_seconds: float = Field(default=120, gt=0)
     alpha_trader_max_rapid_round_trips: int = Field(default=0, ge=0)
     alpha_signal_max_age_seconds: float = Field(default=300, gt=0)
+    paper_copy_enabled: bool = False
+    paper_copy_source_wallet: str = ""
+    paper_copy_source_wallets: str = ""
+    paper_copy_portfolio_wallet: str = "paper-copy-pool"
+    paper_copy_initial_balance_usd: float = Field(default=100, gt=0)
+    paper_copy_allocation_usd: float = Field(default=10, gt=0)
+    paper_copy_max_open_positions: int = Field(default=5, ge=1, le=100)
+    paper_copy_reaction_delay_seconds: float = Field(default=20, ge=0)
+    paper_copy_slippage_bps: int = Field(default=100, ge=0, le=5_000)
+    paper_copy_minimum_liquidity_usd: float = Field(default=15_000, ge=0)
+    paper_copy_minimum_source_value_usd: float = Field(default=1, ge=0)
+    paper_copy_execution_poll_seconds: float = Field(default=2, gt=0)
+    paper_copy_summary_interval_seconds: float = Field(default=1800, gt=0)
+    paper_copy_quote_retry_seconds: float = Field(default=30, gt=0)
+    paper_copy_quote_max_attempts: int = Field(default=3, ge=1, le=10)
+    paper_copy_daily_report_enabled: bool = False
+    paper_copy_daily_report_hour: int = Field(default=10, ge=0, le=23)
+    paper_copy_daily_report_minute: int = Field(default=30, ge=0, le=59)
+    paper_copy_daily_report_timezone: str = "Europe/Kyiv"
+    paper_copy_daily_report_date: str = ""
     discovery_enabled: bool = False
     discovery_program_ids: str = ""
     discovery_page_size: int = Field(default=50, ge=1, le=100)
@@ -92,16 +112,10 @@ class Settings(BaseSettings):
         le=10_000,
     )
     candidate_adaptive_initial_transactions: int = Field(default=300, ge=100)
-    candidate_adaptive_continuation_score: float = Field(
-        default=75, ge=0, le=100
-    )
-    candidate_adaptive_max_unmatched_sell_ratio: float = Field(
-        default=0.25, ge=0, le=1
-    )
+    candidate_adaptive_continuation_score: float = Field(default=75, ge=0, le=100)
+    candidate_adaptive_max_unmatched_sell_ratio: float = Field(default=0.25, ge=0, le=1)
     candidate_adaptive_min_realized_positions: int = Field(default=5, ge=1)
-    candidate_adaptive_min_priced_trade_ratio: float = Field(
-        default=0.6, ge=0, le=1
-    )
+    candidate_adaptive_min_priced_trade_ratio: float = Field(default=0.6, ge=0, le=1)
     candidate_enrichment_max_per_cycle: int = Field(default=1, ge=1, le=10)
     candidate_enrichment_retry_seconds: float = Field(default=1800, gt=0)
     candidate_source_window_hours: int = Field(default=24, ge=1, le=168)
@@ -164,6 +178,14 @@ class Settings(BaseSettings):
         return tuple(dict.fromkeys(value.strip() for value in values if value.strip()))
 
     @property
+    def paper_copy_sources(self) -> tuple[str, ...]:
+        values = [
+            self.paper_copy_source_wallet,
+            *self.paper_copy_source_wallets.split(","),
+        ]
+        return tuple(dict.fromkeys(value.strip() for value in values if value.strip()))
+
+    @property
     def discovery_programs(self) -> tuple[str, ...]:
         return tuple(
             dict.fromkeys(
@@ -210,9 +232,7 @@ class Settings(BaseSettings):
         if len(self.admin_api_key) < 32:
             missing.append("ADMIN_API_KEY (at least 32 characters)")
         allowed_hosts = {
-            host.strip()
-            for host in self.allowed_hosts.split(",")
-            if host.strip()
+            host.strip() for host in self.allowed_hosts.split(",") if host.strip()
         }
         if not allowed_hosts or "*" in allowed_hosts:
             missing.append("ALLOWED_HOSTS (explicit host allowlist)")
@@ -220,8 +240,7 @@ class Settings(BaseSettings):
             missing.append("GIT_SHA (7-40 hexadecimal characters)")
         if missing:
             raise ValueError(
-                "Missing or invalid production configuration: "
-                + ", ".join(missing)
+                "Missing or invalid production configuration: " + ", ".join(missing)
             )
         return self
 

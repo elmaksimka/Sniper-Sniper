@@ -68,19 +68,28 @@ async def test_alpha_signal_is_sent_to_each_unique_recipient() -> None:
     assert [payload["chat_id"] for payload in payloads] == ["100", "200"]
     assert all("STRONG CONSENSUS" in payload["text"] for payload in payloads)
     assert all("2.750000 SOL" in payload["text"] for payload in payloads)
-    assert all("Trader entry price: $0.00200000" in payload["text"] for payload in payloads)
-    assert all("Trader buy value: 2.750000 SOL / ~$500.00" in payload["text"] for payload in payloads)
+    assert all(
+        "Trader entry price: $0.00200000" in payload["text"] for payload in payloads
+    )
+    assert all(
+        "Trader buy value: 2.750000 SOL / ~$500.00" in payload["text"]
+        for payload in payloads
+    )
     assert all("1.25x vs trader entry" in payload["text"] for payload in payloads)
     assert all("~$12.35 (current DEX price)" in payload["text"] for payload in payloads)
     assert all("5 trades / 3 wallets" in payload["text"] for payload in payloads)
-    assert all("$20,000 liquidity / $7,500 5m volume" in payload["text"] for payload in payloads)
+    assert all(
+        "$20,000 liquidity / $7,500 5m volume" in payload["text"]
+        for payload in payloads
+    )
     assert all("8 buys / 4 sells" in payload["text"] for payload in payloads)
     assert all("Top traders in token: 2" in payload["text"] for payload in payloads)
     assert all("2 proven 30m+ holds" in payload["text"] for payload in payloads)
-    assert all("solscan.io/tx/transaction-signature" in payload["text"] for payload in payloads)
     assert all(
-        "dexscreener.com/solana/pair-address" in payload["text"]
-        for payload in payloads
+        "solscan.io/tx/transaction-signature" in payload["text"] for payload in payloads
+    )
+    assert all(
+        "dexscreener.com/solana/pair-address" in payload["text"] for payload in payloads
     )
 
 
@@ -258,30 +267,50 @@ async def test_worker_status_notifications_are_delivered() -> None:
     assert "Alpha Engine зупинено" in messages[4]
 
 
-def test_candidate_audit_progress_is_formatted_as_pair_table() -> None:
+def test_candidate_audit_progress_is_formatted_as_compact_grade_summary() -> None:
     messages = TelegramNotifier._candidate_audit_progress_messages(
         {
             "candidate_audit_pairs": [
                 {
                     "symbol": "TOAD",
                     "token_address": "token",
-                    "started_traders": 1,
+                    "started_traders": 3,
                     "completed_traders": 0,
                     "total_traders": 10,
                     "complete": False,
                     "traders": [
                         {
                             "rank": 1,
-                            "wallet": (
-                                "CAPn1yH4oSywsxGU456jfgTrSSUidf9jgeAnHceNUJdw"
-                            ),
+                            "wallet": ("CAPn1yH4oSywsxGU456jfgTrSSUidf9jgeAnHceNUJdw"),
                             "label": "himothy",
                             "transactions": 75,
                             "maximum_transactions": 1_000,
-                            "score": 69.33,
+                            "score": 92.16,
+                            "copy_score": 73.4,
+                            "copy_mode": "manual",
                             "state": "in_progress",
                             "started": True,
-                        }
+                        },
+                        {
+                            "rank": 2,
+                            "wallet": "B-wallet-must-not-be-shown",
+                            "transactions": 249,
+                            "maximum_transactions": 249,
+                            "score": 70.88,
+                            "copy_score": 81.2,
+                            "copy_mode": "manual",
+                            "state": "complete",
+                            "started": True,
+                        },
+                        {
+                            "rank": 3,
+                            "wallet": "C-wallet-must-not-be-shown",
+                            "transactions": 371,
+                            "maximum_transactions": 371,
+                            "score": 56.99,
+                            "state": "complete",
+                            "started": True,
+                        },
                     ],
                 }
             ]
@@ -289,9 +318,9 @@ def test_candidate_audit_progress_is_formatted_as_pair_table() -> None:
     )
 
     assert len(messages) == 1
-    assert "Пари: 1 розпочато · 0 завершено" in messages[0]
-    assert "TOAD · 1/10 топ-трейдерів" in messages[0]
-    assert "himothy (CAPn1y…UJdw)" in messages[0]
-    assert "75/1000" in messages[0]
-    assert "69.33" in messages[0]
-    assert "Очікують аналізу: 9" in messages[0]
+    assert "Пари: 1 розпочато (TOAD 3/10) · 0 завершено (немає)" in messages[0]
+    assert "A/A: 0" in messages[0]
+    assert "B/A: 1" in messages[0]
+    assert "A/B: 1" in messages[0]
+    assert "B/B: 0" in messages[0]
+    assert "B-wallet-must-not-be-shown" not in messages[0]

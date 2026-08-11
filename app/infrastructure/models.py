@@ -252,12 +252,8 @@ class WalletScoreSnapshot(Base):
     profitable_position_count: Mapped[int] = mapped_column(default=0)
     win_rate: Mapped[float] = mapped_column(Float, default=0.0)
     pnl_concentration_ratio: Mapped[float] = mapped_column(Float, default=0.0)
-    realized_pnl_ex_top_position_sol: Mapped[float] = mapped_column(
-        Float, default=0.0
-    )
-    realized_roi_ex_top_position: Mapped[float] = mapped_column(
-        Float, default=0.0
-    )
+    realized_pnl_ex_top_position_sol: Mapped[float] = mapped_column(Float, default=0.0)
+    realized_roi_ex_top_position: Mapped[float] = mapped_column(Float, default=0.0)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=utc_now,
@@ -363,3 +359,107 @@ class ServiceHeartbeat(Base):
         index=True,
     )
     details: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class PaperCopyPortfolio(Base):
+    __tablename__ = "paper_copy_portfolios"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_wallet: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    initial_balance_usd: Mapped[float] = mapped_column(Float)
+    cash_balance_usd: Mapped[float] = mapped_column(Float)
+    allocation_usd: Mapped[float] = mapped_column(Float)
+    max_open_positions: Mapped[int]
+    reaction_delay_seconds: Mapped[float] = mapped_column(Float)
+    slippage_bps: Mapped[int]
+    minimum_liquidity_usd: Mapped[float] = mapped_column(Float)
+    enabled: Mapped[bool] = mapped_column(default=True, index=True)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+
+class PaperCopyPosition(Base):
+    __tablename__ = "paper_copy_positions"
+    __table_args__ = (
+        UniqueConstraint(
+            "portfolio_id",
+            "source_wallet",
+            "token_address",
+            name="uq_paper_copy_position_portfolio_source_token",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    portfolio_id: Mapped[int] = mapped_column(
+        ForeignKey("paper_copy_portfolios.id", ondelete="CASCADE"),
+        index=True,
+    )
+    source_wallet: Mapped[str] = mapped_column(String(64), index=True)
+    token_address: Mapped[str] = mapped_column(String(64), index=True)
+    source_quantity: Mapped[float] = mapped_column(Float, default=0)
+    quantity: Mapped[float] = mapped_column(Float, default=0)
+    cost_basis_usd: Mapped[float] = mapped_column(Float, default=0)
+    entry_price_usd: Mapped[float] = mapped_column(Float, default=0)
+    last_price_usd: Mapped[float] = mapped_column(Float, default=0)
+    opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+    )
+
+
+class PaperCopyOrder(Base):
+    __tablename__ = "paper_copy_orders"
+    __table_args__ = (
+        UniqueConstraint(
+            "portfolio_id",
+            "source_signature",
+            "token_address",
+            name="uq_paper_copy_order_source_trade",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    portfolio_id: Mapped[int] = mapped_column(
+        ForeignKey("paper_copy_portfolios.id", ondelete="CASCADE"),
+        index=True,
+    )
+    source_wallet: Mapped[str] = mapped_column(String(64), index=True)
+    source_signature: Mapped[str] = mapped_column(String(128))
+    token_address: Mapped[str] = mapped_column(String(64), index=True)
+    side: Mapped[str] = mapped_column(String(10))
+    source_amount: Mapped[float] = mapped_column(Float)
+    source_transaction_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    execute_after: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    status: Mapped[str] = mapped_column(String(16), default="pending", index=True)
+    attempts: Mapped[int] = mapped_column(default=0)
+    reason: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    execution_price_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    quantity: Mapped[float | None] = mapped_column(Float, nullable=True)
+    value_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    realized_pnl_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    liquidity_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cash_balance_after_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    equity_after_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    open_positions_after: Mapped[int | None] = mapped_column(nullable=True)
+    notification_sent: Mapped[bool] = mapped_column(default=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+    )
+    executed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )

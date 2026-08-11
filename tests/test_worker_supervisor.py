@@ -140,6 +140,7 @@ async def test_candidate_enrichment_loop_runs_independently(monkeypatch) -> None
     class FakeContainer:
         scanner = object()
         token_detection_service = object()
+        trader_style_service = object()
         trader_promotion_collector = FakePromotionCollector()
 
         def __init__(self, *args, **kwargs) -> None:

@@ -3,7 +3,9 @@ import os
 import signal
 import socket
 from contextlib import suppress
+from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from app.bootstrap.container import Container
 from app.core.config import get_settings
@@ -14,6 +16,7 @@ from app.listeners.helius_client import HeliusClient
 from app.notifications.telegram import TelegramNotifier
 from app.repositories.heartbeat_repository import HeartbeatRepository
 from app.repositories.monitor_repository import MonitorRepository
+from app.repositories.paper_copy_repository import PaperCopyRepository
 from app.repositories.score_snapshot_repository import ScoreSnapshotRepository
 from app.services.activity_stats_service import ActivityStatsService
 from app.services.candidate_audit_progress_service import (
@@ -22,6 +25,9 @@ from app.services.candidate_audit_progress_service import (
 from app.services.candidate_enrichment_service import CandidateEnrichmentService
 from app.services.dexscreener_client import DexScreenerClient
 from app.services.monitor_worker import MonitorWorker
+from app.services.monitor_service import MonitorService
+from app.services.paper_copy_service import PaperCopyService
+from app.services.paper_copy_report_service import PaperCopyReportService
 from app.services.top_trader_candidate_source import TopTraderCandidateSource
 
 
@@ -65,9 +71,7 @@ async def telegram_status_loop(
         try:
             async with async_session_factory() as session:
                 stats = await ActivityStatsService(session).get(window_minutes)
-                monitors = await MonitorRepository(session).list_all(
-                    enabled_only=True
-                )
+                monitors = await MonitorRepository(session).list_all(enabled_only=True)
                 scores = ScoreSnapshotRepository(session)
                 top_wallets: list[dict[str, Any]] = []
                 for monitor in monitors:
@@ -101,11 +105,11 @@ async def telegram_status_loop(
                 details.get("candidate_maximum_history_transactions", 1_000)
             )
             async with async_session_factory() as session:
-                report_details["candidate_audit_pairs"] = (
-                    await CandidateAuditProgressService(
-                        HeartbeatRepository(session)
-                    ).get(maximum_transactions)
-                )
+                report_details[
+                    "candidate_audit_pairs"
+                ] = await CandidateAuditProgressService(
+                    HeartbeatRepository(session)
+                ).get(maximum_transactions)
         except Exception:
             logger.exception("worker_candidate_audit_progress_failed")
 
@@ -183,12 +187,8 @@ async def candidate_enrichment_loop(
                         source_window_hours=source_window_hours,
                         source_token_limit=source_token_limit,
                         source_traders_per_token=source_traders_per_token,
-                        source_minimum_token_trades=(
-                            source_minimum_token_trades
-                        ),
-                        source_minimum_token_wallets=(
-                            source_minimum_token_wallets
-                        ),
+                        source_minimum_token_trades=(source_minimum_token_trades),
+                        source_minimum_token_wallets=(source_minimum_token_wallets),
                         source_minimum_observed_minutes=(
                             source_minimum_observed_minutes
                         ),
@@ -212,22 +212,14 @@ async def candidate_enrichment_loop(
                                 minimum_realized_pnl_usd=(
                                     external_minimum_realized_pnl_usd
                                 ),
-                                minimum_realized_roi=(
-                                    external_minimum_realized_roi
-                                ),
+                                minimum_realized_roi=(external_minimum_realized_roi),
                             )
                             if use_external_source
                             else None
                         ),
-                        maximum_history_transactions=(
-                            maximum_history_transactions
-                        ),
-                        adaptive_initial_transactions=(
-                            adaptive_initial_transactions
-                        ),
-                        adaptive_continuation_score=(
-                            adaptive_continuation_score
-                        ),
+                        maximum_history_transactions=(maximum_history_transactions),
+                        adaptive_initial_transactions=(adaptive_initial_transactions),
+                        adaptive_continuation_score=(adaptive_continuation_score),
                         adaptive_max_unmatched_sell_ratio=(
                             adaptive_max_unmatched_sell_ratio
                         ),
@@ -237,12 +229,10 @@ async def candidate_enrichment_loop(
                         adaptive_min_priced_trade_ratio=(
                             adaptive_min_priced_trade_ratio
                         ),
+                        trader_style=container.trader_style_service,
                     ).run_once()
                     promoted_after_audit = 0
-                    if (
-                        enrichment.audit_state == "complete"
-                        and enrichment.last_wallet
-                    ):
+                    if enrichment.audit_state == "complete" and enrichment.last_wallet:
                         promoted_after_audit = int(
                             await container.trader_promotion_collector.promote_address(
                                 enrichment.last_wallet
@@ -250,9 +240,7 @@ async def candidate_enrichment_loop(
                         )
                     if use_external_source:
                         last_external_discovery_at = now
-                        details["candidate_external_source"] = (
-                            "dexscreener-h24-pnl"
-                        )
+                        details["candidate_external_source"] = "dexscreener-h24-pnl"
                     details.update(
                         candidate_state="idle",
                         candidate_wallets_enriched=enrichment.wallets_enriched,
@@ -263,9 +251,7 @@ async def candidate_enrichment_loop(
                             enrichment.wallets_promoted + promoted_after_audit
                         ),
                         candidate_last_wallet=enrichment.last_wallet or "",
-                        candidate_last_score_before=(
-                            enrichment.last_score_before
-                        ),
+                        candidate_last_score_before=(enrichment.last_score_before),
                         candidate_last_score_after=enrichment.last_score_after,
                         candidate_history_limit=enrichment.history_limit,
                         candidate_maximum_history_transactions=(
@@ -276,21 +262,156 @@ async def candidate_enrichment_loop(
                             enrichment.history_transactions_total
                         ),
                         candidate_history_capped=enrichment.history_capped,
-                        candidate_source_tokens=(
-                            enrichment.source_token_count
-                        ),
-                        candidate_source_candidates=(
-                            enrichment.source_candidate_count
-                        ),
-                        candidate_source_window_hours=(
-                            enrichment.source_window_hours
-                        ),
+                        candidate_source_tokens=(enrichment.source_token_count),
+                        candidate_source_candidates=(enrichment.source_candidate_count),
+                        candidate_source_window_hours=(enrichment.source_window_hours),
                     )
             except Exception:
                 details["candidate_state"] = "error"
                 logger.exception("candidate_enrichment_cycle_failed")
 
         await wait_for_stop(stop_event, interval_seconds)
+
+
+async def paper_copy_execution_loop(
+    leader: PostgresLeaderElector,
+    interval_seconds: float,
+    quote_retry_seconds: float,
+    quote_max_attempts: int,
+    minimum_source_value_usd: float,
+    stop_event: asyncio.Event,
+) -> None:
+    logger = get_logger("paper-copy-supervisor")
+    while not stop_event.is_set():
+        if leader.is_leader:
+            try:
+                async with async_session_factory() as session:
+                    repository = PaperCopyRepository(session)
+                    service = PaperCopyService(
+                        repository,
+                        quote_retry_seconds=quote_retry_seconds,
+                        quote_max_attempts=quote_max_attempts,
+                        minimum_source_value_usd=minimum_source_value_usd,
+                    )
+                    await service.execute_next()
+            except Exception:
+                logger.exception("paper_copy_cycle_failed")
+        await wait_for_stop(stop_event, interval_seconds)
+
+
+async def paper_copy_summary_loop(
+    leader: PostgresLeaderElector,
+    telegram: TelegramNotifier,
+    source_wallet: str,
+    interval_seconds: float,
+    stop_event: asyncio.Event,
+) -> None:
+    logger = get_logger("paper-copy-summary")
+    while not stop_event.is_set():
+        await wait_for_stop(stop_event, interval_seconds)
+        if stop_event.is_set() or not leader.is_leader:
+            continue
+        try:
+            async with async_session_factory() as session:
+                repository = PaperCopyRepository(session)
+                portfolio = await repository.get_portfolio(source_wallet)
+                if portfolio is None:
+                    continue
+                orders = await repository.list_unsent(portfolio.id)
+                if not orders:
+                    continue
+                open_positions = await repository.count_open_positions(portfolio.id)
+                results = await telegram.send_paper_copy_summary(
+                    orders,
+                    portfolio,
+                    open_positions,
+                )
+                delivered = not telegram.enabled or (
+                    bool(results) and all(results.values())
+                )
+                if delivered and orders:
+                    await repository.mark_notifications_sent(orders)
+        except Exception:
+            logger.exception("paper_copy_summary_failed")
+
+
+async def initialize_paper_copy(
+    *,
+    portfolio_wallet: str,
+    source_wallets: tuple[str, ...],
+    initial_balance_usd: float,
+    allocation_usd: float,
+    max_open_positions: int,
+    reaction_delay_seconds: float,
+    slippage_bps: int,
+    minimum_liquidity_usd: float,
+    telegram: TelegramNotifier,
+) -> None:
+    if not source_wallets:
+        raise RuntimeError("PAPER_COPY_SOURCE_WALLETS is required")
+    async with async_session_factory() as session:
+        portfolio, created = await PaperCopyRepository(session).ensure_portfolio(
+            source_wallet=portfolio_wallet,
+            initial_balance_usd=initial_balance_usd,
+            allocation_usd=allocation_usd,
+            max_open_positions=max_open_positions,
+            reaction_delay_seconds=reaction_delay_seconds,
+            slippage_bps=slippage_bps,
+            minimum_liquidity_usd=minimum_liquidity_usd,
+        )
+        monitors = MonitorService(session)
+        for source_wallet in source_wallets:
+            await monitors.add(source_wallet)
+        if created:
+            await telegram.send_paper_copy_started(portfolio)
+
+
+async def paper_copy_report_loop(
+    leader: PostgresLeaderElector,
+    telegram: TelegramNotifier,
+    source_wallet: str,
+    report_hour: int,
+    report_minute: int,
+    timezone_name: str,
+    report_date: str,
+    stop_event: asyncio.Event,
+) -> None:
+    logger = get_logger("paper-copy-report")
+    timezone = ZoneInfo(timezone_name)
+    while not stop_event.is_set():
+        if leader.is_leader:
+            local_now = datetime.now(timezone)
+            requested_date = report_date or local_now.date().isoformat()
+            due = local_now.date().isoformat() == requested_date and (
+                local_now.hour,
+                local_now.minute,
+            ) >= (report_hour, report_minute)
+            if due:
+                marker = f"paper-copy-report:{requested_date}"
+                try:
+                    async with async_session_factory() as session:
+                        heartbeats = HeartbeatRepository(session)
+                        if await heartbeats.get(marker) is None:
+                            report = await PaperCopyReportService(session).build(
+                                source_wallet
+                            )
+                            if report is not None:
+                                results = await telegram.send_paper_copy_report(report)
+                                delivered = not telegram.enabled or (
+                                    bool(results) and all(results.values())
+                                )
+                                if delivered:
+                                    await heartbeats.beat(
+                                        marker,
+                                        "paper-copy-report",
+                                        {
+                                            "equity_usd": report.total_equity_usd,
+                                            "pnl_usd": report.total_pnl_usd,
+                                        },
+                                    )
+                except Exception:
+                    logger.exception("paper_copy_report_failed")
+        await wait_for_stop(stop_event, 30)
 
 
 async def discovery_loop(
@@ -318,10 +439,8 @@ async def discovery_loop(
                     container.setup()
                     for program_id in program_ids:
                         try:
-                            result = (
-                                await container.dex_discovery_service.scan_program(
-                                    program_id
-                                )
+                            result = await container.dex_discovery_service.scan_program(
+                                program_id
                             )
                             if not result.complete:
                                 logger.warning(
@@ -340,9 +459,7 @@ async def discovery_loop(
                 logger.exception("dex_discovery_cycle_failed")
 
             previous_failures = consecutive_failures
-            consecutive_failures = (
-                consecutive_failures + 1 if discovery_failed else 0
-            )
+            consecutive_failures = consecutive_failures + 1 if discovery_failed else 0
             delay = discovery_retry_delay(
                 interval_seconds,
                 retry_max_seconds,
@@ -422,6 +539,10 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
     status_task: asyncio.Task[None] | None = None
     candidate_task: asyncio.Task[None] | None = None
     discovery_task: asyncio.Task[None] | None = None
+    paper_copy_task: asyncio.Task[None] | None = None
+    paper_copy_summary_task: asyncio.Task[None] | None = None
+    paper_copy_report_task: asyncio.Task[None] | None = None
+    paper_copy_initialized = False
 
     try:
         while not stop_event.is_set():
@@ -450,26 +571,149 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
             if stop_event.is_set():
                 break
 
+            paper_copy_enabled = bool(getattr(settings, "paper_copy_enabled", False))
+            if paper_copy_enabled and not paper_copy_initialized:
+                try:
+                    await initialize_paper_copy(
+                        portfolio_wallet=settings.paper_copy_portfolio_wallet,
+                        source_wallets=settings.paper_copy_sources,
+                        initial_balance_usd=float(
+                            getattr(settings, "paper_copy_initial_balance_usd", 100)
+                        ),
+                        allocation_usd=float(
+                            getattr(settings, "paper_copy_allocation_usd", 10)
+                        ),
+                        max_open_positions=int(
+                            getattr(settings, "paper_copy_max_open_positions", 5)
+                        ),
+                        reaction_delay_seconds=float(
+                            getattr(settings, "paper_copy_reaction_delay_seconds", 20)
+                        ),
+                        slippage_bps=int(
+                            getattr(settings, "paper_copy_slippage_bps", 100)
+                        ),
+                        minimum_liquidity_usd=float(
+                            getattr(
+                                settings,
+                                "paper_copy_minimum_liquidity_usd",
+                                15_000,
+                            )
+                        ),
+                        telegram=telegram,
+                    )
+                    paper_copy_task = asyncio.create_task(
+                        paper_copy_execution_loop(
+                            leader,
+                            float(
+                                getattr(
+                                    settings,
+                                    "paper_copy_execution_poll_seconds",
+                                    2,
+                                )
+                            ),
+                            float(
+                                getattr(
+                                    settings,
+                                    "paper_copy_quote_retry_seconds",
+                                    30,
+                                )
+                            ),
+                            int(
+                                getattr(
+                                    settings,
+                                    "paper_copy_quote_max_attempts",
+                                    3,
+                                )
+                            ),
+                            float(
+                                getattr(
+                                    settings,
+                                    "paper_copy_minimum_source_value_usd",
+                                    1,
+                                )
+                            ),
+                            stop_event,
+                        )
+                    )
+                    paper_copy_summary_task = asyncio.create_task(
+                        paper_copy_summary_loop(
+                            leader,
+                            telegram,
+                            settings.paper_copy_portfolio_wallet,
+                            float(
+                                getattr(
+                                    settings,
+                                    "paper_copy_summary_interval_seconds",
+                                    1800,
+                                )
+                            ),
+                            stop_event,
+                        )
+                    )
+                    if bool(
+                        getattr(
+                            settings,
+                            "paper_copy_daily_report_enabled",
+                            False,
+                        )
+                    ):
+                        paper_copy_report_task = asyncio.create_task(
+                            paper_copy_report_loop(
+                                leader,
+                                telegram,
+                                settings.paper_copy_portfolio_wallet,
+                                int(
+                                    getattr(
+                                        settings,
+                                        "paper_copy_daily_report_hour",
+                                        10,
+                                    )
+                                ),
+                                int(
+                                    getattr(
+                                        settings,
+                                        "paper_copy_daily_report_minute",
+                                        30,
+                                    )
+                                ),
+                                str(
+                                    getattr(
+                                        settings,
+                                        "paper_copy_daily_report_timezone",
+                                        "Europe/Kyiv",
+                                    )
+                                ),
+                                str(
+                                    getattr(
+                                        settings,
+                                        "paper_copy_daily_report_date",
+                                        "",
+                                    )
+                                ),
+                                stop_event,
+                            )
+                        )
+                    paper_copy_initialized = True
+                except Exception:
+                    logger.exception("paper_copy_initialization_failed")
+                    await wait_for_stop(
+                        stop_event,
+                        settings.worker_standby_poll_seconds,
+                    )
+                    continue
+
             if not worker_announced:
                 await telegram.send_worker_started(
-                    monitor_interval_seconds=(
-                        settings.monitor_poll_interval_seconds
-                    ),
+                    monitor_interval_seconds=(settings.monitor_poll_interval_seconds),
                     rpc_discovery_interval_seconds=(
                         settings.discovery_poll_interval_seconds
                     ),
                     candidate_refresh_interval_seconds=(
                         settings.candidate_external_discovery_interval_seconds
                     ),
-                    candidate_token_limit=(
-                        settings.candidate_external_token_limit
-                    ),
-                    traders_per_token=(
-                        settings.candidate_source_traders_per_token
-                    ),
-                    history_page_size=(
-                        settings.candidate_enrichment_history_limit
-                    ),
+                    candidate_token_limit=(settings.candidate_external_token_limit),
+                    traders_per_token=(settings.candidate_source_traders_per_token),
+                    history_page_size=(settings.candidate_enrichment_history_limit),
                     maximum_history_transactions=(
                         settings.candidate_enrichment_maximum_history_transactions
                     ),
@@ -576,7 +820,10 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                 async with async_session_factory() as session:
                     heartbeat_details["state"] = "polling"
                     container = Container(session, helius_client=helius_client)
-                    container.setup()
+                    if paper_copy_enabled:
+                        container.setup(register_paper_copy=True)
+                    else:
+                        container.setup()
                     monitor_worker = MonitorWorker(
                         monitors=MonitorRepository(session),
                         scanner=container.scanner,
@@ -608,6 +855,18 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
             status_task.cancel()
             with suppress(asyncio.CancelledError):
                 await status_task
+        if paper_copy_task is not None:
+            paper_copy_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await paper_copy_task
+        if paper_copy_summary_task is not None:
+            paper_copy_summary_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await paper_copy_summary_task
+        if paper_copy_report_task is not None:
+            paper_copy_report_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await paper_copy_report_task
         if worker_announced:
             await telegram.send_worker_stopped()
         heartbeat_task.cancel()

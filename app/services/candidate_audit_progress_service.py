@@ -51,48 +51,45 @@ class CandidateAuditProgressService:
                 )
                 state = str(audit.get("state", "pending"))
                 history_capped = bool(audit.get("history_capped", False))
-                displayed_maximum = (
-                    total
-                    if state == "complete" and not history_capped
-                    else maximum_transactions
+                early_stopped = bool(audit.get("early_stopped", False))
+                displayed_maximum = self._displayed_maximum(
+                    total,
+                    state,
+                    history_capped,
+                    early_stopped,
+                    maximum_transactions,
                 )
                 started = total > 0 or state == "complete"
                 traders.append(
                     {
-                        "rank": self._non_negative_int(
-                            raw_trader.get("rank", 0)
-                        ),
+                        "rank": self._non_negative_int(raw_trader.get("rank", 0)),
                         "wallet": wallet,
                         "label": str(raw_trader.get("label") or "").strip(),
                         "transactions": total,
                         "maximum_transactions": displayed_maximum,
                         "score": self._optional_float(audit.get("score_after")),
+                        "copy_score": self._optional_float(audit.get("copy_score")),
+                        "copy_mode": str(audit.get("copy_mode") or "").strip(),
                         "state": state,
+                        "early_stopped": early_stopped,
                         "started": started,
                     }
                 )
             traders.sort(key=lambda trader: int(trader["rank"]))
             started_count = sum(bool(trader["started"]) for trader in traders)
-            completed_count = sum(
-                trader["state"] == "complete" for trader in traders
-            )
+            completed_count = sum(trader["state"] == "complete" for trader in traders)
             pairs.append(
                 {
                     "batch_order": self._non_negative_int(
                         details.get("batch_order", 0)
                     ),
                     "symbol": str(details.get("symbol") or "").strip(),
-                    "token_address": str(
-                        details.get("token_address") or ""
-                    ).strip(),
-                    "pair_address": str(
-                        details.get("pair_address") or ""
-                    ).strip(),
+                    "token_address": str(details.get("token_address") or "").strip(),
+                    "pair_address": str(details.get("pair_address") or "").strip(),
                     "started_traders": started_count,
                     "completed_traders": completed_count,
                     "total_traders": len(traders),
-                    "complete": bool(traders)
-                    and completed_count == len(traders),
+                    "complete": bool(traders) and completed_count == len(traders),
                     "traders": traders,
                 }
             )
@@ -114,3 +111,15 @@ class CandidateAuditProgressService:
             return float(value)  # type: ignore[arg-type]
         except (TypeError, ValueError):
             return None
+
+    @staticmethod
+    def _displayed_maximum(
+        total: int,
+        state: str,
+        history_capped: bool,
+        early_stopped: bool,
+        maximum_transactions: int,
+    ) -> int:
+        if state == "complete" and not history_capped and not early_stopped:
+            return total
+        return maximum_transactions

@@ -42,6 +42,8 @@ class FakeHeartbeats:
                     "state": "in_progress",
                     "transactions_processed_total": 75,
                     "score_after": 69.33,
+                    "copy_score": 61.25,
+                    "copy_mode": "manual",
                 },
             ),
             SimpleNamespace(
@@ -74,9 +76,35 @@ async def test_progress_combines_pair_queue_with_wallet_audits() -> None:
         "transactions": 75,
         "maximum_transactions": 1_000,
         "score": 69.33,
+        "copy_score": 61.25,
+        "copy_mode": "manual",
         "state": "in_progress",
+        "early_stopped": False,
         "started": True,
     }
     assert result[0]["traders"][1]["started"] is True
     assert result[0]["traders"][1]["transactions"] == 330
     assert result[0]["traders"][1]["maximum_transactions"] == 330
+
+
+def test_early_stopped_audit_keeps_configured_maximum_in_display() -> None:
+    assert (
+        CandidateAuditProgressService._displayed_maximum(
+            total=300,
+            state="complete",
+            history_capped=False,
+            early_stopped=True,
+            maximum_transactions=1_000,
+        )
+        == 1_000
+    )
+    assert (
+        CandidateAuditProgressService._displayed_maximum(
+            total=330,
+            state="complete",
+            history_capped=False,
+            early_stopped=False,
+            maximum_transactions=1_000,
+        )
+        == 330
+    )
