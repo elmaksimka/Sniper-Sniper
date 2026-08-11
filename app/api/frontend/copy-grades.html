@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Copy Grade Radar · Alpha Engine</title>
+  <link rel="stylesheet" href="/static/copy-grades.css">
+</head>
+<body>
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
+  <main class="shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow"><span class="pulse"></span> ALPHA ENGINE · LIVE AUDIT</p>
+        <h1>Copy Grade <span>Radar</span></h1>
+        <p class="subtitle">Точні оцінки гаманців, відібраних для аналізу копітрейдингу.</p>
+      </div>
+      <div class="hero-meta">
+        <span id="connection" class="status">Оновлення…</span>
+        <span id="updatedAt" class="updated">—</span>
+      </div>
+    </header>
+
+    <section class="audit-strip" aria-label="Прогрес аудиту монет">
+      <div><span>Монет у аудиті</span><strong id="tokensTotal">—</strong></div>
+      <div><span>Пройдено</span><strong id="tokensCompleted">—</strong></div>
+      <div><span>У роботі / черзі</span><strong id="tokensInProgress">—</strong></div>
+      <div><span>Наступне оновлення</span><strong id="nextRefresh">—</strong></div>
+    </section>
+
+    <section id="summary" class="summary" aria-label="Зведення категорій"></section>
+
+    <section class="toolbar">
+      <label class="search">
+        <span aria-hidden="true">⌕</span>
+        <input id="searchInput" type="search" placeholder="Пошук за адресою гаманця" autocomplete="off">
+      </label>
+      <div class="legend">
+        <span><i class="dot main"></i> Основна оцінка</span>
+        <span><i class="dot copy"></i> Copy-оцінка</span>
+      </div>
+    </section>
+
+    <div id="error" class="error" hidden></div>
+    <section id="groups" class="groups" aria-live="polite">
+      <div class="loading"><span></span><span></span><span></span></div>
+    </section>
+
+    <footer>
+      <span>Оновлення рівно о :00 та :30 за Києвом.</span>
+      <span id="walletTotal">0 гаманців</span>
+    </footer>
+  </main>
+  <script src="/static/copy-grades.js" defer></script>
+</body>
+</html>

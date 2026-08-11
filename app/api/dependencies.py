@@ -14,6 +14,8 @@ from app.services.read_service import ReadService
 from app.services.score_snapshot_service import ScoreSnapshotService
 from app.services.scoring_service import ScoringService
 from app.services.system_health_service import SystemHealthService
+from app.services.copy_grade_dashboard_service import CopyGradeDashboardService
+from app.repositories.heartbeat_repository import HeartbeatRepository
 from app.services.funding_service import FundingService
 from app.services.token_score_snapshot_service import TokenScoreSnapshotService
 
@@ -139,4 +141,20 @@ def get_system_health_service(
 SystemHealthServiceDependency = Annotated[
     SystemHealthService,
     Depends(get_system_health_service),
+]
+
+
+def get_copy_grade_dashboard_service(
+    session: SessionDependency,
+) -> CopyGradeDashboardService:
+    settings = get_settings()
+    return CopyGradeDashboardService(
+        HeartbeatRepository(session),
+        settings.candidate_enrichment_maximum_history_transactions,
+    )
+
+
+CopyGradeDashboardServiceDependency = Annotated[
+    CopyGradeDashboardService,
+    Depends(get_copy_grade_dashboard_service),
 ]

@@ -9,6 +9,7 @@ from app.api.dependencies import get_token_score_snapshot_service
 from app.api.dependencies import get_alert_service
 from app.api.dependencies import get_funding_service, get_monitor_service
 from app.api.dependencies import get_system_health_service
+from app.api.dependencies import get_copy_grade_dashboard_service
 from app.core.config import get_settings
 from app.core.analytics import (
     CreatorAnalytics,
@@ -500,6 +501,42 @@ class FakeSystemHealthService:
             },
         }
 
+
+class FakeCopyGradeDashboardService:
+    async def get(self) -> dict:
+        now = datetime.now(UTC)
+        return {
+            "updated_at": now,
+            "total": 1,
+            "tokens_total": 23,
+            "tokens_completed": 12,
+            "tokens_in_progress": 11,
+            "groups": [
+                {
+                    "grade_pair": grade_pair,
+                    "count": 1 if grade_pair == "A/A" else 0,
+                    "items": (
+                        [
+                            {
+                                "wallet": "wallet-aa",
+                                "main_score": 91.23,
+                                "copy_score": 80.13,
+                                "main_grade": "A",
+                                "copy_grade": "A",
+                                "copy_mode": "manual",
+                                "transactions": 1000,
+                                "updated_at": now,
+                            }
+                        ]
+                        if grade_pair == "A/A"
+                        else []
+                    ),
+                }
+                for grade_pair in ("A/A", "B/A", "A/B", "B/B")
+            ],
+        }
+
+
 def create_client() -> tuple[TestClient, FakeReadService]:
     application = create_app()
     service = FakeReadService()
@@ -511,20 +548,20 @@ def create_client() -> tuple[TestClient, FakeReadService]:
     monitors = FakeMonitorService()
     funding = FakeFundingService()
     system_health = FakeSystemHealthService()
+    copy_grades = FakeCopyGradeDashboardService()
     application.dependency_overrides[get_read_service] = lambda: service
     application.dependency_overrides[get_analytics_service] = lambda: analytics
     application.dependency_overrides[get_scoring_service] = lambda: scoring
-    application.dependency_overrides[get_score_snapshot_service] = (
-        lambda: snapshots
-    )
+    application.dependency_overrides[get_score_snapshot_service] = lambda: snapshots
     application.dependency_overrides[get_token_score_snapshot_service] = (
         lambda: token_snapshots
     )
     application.dependency_overrides[get_alert_service] = lambda: alerts
     application.dependency_overrides[get_monitor_service] = lambda: monitors
     application.dependency_overrides[get_funding_service] = lambda: funding
-    application.dependency_overrides[get_system_health_service] = (
-        lambda: system_health
+    application.dependency_overrides[get_system_health_service] = lambda: system_health
+    application.dependency_overrides[get_copy_grade_dashboard_service] = (
+        lambda: copy_grades
     )
     return TestClient(application), service
 
@@ -543,6 +580,21 @@ def test_health() -> None:
     assert response.headers["X-Content-Type-Options"] == "nosniff"
     assert response.headers["X-Frame-Options"] == "DENY"
     assert response.headers["Referrer-Policy"] == "no-referrer"
+
+
+def test_copy_grade_frontend_and_api() -> None:
+    client, _ = create_client()
+
+    page = client.get("/copy-grades")
+    data = client.get("/api/v1/copy-grades")
+
+    assert page.status_code == 200
+    assert "Copy Grade" in page.text
+    assert "/static/copy-grades.js" in page.text
+    assert data.status_code == 200
+    assert data.json()["total"] == 1
+    assert data.json()["tokens_completed"] == 12
+    assert data.json()["groups"][0]["items"][0]["main_score"] == 91.23
 
 
 def test_invalid_request_id_is_replaced() -> None:
@@ -1043,10 +1095,13 @@ def test_production_mutations_require_admin_api_key(monkeypatch) -> None:
         assert wrong_key.status_code == 401
         assert authorized.status_code == 201
         assert client.get("/docs").status_code == 404
-        assert client.get(
-            "/health",
-            headers={"Host": "untrusted.example"},
-        ).status_code == 400
+        assert (
+            client.get(
+                "/health",
+                headers={"Host": "untrusted.example"},
+            ).status_code
+            == 400
+        )
         assert authorized.headers["Content-Security-Policy"] == (
             "default-src 'none'; frame-ancestors 'none'"
         )

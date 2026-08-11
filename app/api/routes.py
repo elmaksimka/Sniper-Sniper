@@ -8,6 +8,7 @@ from app.api.dependencies import (
     AdminAccessDependency,
     AlertServiceDependency,
     AnalyticsServiceDependency,
+    CopyGradeDashboardServiceDependency,
     MonitorServiceDependency,
     ReadServiceDependency,
     ScoreSnapshotServiceDependency,
@@ -40,6 +41,7 @@ from app.api.schemas import (
     ObservedTokenHolderPage,
     ObservedTokenHolderRead,
     CreatorAnalyticsRead,
+    CopyGradeDashboardRead,
     TokenScoreRead,
     EarlyTokenScoreRead,
     TokenScoreLeaderboardPage,
@@ -50,6 +52,13 @@ from app.api.schemas import (
 router = APIRouter(prefix="/api/v1")
 Limit = Annotated[int, Query(ge=1, le=100)]
 Offset = Annotated[int, Query(ge=0)]
+
+
+@router.get("/copy-grades", response_model=CopyGradeDashboardRead)
+async def get_copy_grade_dashboard(
+    service: CopyGradeDashboardServiceDependency,
+) -> CopyGradeDashboardRead:
+    return CopyGradeDashboardRead.model_validate(await service.get())
 
 
 @router.get("/tokens", response_model=TokenPage)
@@ -372,8 +381,7 @@ async def list_wallet_scores(
     snapshots, total = await service.leaderboard(limit, offset, grade)
     return WalletScoreLeaderboardPage(
         items=[
-            WalletScoreSnapshotRead.from_snapshot(snapshot)
-            for snapshot in snapshots
+            WalletScoreSnapshotRead.from_snapshot(snapshot) for snapshot in snapshots
         ],
         total=total,
         limit=limit,

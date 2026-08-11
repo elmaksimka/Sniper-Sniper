@@ -1,13 +1,15 @@
 from collections.abc import AsyncIterator
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
+from pathlib import Path
 from time import monotonic
 from uuid import uuid4
 
 import structlog
 from fastapi import FastAPI, Request, Response, status
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.api.dependencies import SystemHealthServiceDependency
@@ -17,6 +19,9 @@ from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.infrastructure.database import engine
 from app.listeners.helius_client import HeliusClient
+
+
+FRONTEND_DIR = Path(__file__).resolve().parent / "frontend"
 
 
 @asynccontextmanager
@@ -44,9 +49,7 @@ def create_app() -> FastAPI:
         openapi_url=None if production else "/openapi.json",
     )
     allowed_hosts = [
-        host.strip()
-        for host in settings.allowed_hosts.split(",")
-        if host.strip()
+        host.strip() for host in settings.allowed_hosts.split(",") if host.strip()
     ]
     application.add_middleware(
         TrustedHostMiddleware,
@@ -64,8 +67,7 @@ def create_app() -> FastAPI:
             supplied_request_id
             if 0 < len(supplied_request_id) <= 128
             and all(
-                character.isascii()
-                and (character.isalnum() or character in "-_.")
+                character.isascii() and (character.isalnum() or character in "-_.")
                 for character in supplied_request_id
             )
             else uuid4().hex
@@ -83,7 +85,11 @@ def create_app() -> FastAPI:
             )
             if production:
                 response.headers["Content-Security-Policy"] = (
-                    "default-src 'none'; frame-ancestors 'none'"
+                    "default-src 'self'; style-src 'self'; script-src 'self'; "
+                    "connect-src 'self'; img-src 'self' data:; "
+                    "frame-ancestors 'none'; base-uri 'none'"
+                    if request.url.path == "/copy-grades"
+                    else "default-src 'none'; frame-ancestors 'none'"
                 )
             logger.info(
                 "http_request_complete",
@@ -107,6 +113,16 @@ def create_app() -> FastAPI:
     @application.get("/health", tags=["system"])
     async def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    application.mount(
+        "/static",
+        StaticFiles(directory=FRONTEND_DIR),
+        name="static",
+    )
+
+    @application.get("/copy-grades", include_in_schema=False)
+    async def copy_grades_page() -> FileResponse:
+        return FileResponse(FRONTEND_DIR / "copy-grades.html")
 
     @application.get("/version", response_model=BuildInfo, tags=["system"])
     async def version() -> BuildInfo:

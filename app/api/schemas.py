@@ -364,17 +364,11 @@ class WalletScoreSnapshotRead(WalletScoreRead):
             realized_roi=snapshot.realized_roi,
             unmatched_sell_ratio=snapshot.unmatched_sell_ratio,
             priced_trade_ratio=float(snapshot.priced_trade_ratio or 0),
-            realized_cost_basis_sol=float(
-                snapshot.realized_cost_basis_sol or 0
-            ),
+            realized_cost_basis_sol=float(snapshot.realized_cost_basis_sol or 0),
             realized_position_count=int(snapshot.realized_position_count or 0),
-            profitable_position_count=int(
-                snapshot.profitable_position_count or 0
-            ),
+            profitable_position_count=int(snapshot.profitable_position_count or 0),
             win_rate=float(snapshot.win_rate or 0),
-            pnl_concentration_ratio=float(
-                snapshot.pnl_concentration_ratio or 0
-            ),
+            pnl_concentration_ratio=float(snapshot.pnl_concentration_ratio or 0),
             realized_pnl_ex_top_position_sol=float(
                 snapshot.realized_pnl_ex_top_position_sol or 0
             ),
@@ -460,3 +454,29 @@ class MonitorRead(BaseModel):
 class MonitorPage(BaseModel):
     items: list[MonitorRead]
     total: int
+
+
+class CopyGradeWalletRead(BaseModel):
+    wallet: str
+    main_score: float
+    copy_score: float
+    main_grade: str
+    copy_grade: str
+    copy_mode: str
+    transactions: int
+    updated_at: datetime
+
+
+class CopyGradeGroupRead(BaseModel):
+    grade_pair: str
+    count: int
+    items: list[CopyGradeWalletRead]
+
+
+class CopyGradeDashboardRead(BaseModel):
+    updated_at: datetime | None
+    total: int
+    tokens_total: int
+    tokens_completed: int
+    tokens_in_progress: int
+    groups: list[CopyGradeGroupRead]
