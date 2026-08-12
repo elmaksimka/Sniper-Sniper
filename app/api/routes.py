@@ -9,6 +9,7 @@ from app.api.dependencies import (
     AlertServiceDependency,
     AnalyticsServiceDependency,
     CopyGradeDashboardServiceDependency,
+    PaperCopyDashboardServiceDependency,
     MonitorServiceDependency,
     ReadServiceDependency,
     ScoreSnapshotServiceDependency,
@@ -42,6 +43,7 @@ from app.api.schemas import (
     ObservedTokenHolderRead,
     CreatorAnalyticsRead,
     CopyGradeDashboardRead,
+    PaperCopyDashboardRead,
     TokenScoreRead,
     EarlyTokenScoreRead,
     TokenScoreLeaderboardPage,
@@ -59,6 +61,13 @@ async def get_copy_grade_dashboard(
     service: CopyGradeDashboardServiceDependency,
 ) -> CopyGradeDashboardRead:
     return CopyGradeDashboardRead.model_validate(await service.get())
+
+
+@router.get("/copy-positions", response_model=PaperCopyDashboardRead)
+async def get_paper_copy_dashboard(
+    service: PaperCopyDashboardServiceDependency,
+) -> PaperCopyDashboardRead:
+    return PaperCopyDashboardRead.model_validate(await service.get())
 
 
 @router.get("/tokens", response_model=TokenPage)

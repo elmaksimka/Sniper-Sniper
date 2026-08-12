@@ -520,7 +520,7 @@ class CandidateEnrichmentService:
         if value is None:
             return None
         try:
-            return max(0, int(value))  # type: ignore[arg-type]
+            return max(0, int(str(value)))
         except (TypeError, ValueError):
             return None
 

@@ -40,8 +40,8 @@ class CopySourceService:
     @staticmethod
     def _is_aa(details: dict[str, object]) -> bool:
         try:
-            return float(details.get("score_after", 0)) >= 80 and float(
-                details.get("copy_score", 0)
+            return float(str(details.get("score_after", 0))) >= 80 and float(
+                str(details.get("copy_score", 0))
             ) >= 75
         except (TypeError, ValueError):
             return False

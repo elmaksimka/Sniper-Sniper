@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
   <title>Copy Grade Radar · Alpha Engine</title>
-  <link rel="stylesheet" href="/static/copy-grades.css?v=20260812-2">
+  <link rel="stylesheet" href="/static/copy-grades.css?v=20260812-3">
 </head>
 <body>
   <div class="ambient ambient-one"></div>
@@ -18,7 +18,10 @@
         <p class="subtitle">Оцінки гаманців, відібраних для аудиту та paper copy-trading. Аналіз — до 1000 транзакцій.</p>
       </div>
       <div class="hero-meta">
-        <button id="homeButton" class="home-button" type="button">Home</button>
+        <div class="hero-nav">
+          <button id="homeButton" class="home-button" type="button">Home</button>
+          <a class="home-button" href="/copy-positions">Відкриті позиції</a>
+        </div>
         <span id="connection" class="status">Оновлення…</span>
         <span id="updatedAt" class="updated">—</span>
       </div>
@@ -28,7 +31,6 @@
       <button type="button" class="audit-counter" data-token-filter="all"><span>Монет у аудиті</span><strong id="tokensTotal">—</strong></button>
       <button type="button" class="audit-counter" data-token-filter="completed"><span>Пройдено</span><strong id="tokensCompleted">—</strong></button>
       <button type="button" class="audit-counter" data-token-filter="in-progress"><span>У роботі / черзі</span><strong id="tokensInProgress">—</strong></button>
-      <div><span>Наступне оновлення</span><strong id="nextRefresh">—</strong></div>
     </section>
 
     <section id="summary" class="summary" aria-label="Зведення категорій"></section>
@@ -68,6 +70,6 @@
       <span id="walletTotal">0 гаманців</span>
     </footer>
   </main>
-  <script src="/static/copy-grades.js?v=20260812-8" defer></script>
+  <script src="/static/copy-grades.js?v=20260812-9" defer></script>
 </body>
 </html>

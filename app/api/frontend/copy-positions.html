@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Copy Positions · Alpha Engine</title>
+  <link rel="stylesheet" href="/static/copy-grades.css?v=20260812-3">
+</head>
+<body>
+  <div class="ambient ambient-one"></div>
+  <div class="ambient ambient-two"></div>
+  <main class="shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow"><span class="pulse"></span> ALPHA ENGINE · PAPER COPY</p>
+        <h1>Open <span>Positions</span></h1>
+        <p class="subtitle">Усі активні копітрейдингові позиції та їхній поточний результат.</p>
+      </div>
+      <div class="hero-meta">
+        <div class="hero-nav">
+          <a class="home-button" href="/copy-grades">Home</a>
+          <a class="home-button active" href="/copy-positions">Відкриті позиції</a>
+        </div>
+        <span id="connection" class="status">Оновлення…</span>
+        <span id="updatedAt" class="updated">—</span>
+      </div>
+    </header>
+
+    <section id="portfolioSummary" class="portfolio-summary" aria-label="Стан paper copy портфеля"></section>
+    <section class="portfolio-meta">
+      <span>Портфель: <strong id="portfolioWallet">—</strong></span>
+      <span>Статус: <strong id="portfolioStatus">—</strong></span>
+      <span>Алокація на вхід: <strong id="allocation">—</strong></span>
+      <span>Ліміт позицій: <strong id="positionLimit">—</strong></span>
+      <span>Slippage: <strong id="slippage">—</strong></span>
+      <span>Запущено: <strong id="startedAt">—</strong></span>
+    </section>
+
+    <div id="error" class="error" hidden></div>
+    <section class="grade-section positions-section">
+      <header class="grade-header">
+        <div class="grade-title">
+          <span class="grade-badge">LIVE</span>
+          <span class="grade-name">Відкриті позиції</span>
+        </div>
+        <span id="positionCount" class="grade-count">—</span>
+      </header>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Монета</th>
+              <th>Трейдер</th>
+              <th>Кількість</th>
+              <th>Вхід</th>
+              <th>Остання ціна</th>
+              <th>Собівартість</th>
+              <th>Вартість виходу</th>
+              <th>PnL / ROI</th>
+              <th>Відкрито</th>
+              <th>Оновлено</th>
+            </tr>
+          </thead>
+          <tbody id="positionsBody">
+            <tr><td colspan="11"><div class="loading"><span></span><span></span><span></span></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer>
+      <span>Ціна — остання отримана котировка. Вартість виходу та PnL враховують slippage.</span>
+      <span>Автооновлення о :00 та :30 за Києвом.</span>
+    </footer>
+  </main>
+  <script src="/static/copy-positions.js?v=20260812-1" defer></script>
+</body>
+</html>

@@ -246,15 +246,6 @@ async function loadData() {
   }
 }
 
-function formatKyivTime(date) {
-  return new Intl.DateTimeFormat("uk-UA", {
-    timeZone: KYIV_TIMEZONE,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(date);
-}
-
 function scheduleHalfHourRefresh() {
   const now = new Date();
   const next = new Date(now);
@@ -264,7 +255,6 @@ function scheduleHalfHourRefresh() {
     next.setMinutes(0);
     next.setHours(next.getHours() + 1);
   }
-  document.querySelector("#nextRefresh").textContent = `${formatKyivTime(next)} · Київ`;
   setTimeout(async () => {
     await loadData();
     scheduleHalfHourRefresh();

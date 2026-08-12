@@ -205,14 +205,14 @@ class CopyGradeDashboardService:
     @staticmethod
     def _optional_float(value: object) -> float | None:
         try:
-            return float(value)  # type: ignore[arg-type]
+            return float(str(value))
         except (TypeError, ValueError):
             return None
 
     @staticmethod
     def _non_negative_int(value: object) -> int:
         try:
-            return max(0, int(value))  # type: ignore[arg-type]
+            return max(0, int(str(value)))
         except (TypeError, ValueError):
             return 0
 
@@ -221,6 +221,6 @@ class CopyGradeDashboardService:
         if value is None:
             return None
         try:
-            return max(0, int(value))  # type: ignore[arg-type]
+            return max(0, int(str(value)))
         except (TypeError, ValueError):
             return None

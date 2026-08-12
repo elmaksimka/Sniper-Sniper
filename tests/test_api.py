@@ -10,6 +10,7 @@ from app.api.dependencies import get_alert_service
 from app.api.dependencies import get_funding_service, get_monitor_service
 from app.api.dependencies import get_system_health_service
 from app.api.dependencies import get_copy_grade_dashboard_service
+from app.api.dependencies import get_paper_copy_dashboard_service
 from app.core.config import get_settings
 from app.core.analytics import (
     CreatorAnalytics,
@@ -538,6 +539,43 @@ class FakeCopyGradeDashboardService:
         }
 
 
+class FakePaperCopyDashboardService:
+    async def get(self) -> dict:
+        now = datetime.now(UTC)
+        return {
+            "updated_at": now,
+            "portfolio_wallet": "paper-copy-pool",
+            "enabled": True,
+            "initial_balance_usd": 100.0,
+            "cash_balance_usd": 90.0,
+            "total_equity_usd": 101.88,
+            "total_pnl_usd": 1.88,
+            "allocation_usd": 2.0,
+            "max_open_positions": 20,
+            "slippage_bps": 100,
+            "started_at": now,
+            "positions": [
+                {
+                    "source_wallet": "trader",
+                    "token_address": "mint",
+                    "symbol": "TKN",
+                    "name": "Token",
+                    "source_quantity": 1000.0,
+                    "quantity": 10.0,
+                    "cost_basis_usd": 10.0,
+                    "entry_price_usd": 1.0,
+                    "last_price_usd": 1.2,
+                    "market_value_usd": 12.0,
+                    "estimated_exit_value_usd": 11.88,
+                    "unrealized_pnl_usd": 1.88,
+                    "unrealized_roi_pct": 18.8,
+                    "opened_at": now,
+                    "updated_at": now,
+                }
+            ],
+        }
+
+
 def create_client() -> tuple[TestClient, FakeReadService]:
     application = create_app()
     service = FakeReadService()
@@ -550,6 +588,7 @@ def create_client() -> tuple[TestClient, FakeReadService]:
     funding = FakeFundingService()
     system_health = FakeSystemHealthService()
     copy_grades = FakeCopyGradeDashboardService()
+    copy_positions = FakePaperCopyDashboardService()
     application.dependency_overrides[get_read_service] = lambda: service
     application.dependency_overrides[get_analytics_service] = lambda: analytics
     application.dependency_overrides[get_scoring_service] = lambda: scoring
@@ -563,6 +602,9 @@ def create_client() -> tuple[TestClient, FakeReadService]:
     application.dependency_overrides[get_system_health_service] = lambda: system_health
     application.dependency_overrides[get_copy_grade_dashboard_service] = (
         lambda: copy_grades
+    )
+    application.dependency_overrides[get_paper_copy_dashboard_service] = (
+        lambda: copy_positions
     )
     return TestClient(application), service
 
@@ -591,12 +633,26 @@ def test_copy_grade_frontend_and_api() -> None:
 
     assert page.status_code == 200
     assert "Copy Grade" in page.text
-    assert "/static/copy-grades.js?v=20260812-8" in page.text
+    assert "/static/copy-grades.js?v=20260812-9" in page.text
     assert "backToTokens" in page.text
     assert data.status_code == 200
     assert data.json()["total"] == 1
     assert data.json()["tokens_completed"] == 12
     assert data.json()["groups"][0]["items"][0]["main_score"] == 91.23
+
+
+def test_paper_copy_positions_frontend_and_api() -> None:
+    client, _ = create_client()
+
+    page = client.get("/copy-positions")
+    data = client.get("/api/v1/copy-positions")
+
+    assert page.status_code == 200
+    assert "Open <span>Positions</span>" in page.text
+    assert "/static/copy-positions.js?v=20260812-1" in page.text
+    assert data.status_code == 200
+    assert data.json()["portfolio_wallet"] == "paper-copy-pool"
+    assert data.json()["positions"][0]["unrealized_pnl_usd"] == 1.88
 
 
 def test_invalid_request_id_is_replaced() -> None:

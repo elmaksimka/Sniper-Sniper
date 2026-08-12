@@ -88,7 +88,7 @@ def create_app() -> FastAPI:
                     "default-src 'self'; style-src 'self'; script-src 'self'; "
                     "connect-src 'self'; img-src 'self' data:; "
                     "frame-ancestors 'none'; base-uri 'none'"
-                    if request.url.path == "/copy-grades"
+                    if request.url.path in ("/copy-grades", "/copy-positions")
                     else "default-src 'none'; frame-ancestors 'none'"
                 )
             logger.info(
@@ -123,6 +123,10 @@ def create_app() -> FastAPI:
     @application.get("/copy-grades", include_in_schema=False)
     async def copy_grades_page() -> FileResponse:
         return FileResponse(FRONTEND_DIR / "copy-grades.html")
+
+    @application.get("/copy-positions", include_in_schema=False)
+    async def copy_positions_page() -> FileResponse:
+        return FileResponse(FRONTEND_DIR / "copy-positions.html")
 
     @application.get("/version", response_model=BuildInfo, tags=["system"])
     async def version() -> BuildInfo:

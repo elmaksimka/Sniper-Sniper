@@ -15,6 +15,7 @@ from app.services.score_snapshot_service import ScoreSnapshotService
 from app.services.scoring_service import ScoringService
 from app.services.system_health_service import SystemHealthService
 from app.services.copy_grade_dashboard_service import CopyGradeDashboardService
+from app.services.paper_copy_dashboard_service import PaperCopyDashboardService
 from app.repositories.heartbeat_repository import HeartbeatRepository
 from app.repositories.wallet_repository import WalletRepository
 from app.services.funding_service import FundingService
@@ -159,4 +160,17 @@ def get_copy_grade_dashboard_service(
 CopyGradeDashboardServiceDependency = Annotated[
     CopyGradeDashboardService,
     Depends(get_copy_grade_dashboard_service),
+]
+
+
+def get_paper_copy_dashboard_service(
+    session: SessionDependency,
+) -> PaperCopyDashboardService:
+    settings = get_settings()
+    return PaperCopyDashboardService(session, settings.paper_copy_portfolio_wallet)
+
+
+PaperCopyDashboardServiceDependency = Annotated[
+    PaperCopyDashboardService,
+    Depends(get_paper_copy_dashboard_service),
 ]

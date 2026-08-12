@@ -512,3 +512,36 @@ class CopyGradeDashboardRead(BaseModel):
     tokens_in_progress: int
     tokens: list[CopyGradeTokenRead]
     groups: list[CopyGradeGroupRead]
+
+
+class PaperCopyPositionRead(BaseModel):
+    source_wallet: str
+    token_address: str
+    symbol: str | None
+    name: str | None
+    source_quantity: float
+    quantity: float
+    cost_basis_usd: float
+    entry_price_usd: float
+    last_price_usd: float
+    market_value_usd: float
+    estimated_exit_value_usd: float
+    unrealized_pnl_usd: float
+    unrealized_roi_pct: float
+    opened_at: datetime
+    updated_at: datetime
+
+
+class PaperCopyDashboardRead(BaseModel):
+    updated_at: datetime
+    portfolio_wallet: str
+    enabled: bool
+    initial_balance_usd: float
+    cash_balance_usd: float
+    total_equity_usd: float
+    total_pnl_usd: float
+    allocation_usd: float
+    max_open_positions: int
+    slippage_bps: int
+    started_at: datetime | None
+    positions: list[PaperCopyPositionRead]
