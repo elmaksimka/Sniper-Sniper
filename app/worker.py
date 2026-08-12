@@ -23,6 +23,7 @@ from app.services.candidate_audit_progress_service import (
     CandidateAuditProgressService,
 )
 from app.services.candidate_enrichment_service import CandidateEnrichmentService
+from app.services.copy_source_service import CopySourceService
 from app.services.dexscreener_client import DexScreenerClient
 from app.services.monitor_worker import MonitorWorker
 from app.services.monitor_service import MonitorService
@@ -303,7 +304,6 @@ async def paper_copy_summary_loop(
     leader: PostgresLeaderElector,
     telegram: TelegramNotifier,
     source_wallet: str,
-    trader_count: int,
     interval_seconds: float,
     stop_event: asyncio.Event,
 ) -> None:
@@ -316,6 +316,9 @@ async def paper_copy_summary_loop(
             try:
                 async with async_session_factory() as session:
                     repository = PaperCopyRepository(session)
+                    copy_sources = await CopySourceService(
+                        HeartbeatRepository(session)
+                    ).list_addresses()
                     portfolio = await repository.get_portfolio(source_wallet)
                     if portfolio is not None:
                         orders = await repository.list_unsent(portfolio.id)
@@ -326,7 +329,7 @@ async def paper_copy_summary_loop(
                             orders,
                             portfolio,
                             open_positions,
-                            trader_count,
+                            len(copy_sources),
                         )
                         delivered = not telegram.enabled or (
                             bool(results) and all(results.values())
@@ -372,7 +375,11 @@ async def initialize_paper_copy(
             minimum_liquidity_usd=minimum_liquidity_usd,
         )
         monitors = MonitorService(session)
-        for source_wallet in source_wallets:
+        dynamic_sources = await CopySourceService(
+            HeartbeatRepository(session),
+            monitors,
+        ).reconcile()
+        for source_wallet in dynamic_sources or source_wallets:
             await monitors.add(source_wallet)
         if created:
             await telegram.send_paper_copy_started(portfolio)
@@ -652,7 +659,6 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                             leader,
                             telegram,
                             settings.paper_copy_portfolio_wallet,
-                            len(settings.paper_copy_sources),
                             float(
                                 getattr(
                                     settings,
@@ -833,7 +839,15 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                 async with async_session_factory() as session:
                     heartbeat_details["state"] = "polling"
                     container = Container(session, helius_client=helius_client)
+                    copy_sources: tuple[str, ...] = ()
                     if paper_copy_enabled:
+                        copy_sources = await CopySourceService(
+                            HeartbeatRepository(session),
+                            MonitorService(session),
+                        ).reconcile()
+                        container.paper_copy_service.source_wallets = frozenset(
+                            copy_sources
+                        )
                         container.setup(register_paper_copy=True)
                     else:
                         container.setup()
@@ -844,7 +858,7 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                         page_size=settings.monitor_page_size,
                         max_pages=settings.monitor_max_pages,
                         priority_addresses=(
-                            settings.paper_copy_sources if paper_copy_enabled else ()
+                            copy_sources if paper_copy_enabled else ()
                         ),
                     )
                     processed = await monitor_worker.run_once()

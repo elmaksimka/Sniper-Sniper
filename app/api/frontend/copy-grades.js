@@ -179,29 +179,12 @@ function renderGroups() {
     const items = group.items
       .filter((item) => item.wallet.toLowerCase().includes(query));
     if (state.sorts.length) {
-      const combinedRanks = new Map(items.map((item) => [item.wallet, 0]));
-      for (const sort of state.sorts) {
-        const ranked = [...items].sort((left, right) => {
-          const leftValue = sortValue(left, sort.key);
-          const rightValue = sortValue(right, sort.key);
-          const difference = leftValue - rightValue;
-          if (difference !== 0) {
-            return sort.direction === "desc" ? -difference : difference;
-          }
-          return left.wallet.localeCompare(right.wallet);
-        });
-        let rank = 0;
-        let previousValue = null;
-        ranked.forEach((item, index) => {
-          const value = sortValue(item, sort.key);
-          if (index === 0 || value !== previousValue) rank = index;
-          combinedRanks.set(item.wallet, combinedRanks.get(item.wallet) + rank);
-          previousValue = value;
-        });
-      }
+      const sort = state.sorts[0];
       items.sort((left, right) => {
-        const difference = combinedRanks.get(left.wallet) - combinedRanks.get(right.wallet);
-        if (difference !== 0) return difference;
+        const difference = sortValue(left, sort.key) - sortValue(right, sort.key);
+        if (difference !== 0) {
+          return sort.direction === "desc" ? -difference : difference;
+        }
         return left.wallet.localeCompare(right.wallet);
       });
     }
@@ -299,11 +282,11 @@ document.querySelector("#groups").addEventListener("click", async (event) => {
     const key = sortButton.dataset.sort;
     const index = state.sorts.findIndex((sort) => sort.key === key);
     if (index < 0) {
-      state.sorts.push({ key, direction: "desc" });
+      state.sorts = [{ key, direction: "desc" }];
     } else if (state.sorts[index].direction === "desc") {
-      state.sorts[index].direction = "asc";
+      state.sorts = [{ key, direction: "asc" }];
     } else {
-      state.sorts.splice(index, 1);
+      state.sorts = [];
     }
     renderGroups();
     return;
