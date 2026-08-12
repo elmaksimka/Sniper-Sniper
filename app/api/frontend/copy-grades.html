@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
   <title>Copy Grade Radar · Alpha Engine</title>
-  <link rel="stylesheet" href="/static/copy-grades.css">
+  <link rel="stylesheet" href="/static/copy-grades.css?v=20260812-2">
 </head>
 <body>
   <div class="ambient ambient-one"></div>
@@ -39,7 +39,10 @@
           <p class="details-eyebrow">МОНЕТИ ТА ЇХНІ ТОП-ТРЕЙДЕРИ</p>
           <h2 id="tokenDetailsTitle">Деталі аудиту</h2>
         </div>
-        <button id="closeTokenDetails" class="details-close" type="button" aria-label="Закрити">×</button>
+        <div class="details-actions">
+          <button id="backToTokens" class="details-back" type="button" hidden>← До списку монет</button>
+          <button id="closeTokenDetails" class="details-close" type="button" aria-label="Закрити">×</button>
+        </div>
       </header>
       <div id="tokenList" class="token-list"></div>
     </section>
@@ -65,6 +68,6 @@
       <span id="walletTotal">0 гаманців</span>
     </footer>
   </main>
-  <script src="/static/copy-grades.js" defer></script>
+  <script src="/static/copy-grades.js?v=20260812-4" defer></script>
 </body>
 </html>

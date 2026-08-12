@@ -408,10 +408,6 @@ class TelegramNotifier:
             if self.worker_summary_enabled
             else {}
         )
-        for message in self._candidate_audit_progress_messages(details):
-            progress_results = await self.send_text(message)
-            for recipient, delivered in progress_results.items():
-                results[recipient] = results.get(recipient, True) and delivered
         return results
 
     async def send_discovery_degraded(

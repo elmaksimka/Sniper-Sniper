@@ -2,6 +2,7 @@ const state = {
   data: null,
   query: "",
   tokenFilter: null,
+  selectedTokenIndex: null,
   gradeFilter: null,
   sorts: [],
 };
@@ -69,50 +70,68 @@ function tokenMatchesGrade(token, gradePair) {
 function renderTokenDetails(filter) {
   if (!state.data) return;
   state.tokenFilter = filter;
-  let tokens = state.data.tokens || [];
+  state.selectedTokenIndex = null;
+  let tokens = (state.data.tokens || []).map((token, index) => ({ token, index }));
   let title = "Усі монети аудиту";
   if (filter === "completed") {
-    tokens = tokens.filter((token) => token.complete);
+    tokens = tokens.filter(({ token }) => token.complete);
     title = "Пройдені монети";
   } else if (filter === "in-progress") {
-    tokens = tokens.filter((token) => !token.complete);
+    tokens = tokens.filter(({ token }) => !token.complete);
     title = "Монети у роботі / черзі";
   } else if (filter && filter.includes("/")) {
-    tokens = tokens.filter((token) => tokenMatchesGrade(token, filter));
+    tokens = tokens.filter(({ token }) => tokenMatchesGrade(token, filter));
     title = `Монети з трейдерами категорії ${filter}`;
   }
 
   document.querySelector("#tokenDetailsTitle").textContent = `${title} · ${tokens.length}`;
-  document.querySelector("#tokenList").innerHTML = tokens.length ? tokens.map((token) => {
+  document.querySelector("#backToTokens").hidden = true;
+  document.querySelector("#tokenList").innerHTML = tokens.length ? tokens.map(({ token, index }) => {
     const symbol = escapeHtml(token.symbol || "Без назви");
-    const address = escapeHtml(token.token_address);
-    const traders = filter && filter.includes("/")
-      ? (token.traders || []).filter((trader) =>
-          `${trader.main_grade || ""}/${trader.copy_grade || ""}` === filter
-        )
-      : (token.traders || []);
-    const rows = traders.length
-      ? traders.map(tokenTraderRow).join("")
-      : `<tr><td colspan="6" class="empty">Трейдерів для цієї монети ще немає</td></tr>`;
-    const progress = filter && filter.includes("/")
-      ? `${traders.length} ${filter} трейдерів`
-      : `${token.completed_traders} / ${token.total_traders} перевірено`;
     return `
-      <article class="token-card">
-        <header class="token-header">
-          <div><h3>${symbol}</h3><a href="https://solscan.io/token/${encodeURIComponent(token.token_address)}" target="_blank" rel="noreferrer">${address || "Адреса очікується"}</a></div>
-          <span class="token-progress ${token.complete ? "complete" : ""}">${progress}</span>
-        </header>
-        <div class="table-wrap"><table>
-          <thead><tr><th>#</th><th>Трейдер</th><th>Основна оцінка</th><th>Copy-оцінка</th><th>Режим</th><th>Проаналізовано / всі</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table></div>
-      </article>`;
+      <button type="button" class="token-list-item" data-token-index="${index}">
+        <strong>${symbol}</strong>
+      </button>`;
   }).join("") : `<div class="empty">Для цього лічильника монет поки немає</div>`;
 
   const details = document.querySelector("#tokenDetails");
   details.hidden = false;
   details.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function renderSelectedToken(index) {
+  const token = state.data?.tokens?.[index];
+  if (!token) return;
+  state.selectedTokenIndex = index;
+  let traders = token.traders || [];
+  if (state.tokenFilter && state.tokenFilter.includes("/")) {
+    traders = traders.filter((trader) =>
+      `${trader.main_grade || ""}/${trader.copy_grade || ""}` === state.tokenFilter
+    );
+  }
+  traders = [...traders].sort((left, right) => left.rank - right.rank).slice(0, 10);
+  const symbol = escapeHtml(token.symbol || "Без назви");
+  const address = escapeHtml(token.token_address);
+  const rows = traders.length
+    ? traders.map(tokenTraderRow).join("")
+    : `<tr><td colspan="6" class="empty">Трейдерів для цієї монети ще немає</td></tr>`;
+  document.querySelector("#tokenDetailsTitle").textContent = `${symbol} · топ-10 трейдерів`;
+  document.querySelector("#backToTokens").hidden = false;
+  document.querySelector("#tokenList").innerHTML = `
+    <article class="token-card">
+      <header class="token-header">
+        <div><h3>${symbol}</h3><a href="https://solscan.io/token/${encodeURIComponent(token.token_address)}" target="_blank" rel="noreferrer">${address || "Адреса очікується"}</a></div>
+        <span class="token-progress ${token.complete ? "complete" : ""}">${token.completed_traders} / ${token.total_traders} перевірено</span>
+      </header>
+      <div class="table-wrap"><table>
+        <thead><tr><th>#</th><th>Трейдер</th><th>Основна оцінка</th><th>Copy-оцінка</th><th>Режим</th><th>Проаналізовано / всі</th></tr></thead>
+        <tbody>${rows}</tbody>
+       </table></div>
+     </article>`;
+  document.querySelector("#tokenDetails").scrollIntoView({
+    behavior: "smooth",
+    block: "start",
+  });
 }
 
 function walletRow(item, index) {
@@ -295,7 +314,20 @@ document.querySelector("#groups").addEventListener("click", async (event) => {
 
 document.addEventListener("click", (event) => {
   const counter = event.target.closest("[data-token-filter]");
-  if (counter) renderTokenDetails(counter.dataset.tokenFilter);
+  if (counter) {
+    state.gradeFilter = null;
+    document.querySelectorAll(".stat-card").forEach((item) => {
+      item.classList.remove("active");
+    });
+    renderGroups();
+    document.querySelector("#groups").hidden = true;
+    renderTokenDetails(counter.dataset.tokenFilter);
+  }
+});
+
+document.querySelector("#tokenList").addEventListener("click", (event) => {
+  const token = event.target.closest("[data-token-index]");
+  if (token) renderSelectedToken(Number(token.dataset.tokenIndex));
 });
 
 document.querySelector("#summary").addEventListener("click", (event) => {
@@ -303,6 +335,7 @@ document.querySelector("#summary").addEventListener("click", (event) => {
   if (!card) return;
   state.gradeFilter = card.dataset.gradeFilter;
   document.querySelector("#tokenDetails").hidden = true;
+  document.querySelector("#groups").hidden = false;
   document.querySelectorAll(".stat-card").forEach((item) => {
     item.classList.toggle("active", item === card);
   });
@@ -312,16 +345,24 @@ document.querySelector("#summary").addEventListener("click", (event) => {
 
 document.querySelector("#closeTokenDetails").addEventListener("click", () => {
   state.tokenFilter = null;
+  state.selectedTokenIndex = null;
   document.querySelector("#tokenDetails").hidden = true;
+  document.querySelector("#groups").hidden = false;
+});
+
+document.querySelector("#backToTokens").addEventListener("click", () => {
+  renderTokenDetails(state.tokenFilter || "all");
 });
 
 document.querySelector("#homeButton").addEventListener("click", () => {
   state.gradeFilter = null;
   state.tokenFilter = null;
+  state.selectedTokenIndex = null;
   state.query = "";
   state.sorts = [];
   document.querySelector("#searchInput").value = "";
   document.querySelector("#tokenDetails").hidden = true;
+  document.querySelector("#groups").hidden = false;
   document.querySelectorAll(".stat-card").forEach((item) => {
     item.classList.remove("active");
   });

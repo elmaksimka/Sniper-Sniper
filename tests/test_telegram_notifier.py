@@ -138,7 +138,7 @@ async def test_delivery_retries_after_a_transient_failure() -> None:
 
 
 @pytest.mark.asyncio
-async def test_worker_summary_can_be_hidden_while_audit_progress_is_sent() -> None:
+async def test_worker_summary_can_be_hidden_without_sending_audit_progress() -> None:
     messages: list[str] = []
 
     async def handler(request: httpx.Request) -> httpx.Response:
@@ -166,10 +166,8 @@ async def test_worker_summary_can_be_hidden_while_audit_progress_is_sent() -> No
             }
         )
 
-    assert results == {"100": True}
-    assert len(messages) == 1
-    assert "наш copy-trading" in messages[0]
-    assert "Alpha Engine працює" not in messages[0]
+    assert results == {}
+    assert messages == []
 
 
 @pytest.mark.asyncio
