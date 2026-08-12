@@ -50,6 +50,16 @@ class CopyGradeDashboardService:
             wallet = row.service_name.removeprefix("candidate:").strip()
             if not wallet:
                 continue
+            transactions = self._non_negative_int(
+                row.details.get("transactions_processed_total")
+            )
+            total_transactions = self._optional_non_negative_int(
+                row.details.get("transactions_available_total")
+            )
+            if total_transactions is None and row.details.get("state") == "complete":
+                total_transactions = transactions
+            if total_transactions is not None:
+                total_transactions = max(total_transactions, transactions)
             groups[grade_pair].append(
                 {
                     "wallet": wallet,
@@ -58,12 +68,8 @@ class CopyGradeDashboardService:
                     "main_grade": main_grade,
                     "copy_grade": copy_grade,
                     "copy_mode": str(row.details.get("copy_mode") or "").strip(),
-                    "transactions": self._non_negative_int(
-                        row.details.get("transactions_processed_total")
-                    ),
-                    "total_transactions": self._optional_non_negative_int(
-                        row.details.get("transactions_available_total")
-                    ),
+                    "transactions": transactions,
+                    "total_transactions": total_transactions,
                     "updated_at": row.last_heartbeat_at,
                 }
             )

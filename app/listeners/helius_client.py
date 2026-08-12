@@ -40,6 +40,7 @@ class HeliusClient:
         self.retry_base_seconds = settings.helius_retry_base_seconds
         self.retry_max_seconds = settings.helius_retry_max_seconds
         self._timeout = settings.helius_timeout_seconds
+        self.request_delay = settings.helius_request_delay_seconds
         self.standard_transaction_delay = (
             settings.standard_rpc_transaction_delay_seconds
         )
@@ -106,6 +107,8 @@ class HeliusClient:
             try:
                 async with self._semaphore:
                     response = await client.post(self.rpc_url, json=payload)
+                    if self.request_delay > 0:
+                        await asyncio.sleep(self.request_delay)
                 response.raise_for_status()
                 data = response.json()
                 if not isinstance(data, dict):
@@ -123,7 +126,9 @@ class HeliusClient:
                     exc.response.status_code not in {408, 429, 500, 502, 503, 504}
                     or attempt >= self.max_retries
                 ):
-                    raise
+                    raise HeliusRPCError(
+                        f"Helius HTTP {exc.response.status_code}"
+                    ) from None
                 response = exc.response
             except httpx.RequestError:
                 if attempt >= self.max_retries:

@@ -1,5 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -9,6 +10,7 @@ from app.worker import (
     candidate_enrichment_loop,
     discovery_loop,
     discovery_retry_delay,
+    seconds_until_interval_boundary,
     telegram_status_loop,
     wait_for_stop,
 )
@@ -38,6 +40,21 @@ def test_discovery_retry_delay_is_bounded(
     expected: float,
 ) -> None:
     assert discovery_retry_delay(120, 900, failures) == expected
+
+
+@pytest.mark.parametrize(
+    ("now", "expected"),
+    [
+        (datetime(2026, 8, 12, 12, 4, 45, tzinfo=UTC), 25 * 60 + 15),
+        (datetime(2026, 8, 12, 12, 29, 59, 500_000, tzinfo=UTC), 0.5),
+        (datetime(2026, 8, 12, 12, 30, 0, tzinfo=UTC), 30 * 60),
+    ],
+)
+def test_summary_delay_aligns_to_half_hour(
+    now: datetime,
+    expected: float,
+) -> None:
+    assert seconds_until_interval_boundary(1800, now) == expected
 
 
 @pytest.mark.asyncio

@@ -19,7 +19,9 @@ Install Docker Desktop, then run from the repository root:
 ```
 
 Open `http://127.0.0.1:8000/docs`. Add monitored wallets through the API. The
-defaults check monitored wallets every 30 seconds and sample 20 recent
+defaults check monitored wallets every 30 seconds and can catch up through up to
+1,000 wallet transactions after downtime. Older gaps are safely resynchronized
+without replaying stale copy trades. They also sample 20 recent
 transactions from each configured DEX program every two minutes. Discovery
 backs off independently for up to 15 minutes when the shared RPC is overloaded.
 

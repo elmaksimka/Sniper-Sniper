@@ -51,6 +51,7 @@ class FakeHeartbeats:
                 details={
                     "state": "complete",
                     "transactions_processed_total": 330,
+                    "transactions_available_total": 320,
                     "history_capped": False,
                     "score_after": 95.7,
                 },
@@ -85,6 +86,7 @@ async def test_progress_combines_pair_queue_with_wallet_audits() -> None:
     }
     assert result[0]["traders"][1]["started"] is True
     assert result[0]["traders"][1]["transactions"] == 330
+    assert result[0]["traders"][1]["total_transactions"] == 330
     assert result[0]["traders"][1]["maximum_transactions"] == 330
 
 

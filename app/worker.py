@@ -3,7 +3,7 @@ import os
 import signal
 import socket
 from contextlib import suppress
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -307,7 +307,10 @@ async def paper_copy_summary_loop(
     stop_event: asyncio.Event,
 ) -> None:
     logger = get_logger("paper-copy-summary")
-    while not stop_event.is_set():
+    while not await wait_for_stop(
+        stop_event,
+        seconds_until_interval_boundary(interval_seconds),
+    ):
         if leader.is_leader:
             try:
                 async with async_session_factory() as session:
@@ -331,7 +334,16 @@ async def paper_copy_summary_loop(
                                 await repository.mark_notifications_sent(orders)
             except Exception:
                 logger.exception("paper_copy_summary_failed")
-        await wait_for_stop(stop_event, interval_seconds)
+
+
+def seconds_until_interval_boundary(
+    interval_seconds: float,
+    now: datetime | None = None,
+) -> float:
+    """Return the delay to the next wall-clock interval boundary."""
+    current = now or datetime.now(UTC)
+    remainder = current.timestamp() % interval_seconds
+    return interval_seconds if remainder == 0 else interval_seconds - remainder
 
 
 async def initialize_paper_copy(
@@ -829,6 +841,9 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                         detection=container.token_detection_service,
                         page_size=settings.monitor_page_size,
                         max_pages=settings.monitor_max_pages,
+                        priority_addresses=(
+                            settings.paper_copy_sources if paper_copy_enabled else ()
+                        ),
                     )
                     processed = await monitor_worker.run_once()
                     heartbeat_details["processed_transactions"] = processed

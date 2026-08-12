@@ -141,7 +141,7 @@ class TransactionScanner:
             # The first scan intentionally establishes a bounded high-water mark.
             if checkpoint_signature is None:
                 return TransactionCatchUp(
-                    list(reversed(collected)),
+                    [],
                     newest_signature,
                     True,
                 )

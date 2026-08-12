@@ -50,7 +50,9 @@ class FakeMonitors:
         monitor: object,
         checkpoint_signature: str | None,
     ) -> None:
-        self.checkpoint_signature = checkpoint_signature
+        raise AssertionError(
+            "Historical candidate audits must not change live monitor checkpoints"
+        )
 
 
 class FakeScanner:
@@ -181,7 +183,7 @@ async def test_candidate_history_is_ingested_oldest_first_and_promoted() -> None
 
 
 @pytest.mark.asyncio
-async def test_completed_candidate_only_backfills_missing_transaction_total() -> None:
+async def test_completed_candidate_backfills_processed_total_without_counting() -> None:
     cursor = SimpleNamespace(
         details={"state": "complete", "audit_version": 2},
         last_heartbeat_at=datetime.now(UTC),
@@ -195,11 +197,11 @@ async def test_completed_candidate_only_backfills_missing_transaction_total() ->
     assert result.last_wallet is None
     assert detection.signatures == []
     assert cursors.saved is not None
-    assert cursors.saved["transactions_available_total"] == 2
+    assert cursors.saved["transactions_available_total"] == 0
 
 
 @pytest.mark.asyncio
-async def test_in_progress_full_history_audit_precedes_total_count_backfill() -> None:
+async def test_selected_in_progress_audit_precedes_completed_total_backfill() -> None:
     class PrioritizedScores(FakeScores):
         async def list_leaderboard(self, **_: Any) -> list[object]:
             return [
@@ -250,6 +252,11 @@ async def test_in_progress_full_history_audit_precedes_total_count_backfill() ->
     class RecordingScanner(FakeScanner):
         def __init__(self) -> None:
             self.addresses: list[str] = []
+            self.counted_addresses: list[str] = []
+
+        async def count_address_transactions(self, wallet: str) -> int:
+            self.counted_addresses.append(wallet)
+            return await super().count_address_transactions(wallet)
 
         async def scan_page(
             self,
@@ -269,18 +276,21 @@ async def test_in_progress_full_history_audit_precedes_total_count_backfill() ->
         cursors=PrioritizedCursors(),  # type: ignore[arg-type]
         minimum_score=35,
         history_limit=20,
-        maximum_candidates=1,
+        maximum_candidates=2,
         retry_seconds=1800,
     )
 
     result = await enrichment.run_once()
 
     assert scanner.addresses == ["full-history"]
+    assert scanner.counted_addresses == []
     assert result.last_wallet == "full-history"
+    assert enrichment.cursors.saved is not None
+    assert enrichment.cursors.saved["transactions_available_total"] == 0
 
 
 @pytest.mark.asyncio
-async def test_selected_copy_grade_upgrades_capped_audit_to_full_history() -> None:
+async def test_selected_copy_grade_does_not_upgrade_capped_audit() -> None:
     cursor = SimpleNamespace(
         details={
             "state": "complete",
@@ -296,17 +306,16 @@ async def test_selected_copy_grade_upgrades_capped_audit_to_full_history() -> No
 
     result = await service(cursors, FakeDetection()).run_once()
 
-    assert result.wallets_enriched == 1
-    assert result.history_transactions_total == 2
+    assert result.wallets_enriched == 0
+    assert result.history_transactions_total == 0
     assert cursors.saved is not None
-    assert cursors.saved["audit_version"] == 3
-    assert cursors.saved["full_history_required"] is True
-    assert cursors.saved["history_capped"] is False
-    assert cursors.saved["transactions_available_total"] == 2
+    assert cursors.saved["audit_version"] == 2
+    assert cursors.saved["history_capped"] is True
+    assert cursors.saved["transactions_available_total"] == 1_000
 
 
 @pytest.mark.asyncio
-async def test_selected_copy_grade_continues_past_old_thousand_transaction_cap() -> None:
+async def test_selected_copy_grade_stops_at_thousand_transaction_cap() -> None:
     cursor = SimpleNamespace(
         details={
             "state": "in_progress",
@@ -329,10 +338,51 @@ async def test_selected_copy_grade_continues_past_old_thousand_transaction_cap()
         LongHistoryScanner(),
     ).run_once()
 
-    assert result.history_transactions_total == 1_002
+    assert result.history_transactions_total == 0
     assert cursors.saved is not None
-    assert cursors.saved["history_capped"] is False
-    assert cursors.saved["transactions_available_total"] == 1_002
+    assert cursors.saved["state"] == "complete"
+    assert cursors.saved["history_capped"] is True
+    assert cursors.saved["full_history_required"] is False
+    assert cursors.saved["pagination_token"] is None
+
+
+@pytest.mark.asyncio
+async def test_failed_resume_preserves_last_valid_scores() -> None:
+    cursor = SimpleNamespace(
+        details={
+            "state": "in_progress",
+            "audit_version": 3,
+            "pagination_token": "older-page",
+            "transactions_processed_total": 900,
+            "score_after": 91.5,
+            "copy_score": 81.25,
+            "copy_mode": "manual",
+        },
+        last_heartbeat_at=datetime.now(UTC),
+    )
+    cursors = FakeCursors(cursor)
+
+    class FailingScanner(FakeScanner):
+        async def scan_page(
+            self,
+            address: str,
+            limit: int,
+            pagination_token: str | None,
+        ) -> object:
+            raise RuntimeError("rate limited")
+
+    result = await service(
+        cursors,
+        FakeDetection(),
+        FailingScanner(),
+    ).run_once()
+
+    assert result.wallets_enriched == 0
+    assert cursors.saved is not None
+    assert cursors.saved["state"] == "error"
+    assert cursors.saved["score_after"] == 91.5
+    assert cursors.saved["copy_score"] == 81.25
+    assert cursors.saved["copy_mode"] == "manual"
 
 
 @pytest.mark.asyncio
@@ -496,3 +546,54 @@ async def test_candidate_history_resumes_from_saved_pagination_token() -> None:
 
     assert result.audit_state == "complete"
     assert result.history_transactions_total == 76
+
+
+@pytest.mark.asyncio
+async def test_selected_monitored_candidate_resumes_to_history_cap() -> None:
+    cursor = SimpleNamespace(
+        details={
+            "state": "in_progress",
+            "audit_version": 3,
+            "pagination_token": "before-signature",
+            "transactions_processed_total": 100,
+            "transactions_available_total": 4_244,
+            "score_after": 72,
+            "copy_score": 77.34,
+        },
+        last_heartbeat_at=datetime.now(UTC),
+    )
+
+    class AlwaysMonitored:
+        async def get_by_address(self, address: str) -> object:
+            return SimpleNamespace(enabled=True)
+
+    class ResumingScanner(FakeScanner):
+        async def scan_page(
+            self,
+            address: str,
+            limit: int,
+            pagination_token: str | None,
+        ) -> object:
+            assert pagination_token == "before-signature"
+            return SimpleNamespace(
+                transactions=[{"signature": "older"}],
+                pagination_token="next-page",
+            )
+
+    enrichment = CandidateEnrichmentService(
+        scores=FakeScores(),  # type: ignore[arg-type]
+        monitors=AlwaysMonitored(),  # type: ignore[arg-type]
+        scanner=ResumingScanner(),  # type: ignore[arg-type]
+        detection=FakeDetection(),  # type: ignore[arg-type]
+        cursors=FakeCursors(cursor),  # type: ignore[arg-type]
+        minimum_score=35,
+        history_limit=20,
+        maximum_candidates=1,
+        retry_seconds=1800,
+    )
+
+    result = await enrichment.run_once()
+
+    assert result.wallets_enriched == 1
+    assert result.audit_state == "in_progress"
+    assert result.history_transactions_total == 101

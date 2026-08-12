@@ -202,7 +202,7 @@ function renderGroups() {
     };
     const body = items.length
       ? `<div class="table-wrap"><table>
-          <thead><tr><th>#</th><th>Гаманець</th><th><button class="sort-button" type="button" data-sort="main_score" title="↓ більше, ↑ менше, третій клік — вимкнути">Основна${sortIndicator("main_score")}</button></th><th><button class="sort-button" type="button" data-sort="copy_score" title="↓ більше, ↑ менше, третій клік — вимкнути">Copy${sortIndicator("copy_score")}</button></th><th>Режим</th><th><button class="sort-button" type="button" data-sort="transaction_progress" title="Сортування за часткою проаналізованих транзакцій">Проаналізовано / всі${sortIndicator("transaction_progress")}</button></th></tr></thead>
+          <thead><tr><th>#</th><th>Гаманець</th><th><button class="sort-button" type="button" data-sort="main_score" title="↓ більше, ↑ менше, третій клік — вимкнути">Основна${sortIndicator("main_score")}</button></th><th><button class="sort-button" type="button" data-sort="copy_score" title="↓ більше, ↑ менше, третій клік — вимкнути">Copy${sortIndicator("copy_score")}</button></th><th>Режим</th><th><button class="sort-button" type="button" data-sort="transactions" title="↓ більше проаналізовано, ↑ менше, третій клік — вимкнути">Проаналізовано / всі${sortIndicator("transactions")}</button></th></tr></thead>
           <tbody>${items.map(walletRow).join("")}</tbody>
         </table></div>`
       : `<div class="empty">${query ? "За цим запитом нічого не знайдено" : "У цій категорії поки немає гаманців"}</div>`;
@@ -217,16 +217,8 @@ function renderGroups() {
   }).join("");
 }
 
-function transactionProgressValue(item) {
-  if (item.total_transactions === null || item.total_transactions === undefined) {
-    return -1;
-  }
-  if (item.total_transactions === 0) return 1;
-  return item.transactions / item.total_transactions;
-}
-
 function sortValue(item, key) {
-  return key === "transaction_progress" ? transactionProgressValue(item) : item[key];
+  return item[key];
 }
 
 async function loadData() {

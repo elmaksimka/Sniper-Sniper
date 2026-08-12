@@ -214,6 +214,45 @@ async def test_request_retries_rate_limit_using_retry_after(
 
 
 @pytest.mark.asyncio
+async def test_request_redacts_rpc_url_after_final_http_error() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(429, request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        client = HeliusClient(http_client=http)
+        client.rpc_url = "https://rpc.test/?api-key=secret"
+        client.max_retries = 0
+
+        with pytest.raises(HeliusRPCError, match="^Helius HTTP 429$") as raised:
+            await client.get_health()
+
+    assert "secret" not in str(raised.value)
+
+
+@pytest.mark.asyncio
+async def test_request_applies_configured_global_delay(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    delays: list[float] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"result": "ok"}, request=request)
+
+    async def fake_sleep(delay: float) -> None:
+        delays.append(delay)
+
+    monkeypatch.setattr("app.listeners.helius_client.asyncio.sleep", fake_sleep)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        client = HeliusClient(http_client=http)
+        client.rpc_url = "https://rpc.test"
+        client.request_delay = 0.5
+
+        assert await client.get_health() == {"result": "ok"}
+
+    assert delays == [0.5]
+
+
+@pytest.mark.asyncio
 async def test_request_retries_transient_rpc_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

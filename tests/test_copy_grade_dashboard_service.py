@@ -61,6 +61,7 @@ class FakeHeartbeats:
                 "copy_score": copy,
                 "copy_mode": mode,
                 "transactions_processed_total": transactions,
+                "transactions_available_total": transactions - 7,
                 "state": "complete" if wallet == "wallet-aa" else "in_progress",
             },
             last_heartbeat_at=updated_at,
@@ -89,3 +90,4 @@ async def test_dashboard_returns_selected_copy_grade_groups() -> None:
     assert aa_wallet["main_score"] == 91.23
     assert aa_wallet["copy_score"] == 80.13
     assert aa_wallet["transactions"] == 1000
+    assert aa_wallet["total_transactions"] == 1000

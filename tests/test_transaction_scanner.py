@@ -184,3 +184,20 @@ async def test_scan_since_does_not_return_partial_batch() -> None:
     assert batch.complete is False
     assert batch.transactions == []
     assert batch.newest_signature == "sig-3"
+
+
+@pytest.mark.asyncio
+async def test_scan_since_first_poll_only_establishes_checkpoint() -> None:
+    helius: Any = CatchUpClient()
+    scanner = TransactionScanner(helius, TokenParser(), TokenAnalyzer())
+
+    batch = await scanner.scan_since(
+        "wallet",
+        checkpoint_signature=None,
+        page_size=2,
+        max_pages=2,
+    )
+
+    assert batch.complete is True
+    assert batch.transactions == []
+    assert batch.newest_signature == "sig-3"

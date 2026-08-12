@@ -52,7 +52,11 @@ class CandidateAuditProgressService:
                 available_total = self._optional_non_negative_int(
                     audit.get("transactions_available_total")
                 )
+                if available_total is not None:
+                    available_total = max(available_total, total)
                 state = str(audit.get("state", "pending"))
+                if available_total is None and state == "complete":
+                    available_total = total
                 history_capped = bool(audit.get("history_capped", False))
                 early_stopped = bool(audit.get("early_stopped", False))
                 displayed_maximum = self._displayed_maximum(

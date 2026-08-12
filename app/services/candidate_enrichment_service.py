@@ -275,10 +275,10 @@ class CandidateEnrichmentService:
                 cursor = await self.cursors.get(cursor_name)
             cursor_details = getattr(cursor, "details", None)
             saved = cursor_details if isinstance(cursor_details, dict) else {}
-            full_history_upgrade = (
-                self._is_selected_copy_grade(saved)
-                and saved.get("state") == "complete"
-                and saved.get("audit_version") != 3
+            selected_audit_pending = (
+                saved.get("state") in {"in_progress", "error"}
+                and saved.get("history_capped") is not True
+                and self._is_selected_copy_grade(saved)
             )
             missing_transaction_total = (
                 self._optional_non_negative_int(
@@ -289,38 +289,32 @@ class CandidateEnrichmentService:
             if (
                 missing_transaction_total
                 and saved.get("state") == "complete"
-                and not full_history_upgrade
             ):
                 attempted += 1
-                try:
-                    available_total = await self.scanner.count_address_transactions(
-                        address
-                    )
-                    await self.cursors.beat(
-                        cursor_name,
-                        "candidate-enrichment",
-                        {
-                            **saved,
-                            "transactions_available_total": available_total,
-                        },
-                    )
-                except Exception:
-                    self.logger.exception(
-                        "candidate_transaction_count_failed",
-                        wallet=address,
-                    )
+                await self.cursors.beat(
+                    cursor_name,
+                    "candidate-enrichment",
+                    {
+                        **saved,
+                        "transactions_available_total": (
+                            self._optional_non_negative_int(
+                                saved.get("transactions_processed_total", 0)
+                            )
+                            or 0
+                        ),
+                    },
+                )
                 continue
             existing_monitor = await self.monitors.get_by_address(address)
             if existing_monitor is not None and existing_monitor.enabled:
-                if address not in external_address_set and not full_history_upgrade:
+                if address not in external_address_set and not selected_audit_pending:
                     continue
                 if (
                     saved.get("state") == "complete"
                     and saved.get("audit_version") in {2, 3}
-                    and not full_history_upgrade
                 ):
                     continue
-            if not full_history_upgrade and not self._ready(cursor):
+            if not self._ready(cursor):
                 if address in external_address_set and saved.get("state") in {
                     "in_progress",
                     "error",
@@ -347,12 +341,25 @@ class CandidateEnrichmentService:
             history_total = (
                 int(saved.get("transactions_processed_total", 0)) if resumable else 0
             )
+            if history_total >= self.maximum_history_transactions:
+                await self.cursors.beat(
+                    cursor_name,
+                    "candidate-enrichment",
+                    {
+                        **saved,
+                        "state": "complete",
+                        "audit_version": 3,
+                        "pagination_token": None,
+                        "history_capped": True,
+                        "early_stopped": False,
+                        "full_history_required": False,
+                    },
+                )
+                continue
             try:
-                saved_full_history = self._is_selected_copy_grade(saved)
-                remaining = (
-                    self.history_limit
-                    if saved_full_history
-                    else max(self.maximum_history_transactions - history_total, 0)
+                remaining = max(
+                    self.maximum_history_transactions - history_total,
+                    0,
                 )
                 page = await self.scanner.scan_page(
                     address,
@@ -377,42 +384,20 @@ class CandidateEnrichmentService:
                         updated,
                         style,
                     )
-                full_history_required = saved_full_history or self._is_selected_scores(
-                    updated.score if updated is not None else None,
-                    copy_assessment.score if copy_assessment is not None else None,
-                )
+                full_history_required = False
                 available_total = self._optional_non_negative_int(
                     saved.get("transactions_available_total")
                 )
-                if available_total is None:
-                    available_total = await self.scanner.count_address_transactions(
-                        address
-                    )
-                history_capped = (
-                    history_total >= self.maximum_history_transactions
-                    and not full_history_required
-                )
-                early_stopped = (
-                    False
-                    if full_history_required
-                    else self._should_stop_early(history_total, updated)
-                )
+                history_capped = history_total >= self.maximum_history_transactions
+                early_stopped = self._should_stop_early(history_total, updated)
                 audit_complete = (
                     page.pagination_token is None or history_capped or early_stopped
                 )
+                if audit_complete:
+                    available_total = max(available_total or 0, history_total)
                 audit_state = "complete" if audit_complete else "in_progress"
                 monitor = await self.monitors.get_by_address(address)
                 was_promoted = bool(monitor is not None and monitor.enabled)
-                if monitor is not None and transactions:
-                    newest_signature = transactions[0].get("signature")
-                    await self.monitors.mark_success(
-                        monitor,
-                        (
-                            newest_signature
-                            if isinstance(newest_signature, str)
-                            else None
-                        ),
-                    )
                 await self.cursors.beat(
                     cursor_name,
                     "candidate-enrichment",
@@ -469,6 +454,7 @@ class CandidateEnrichmentService:
                     cursor_name,
                     "candidate-enrichment",
                     {
+                        **saved,
                         "state": "error",
                         "audit_version": 3,
                         "wallet": address,
@@ -558,26 +544,18 @@ class CandidateEnrichmentService:
     @classmethod
     def _candidate_priority(cls, cursor: object | None) -> tuple[int, datetime]:
         details = getattr(cursor, "details", None)
-        selected_full_history = isinstance(details, dict) and (
-            (
-                details.get("state") in {"in_progress", "error"}
-                and (
-                    details.get("full_history_required") is True
-                    or cls._is_selected_copy_grade(details)
-                )
-            )
-            or (
-                details.get("state") == "complete"
-                and details.get("audit_version") != 3
-                and cls._is_selected_copy_grade(details)
-            )
+        selected_pending = (
+            isinstance(details, dict)
+            and details.get("state") in {"in_progress", "error"}
+            and details.get("history_capped") is not True
+            and cls._is_selected_copy_grade(details)
         )
         last_attempt = getattr(cursor, "last_heartbeat_at", None)
         if not isinstance(last_attempt, datetime):
             last_attempt = datetime.min.replace(tzinfo=UTC)
         elif last_attempt.tzinfo is None:
             last_attempt = last_attempt.replace(tzinfo=UTC)
-        return (0 if selected_full_history else 1, last_attempt)
+        return (0 if selected_pending else 1, last_attempt)
 
     @staticmethod
     def _source_priority(details: object) -> tuple[int, int, int]:

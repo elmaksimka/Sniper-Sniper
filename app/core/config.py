@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     helius_retry_base_seconds: float = Field(default=0.5, ge=0)
     helius_retry_max_seconds: float = Field(default=10, gt=0)
     helius_max_concurrency: int = Field(default=5, ge=1, le=100)
+    helius_request_delay_seconds: float = Field(default=0, ge=0)
     standard_rpc_transaction_delay_seconds: float = Field(default=0.3, ge=0)
     transaction_history_mode: Literal["enhanced", "standard"] = "enhanced"
 

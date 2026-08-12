@@ -14,17 +14,22 @@ class MonitorWorker:
         detection: TokenDetectionService,
         page_size: int,
         max_pages: int,
+        priority_addresses: tuple[str, ...] = (),
     ) -> None:
         self.monitors = monitors
         self.scanner = scanner
         self.detection = detection
         self.page_size = page_size
         self.max_pages = max_pages
+        self.priority_addresses = set(priority_addresses)
         self.logger = get_logger("monitor-worker")
 
     async def run_once(self) -> int:
         processed = 0
         monitors = await self.monitors.list_all(enabled_only=True)
+        monitors.sort(
+            key=lambda monitor: monitor.wallet.address not in self.priority_addresses
+        )
 
         for monitor in monitors:
             address = monitor.wallet.address
@@ -36,9 +41,19 @@ class MonitorWorker:
                     max_pages=self.max_pages,
                 )
                 if not batch.complete:
-                    await self.monitors.mark_error(
+                    # Replaying an unbounded backlog is unsafe for copy trading:
+                    # old swaps would be emitted as if they were live signals.
+                    # Establish a fresh high-water mark without processing the
+                    # partial batch, then resume normally on the next poll.
+                    await self.monitors.mark_success(
                         monitor,
-                        "Catch-up exceeded page boundary; checkpoint unchanged",
+                        batch.newest_signature or monitor.checkpoint_signature,
+                    )
+                    self.logger.warning(
+                        "wallet_catch_up_resynced",
+                        wallet=address,
+                        page_size=self.page_size,
+                        max_pages=self.max_pages,
                     )
                     continue
 
