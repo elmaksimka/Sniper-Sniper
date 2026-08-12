@@ -394,9 +394,11 @@ def test_paper_copy_summary_aggregates_orders_and_includes_links() -> None:
         [buy, sell, skipped],
         account,
         open_positions=9,
+        trader_count=9,
     )
 
     assert "звіт за 30 хв" in message
+    assert "Пул: 9 трейдерів A/A" in message
     assert "Входи: 1 на $10.00" in message
     assert "Виходи: 1 на $12.00" in message
     assert "Монет у звіті: 2" in message
@@ -405,3 +407,19 @@ def test_paper_copy_summary_aggregates_orders_and_includes_links() -> None:
     assert "Відкритих позицій: 9" in message
     assert "https://dexscreener.com/solana/buy-token" in message
     assert "https://solscan.io/tx/signature-sell" in message
+
+
+def test_empty_paper_copy_summary_is_still_reportable() -> None:
+    from app.notifications.telegram import TelegramNotifier
+
+    message = TelegramNotifier.format_paper_copy_summary(
+        [],
+        portfolio(),
+        open_positions=0,
+        trader_count=9,
+    )
+
+    assert "Пул: 9 трейдерів A/A" in message
+    assert "Входи: 0 на $0.00" in message
+    assert "Виходи: 0 на $0.00" in message
+    assert "Відкритих позицій: 0" in message

@@ -18,6 +18,14 @@ const modeLabels = {
 };
 const KYIV_TIMEZONE = "Europe/Kyiv";
 
+function addedAtText(value) {
+  if (!value) return "—";
+  return new Intl.DateTimeFormat("uk-UA", {
+    timeZone: KYIV_TIMEZONE,
+    dateStyle: "short",
+  }).format(new Date(value));
+}
+
 const escapeHtml = (value) => String(value)
   .replaceAll("&", "&amp;")
   .replaceAll("<", "&lt;")
@@ -58,6 +66,7 @@ function tokenTraderRow(trader) {
       <td class="score copy-score">${scoreText(trader.copy_score)}${copyGrade}</td>
       <td><span class="mode">${escapeHtml(modeLabels[trader.copy_mode] || trader.copy_mode || "—")}</span></td>
       <td class="transactions">${progress}</td>
+      <td class="added-at">${addedAtText(trader.added_at)}</td>
     </tr>`;
 }
 
@@ -114,7 +123,7 @@ function renderSelectedToken(index) {
   const address = escapeHtml(token.token_address);
   const rows = traders.length
     ? traders.map(tokenTraderRow).join("")
-    : `<tr><td colspan="6" class="empty">Трейдерів для цієї монети ще немає</td></tr>`;
+    : `<tr><td colspan="7" class="empty">Трейдерів для цієї монети ще немає</td></tr>`;
   document.querySelector("#tokenDetailsTitle").textContent = `${symbol} · топ-10 трейдерів`;
   document.querySelector("#backToTokens").hidden = false;
   document.querySelector("#tokenList").innerHTML = `
@@ -124,7 +133,7 @@ function renderSelectedToken(index) {
         <span class="token-progress ${token.complete ? "complete" : ""}">${token.completed_traders} / ${token.total_traders} перевірено</span>
       </header>
       <div class="table-wrap"><table>
-        <thead><tr><th>#</th><th>Трейдер</th><th>Основна оцінка</th><th>Copy-оцінка</th><th>Режим</th><th>Проаналізовано / всі</th></tr></thead>
+        <thead><tr><th>#</th><th>Трейдер</th><th>Основна оцінка</th><th>Copy-оцінка</th><th>Режим</th><th>Проаналізовано / всі</th><th>Додано</th></tr></thead>
         <tbody>${rows}</tbody>
        </table></div>
      </article>`;
@@ -153,6 +162,7 @@ function walletRow(item, index) {
       <td class="score copy-score">${item.copy_score.toFixed(2)} <small>${item.copy_grade}</small></td>
       <td><span class="mode">${escapeHtml(mode)}</span></td>
       <td class="transactions">${transactionProgress}</td>
+      <td class="added-at">${addedAtText(item.added_at)}</td>
     </tr>`;
 }
 
@@ -202,7 +212,7 @@ function renderGroups() {
     };
     const body = items.length
       ? `<div class="table-wrap"><table>
-          <thead><tr><th>#</th><th>Гаманець</th><th><button class="sort-button" type="button" data-sort="main_score" title="↓ більше, ↑ менше, третій клік — вимкнути">Основна${sortIndicator("main_score")}</button></th><th><button class="sort-button" type="button" data-sort="copy_score" title="↓ більше, ↑ менше, третій клік — вимкнути">Copy${sortIndicator("copy_score")}</button></th><th>Режим</th><th><button class="sort-button" type="button" data-sort="transactions" title="↓ більше проаналізовано, ↑ менше, третій клік — вимкнути">Проаналізовано / всі${sortIndicator("transactions")}</button></th></tr></thead>
+          <thead><tr><th>#</th><th>Гаманець</th><th><button class="sort-button" type="button" data-sort="main_score" title="↓ більше, ↑ менше, третій клік — вимкнути">Основна${sortIndicator("main_score")}</button></th><th><button class="sort-button" type="button" data-sort="copy_score" title="↓ більше, ↑ менше, третій клік — вимкнути">Copy${sortIndicator("copy_score")}</button></th><th>Режим</th><th><button class="sort-button" type="button" data-sort="transactions" title="↓ більше проаналізовано, ↑ менше, третій клік — вимкнути">Проаналізовано / всі${sortIndicator("transactions")}</button></th><th><button class="sort-button" type="button" data-sort="added_at" title="↓ новіші, ↑ старіші, третій клік — вимкнути">Додано${sortIndicator("added_at")}</button></th></tr></thead>
           <tbody>${items.map(walletRow).join("")}</tbody>
         </table></div>`
       : `<div class="empty">${query ? "За цим запитом нічого не знайдено" : "У цій категорії поки немає гаманців"}</div>`;
@@ -218,6 +228,7 @@ function renderGroups() {
 }
 
 function sortValue(item, key) {
+  if (key === "added_at") return Date.parse(item.added_at || "") || 0;
   return item[key];
 }
 

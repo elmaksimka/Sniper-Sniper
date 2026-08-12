@@ -3,13 +3,19 @@ from __future__ import annotations
 from typing import Any
 
 from app.repositories.heartbeat_repository import HeartbeatRepository
+from app.repositories.wallet_repository import WalletRepository
 
 
 class CandidateAuditProgressService:
     """Build Telegram-ready progress for DexScreener top-trader audits."""
 
-    def __init__(self, heartbeats: HeartbeatRepository) -> None:
+    def __init__(
+        self,
+        heartbeats: HeartbeatRepository,
+        wallets: WalletRepository | None = None,
+    ) -> None:
         self.heartbeats = heartbeats
+        self.wallets = wallets
 
     async def get(self, maximum_transactions: int) -> list[dict[str, Any]]:
         pair_rows = await self.heartbeats.list_by_prefix(
@@ -29,6 +35,11 @@ class CandidateAuditProgressService:
             )
             and isinstance(row.details, dict)
         }
+        added_at_by_wallet = (
+            await self.wallets.list_first_seen(list(audits))
+            if self.wallets is not None
+            else {}
+        )
 
         pairs: list[dict[str, Any]] = []
         for row in pair_rows:
@@ -74,6 +85,7 @@ class CandidateAuditProgressService:
                         "label": str(raw_trader.get("label") or "").strip(),
                         "transactions": total,
                         "total_transactions": available_total,
+                        "added_at": added_at_by_wallet.get(wallet),
                         "maximum_transactions": displayed_maximum,
                         "score": self._optional_float(audit.get("score_after")),
                         "copy_score": self._optional_float(audit.get("copy_score")),

@@ -128,9 +128,15 @@ class TelegramNotifier:
         orders: list[PaperCopyOrder],
         portfolio: PaperCopyPortfolio,
         open_positions: int,
+        trader_count: int,
     ) -> dict[str, bool]:
         return await self.send_text(
-            self.format_paper_copy_summary(orders, portfolio, open_positions)
+            self.format_paper_copy_summary(
+                orders,
+                portfolio,
+                open_positions,
+                trader_count,
+            )
         )
 
     @staticmethod
@@ -138,6 +144,7 @@ class TelegramNotifier:
         orders: list[PaperCopyOrder],
         portfolio: PaperCopyPortfolio,
         open_positions: int,
+        trader_count: int,
     ) -> str:
         filled = [order for order in orders if order.status == "filled"]
         buys = [order for order in filled if order.side == "buy"]
@@ -151,7 +158,7 @@ class TelegramNotifier:
         lines = [
             "🧪 PAPER COPY — звіт за 30 хв",
             "",
-            "Пул: 7 трейдерів A/A",
+            f"Пул: {trader_count} трейдерів A/A",
             f"Входи: {len(buys)} на ${buy_total:,.2f}",
             f"Виходи: {len(sells)} на ${sell_total:,.2f}",
             f"Монет у звіті: {token_count}",

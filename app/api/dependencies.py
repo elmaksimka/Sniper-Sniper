@@ -16,6 +16,7 @@ from app.services.scoring_service import ScoringService
 from app.services.system_health_service import SystemHealthService
 from app.services.copy_grade_dashboard_service import CopyGradeDashboardService
 from app.repositories.heartbeat_repository import HeartbeatRepository
+from app.repositories.wallet_repository import WalletRepository
 from app.services.funding_service import FundingService
 from app.services.token_score_snapshot_service import TokenScoreSnapshotService
 
@@ -151,6 +152,7 @@ def get_copy_grade_dashboard_service(
     return CopyGradeDashboardService(
         HeartbeatRepository(session),
         settings.candidate_enrichment_maximum_history_transactions,
+        WalletRepository(session),
     )
 
 

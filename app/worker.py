@@ -303,6 +303,7 @@ async def paper_copy_summary_loop(
     leader: PostgresLeaderElector,
     telegram: TelegramNotifier,
     source_wallet: str,
+    trader_count: int,
     interval_seconds: float,
     stop_event: asyncio.Event,
 ) -> None:
@@ -318,19 +319,19 @@ async def paper_copy_summary_loop(
                     portfolio = await repository.get_portfolio(source_wallet)
                     if portfolio is not None:
                         orders = await repository.list_unsent(portfolio.id)
-                        if orders:
-                            open_positions = await repository.count_open_positions(
-                                portfolio.id
-                            )
-                            results = await telegram.send_paper_copy_summary(
-                                orders,
-                                portfolio,
-                                open_positions,
-                            )
-                            delivered = not telegram.enabled or (
-                                bool(results) and all(results.values())
-                            )
-                            if delivered:
+                        open_positions = await repository.count_open_positions(
+                            portfolio.id
+                        )
+                        results = await telegram.send_paper_copy_summary(
+                            orders,
+                            portfolio,
+                            open_positions,
+                            trader_count,
+                        )
+                        delivered = not telegram.enabled or (
+                            bool(results) and all(results.values())
+                        )
+                        if delivered and orders:
                                 await repository.mark_notifications_sent(orders)
             except Exception:
                 logger.exception("paper_copy_summary_failed")
@@ -651,6 +652,7 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                             leader,
                             telegram,
                             settings.paper_copy_portfolio_wallet,
+                            len(settings.paper_copy_sources),
                             float(
                                 getattr(
                                     settings,

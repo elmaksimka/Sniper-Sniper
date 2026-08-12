@@ -591,7 +591,7 @@ def test_copy_grade_frontend_and_api() -> None:
 
     assert page.status_code == 200
     assert "Copy Grade" in page.text
-    assert "/static/copy-grades.js?v=20260812-5" in page.text
+    assert "/static/copy-grades.js?v=20260812-7" in page.text
     assert "backToTokens" in page.text
     assert data.status_code == 200
     assert data.json()["total"] == 1

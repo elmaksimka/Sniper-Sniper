@@ -465,6 +465,7 @@ class CopyGradeWalletRead(BaseModel):
     copy_mode: str
     transactions: int
     total_transactions: int | None = None
+    added_at: datetime | None = None
     updated_at: datetime
 
 
@@ -485,6 +486,7 @@ class CopyGradeTokenTraderRead(BaseModel):
     copy_mode: str
     transactions: int
     total_transactions: int | None = None
+    added_at: datetime | None = None
     maximum_transactions: int
     state: str
     started: bool

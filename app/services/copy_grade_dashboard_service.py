@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Any
 
 from app.repositories.heartbeat_repository import HeartbeatRepository
+from app.repositories.wallet_repository import WalletRepository
 from app.services.candidate_audit_progress_service import (
     CandidateAuditProgressService,
 )
@@ -18,18 +19,36 @@ class CopyGradeDashboardService:
         self,
         heartbeats: HeartbeatRepository,
         maximum_transactions: int = 1_000,
+        wallets: WalletRepository | None = None,
     ) -> None:
         self.heartbeats = heartbeats
         self.maximum_transactions = maximum_transactions
+        self.wallets = wallets
 
     async def get(self) -> dict[str, Any]:
         rows = await self.heartbeats.list_by_prefix("candidate:", limit=5_000)
-        pairs = await CandidateAuditProgressService(self.heartbeats).get(
+        pairs = await CandidateAuditProgressService(
+            self.heartbeats,
+            self.wallets,
+        ).get(
             self.maximum_transactions
         )
         groups: dict[str, list[dict[str, Any]]] = {
             grade_pair: [] for grade_pair in self.GROUPS
         }
+        candidate_wallets = [
+            row.service_name.removeprefix("candidate:").strip()
+            for row in rows
+            if row.service_name.startswith("candidate:")
+            and not row.service_name.startswith(
+                ("candidate-pair:", "candidate-source:", "candidate-discovery:")
+            )
+        ]
+        added_at_by_wallet = (
+            await self.wallets.list_first_seen(candidate_wallets)
+            if self.wallets is not None
+            else {}
+        )
         updated_at: datetime | None = None
         for row in rows:
             if row.service_name.startswith(
@@ -70,6 +89,7 @@ class CopyGradeDashboardService:
                     "copy_mode": str(row.details.get("copy_mode") or "").strip(),
                     "transactions": transactions,
                     "total_transactions": total_transactions,
+                    "added_at": added_at_by_wallet.get(wallet),
                     "updated_at": row.last_heartbeat_at,
                 }
             )
@@ -111,6 +131,7 @@ class CopyGradeDashboardService:
                         "total_transactions": self._optional_non_negative_int(
                             trader.get("total_transactions")
                         ),
+                        "added_at": trader.get("added_at"),
                         "maximum_transactions": self._non_negative_int(
                             trader.get("maximum_transactions")
                         ),

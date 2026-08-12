@@ -154,6 +154,7 @@ tbody tr:hover { background: rgba(255,255,255,.025); }
 .score.copy-score { color: var(--cyan); }
 .mode { display: inline-flex; padding: 5px 8px; border-radius: 999px; background: rgba(255,255,255,.05); color: #b0b9bc; font-size: 11px; }
 .transactions { color: #a6afb2; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.added-at { min-width: 92px; color: #788387; font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .empty { padding: 28px 20px; color: var(--muted); text-align: center; font-size: 13px; }
 .error { margin: 18px 0; padding: 14px 16px; border: 1px solid rgba(255,111,111,.3); border-radius: 12px; background: rgba(255,111,111,.07); color: #ffabab; font-size: 13px; }
 .loading { display: flex; justify-content: center; gap: 7px; padding: 80px; }

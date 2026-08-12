@@ -43,6 +43,16 @@ class WalletRepository:
         )
         return list(result.scalars().all())
 
+    async def list_first_seen(self, addresses: list[str]) -> dict[str, object]:
+        if not addresses:
+            return {}
+        result = await self.session.execute(
+            select(Wallet.address, Wallet.first_seen).where(
+                Wallet.address.in_(addresses)
+            )
+        )
+        return {address: first_seen for address, first_seen in result.all()}
+
     async def count(self) -> int:
         result = await self.session.execute(select(func.count(Wallet.id)))
         return result.scalar_one()
