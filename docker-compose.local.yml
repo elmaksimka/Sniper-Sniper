@@ -5,15 +5,15 @@ x-local-app: &local-app
   build:
     context: .
     target: runtime
-  env_file:
-    - .env
   environment:
     ENVIRONMENT: development
+    APP_NAME: ${APP_NAME:-Alpha Engine}
     APP_VERSION: ${APP_VERSION:-0.1.0}
     GIT_SHA: ${GIT_SHA:-local}
     DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-alpha}:${POSTGRES_PASSWORD:-alpha-local-only}@postgres:5432/${POSTGRES_DB:-alpha_engine}
     SOLANA_RPC_URL: ${SOLANA_RPC_URL:-https://api.mainnet.solana.com}
     HELIUS_API_KEY: ${HELIUS_API_KEY:-}
+    BIRDEYE_API_KEY: ${BIRDEYE_API_KEY:-}
     HELIUS_RPC_URL: ${HELIUS_RPC_URL:-}
     TRANSACTION_HISTORY_MODE: ${TRANSACTION_HISTORY_MODE:-enhanced}
     DEXSCREENER_RENDERER_URL: ${DEXSCREENER_RENDERER_URL:-http://flaresolverr:8191/v1}
