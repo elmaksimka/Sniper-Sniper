@@ -47,7 +47,13 @@ class CopyTradingScoreCalculator:
             ),
             2,
         )
-        if score >= 75 and style.eligible:
+        robust_history = (
+            snapshot.realized_position_count >= 20
+            and snapshot.realized_pnl_sol > 0
+            and snapshot.realized_pnl_ex_top_position_sol > 0
+            and snapshot.pnl_concentration_ratio <= 0.75
+        )
+        if score >= 75 and style.eligible and robust_history:
             mode = "automatic"
         elif score >= 55:
             mode = "manual"

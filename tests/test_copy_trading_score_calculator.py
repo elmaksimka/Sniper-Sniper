@@ -27,6 +27,8 @@ def snapshot(**overrides: float | int) -> SimpleNamespace:
         "win_rate": 0.6,
         "pnl_concentration_ratio": 0.741111,
         "realized_roi_ex_top_position": 116.137587,
+        "realized_pnl_sol": 10,
+        "realized_pnl_ex_top_position_sol": 2,
     }
     values.update(overrides)
     return SimpleNamespace(**values)
@@ -44,11 +46,11 @@ def test_fast_profitable_wallet_is_manual_copy_candidate() -> None:
 
 def test_same_wallet_with_copyable_pace_is_automatic() -> None:
     result = CopyTradingScoreCalculator().calculate(
-        snapshot(),  # type: ignore[arg-type]
+        snapshot(realized_position_count=20),  # type: ignore[arg-type]
         style(burst=1),
     )
 
-    assert result.score == 77.94
+    assert result.score == 85.44
     assert result.mode == "automatic"
 
 

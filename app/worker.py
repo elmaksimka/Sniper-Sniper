@@ -288,11 +288,21 @@ async def paper_copy_execution_loop(
     quote_retry_seconds: float,
     quote_max_attempts: int,
     minimum_source_value_usd: float,
+    maximum_trade_age_seconds: float,
+    maximum_source_exposure_pct: float,
+    maximum_token_exposure_pct: float,
+    maximum_buys_per_position: int,
+    allow_averaging_down: bool,
+    maximum_price_impact_pct: float,
+    stop_loss_pct: float,
+    break_even_activation_pct: float,
+    trailing_activation_pct: float,
+    trailing_drawdown_pct: float,
+    strategy_version: str,
     stop_event: asyncio.Event,
 ) -> None:
     logger = get_logger("paper-copy-supervisor")
     last_reconciliation_at: float | None = None
-    startup_price_refresh_pending = True
     while not stop_event.is_set():
         if leader.is_leader:
             try:
@@ -303,6 +313,13 @@ async def paper_copy_execution_loop(
                         quote_retry_seconds=quote_retry_seconds,
                         quote_max_attempts=quote_max_attempts,
                         minimum_source_value_usd=minimum_source_value_usd,
+                        maximum_trade_age_seconds=maximum_trade_age_seconds,
+                        maximum_source_exposure_pct=maximum_source_exposure_pct,
+                        maximum_token_exposure_pct=maximum_token_exposure_pct,
+                        maximum_buys_per_position=maximum_buys_per_position,
+                        allow_averaging_down=allow_averaging_down,
+                        maximum_price_impact_pct=maximum_price_impact_pct,
+                        strategy_version=strategy_version,
                     )
                     now = asyncio.get_running_loop().time()
                     if (
@@ -314,12 +331,16 @@ async def paper_copy_execution_loop(
                         result = await PaperCopyReconciliationService(
                             repository,
                             helius_client,
+                            stop_loss_pct=stop_loss_pct,
+                            break_even_activation_pct=break_even_activation_pct,
+                            trailing_activation_pct=trailing_activation_pct,
+                            trailing_drawdown_pct=trailing_drawdown_pct,
+                            strategy_version=strategy_version,
                         ).reconcile(
                             portfolio_wallet,
-                            refresh_prices=startup_price_refresh_pending,
+                            refresh_prices=True,
                         )
                         last_reconciliation_at = now
-                        startup_price_refresh_pending = result.prices_deferred > 0
                         logger.info(
                             "paper_copy_positions_reconciled",
                             startup=startup_reconciliation,
@@ -331,6 +352,7 @@ async def paper_copy_execution_loop(
                             positions_deferred=result.positions_deferred,
                             positions_repriced=result.positions_repriced,
                             prices_deferred=result.prices_deferred,
+                            risk_exits=result.risk_exits,
                         )
                     await service.execute_next()
             except Exception:
@@ -416,6 +438,7 @@ async def initialize_paper_copy(
         dynamic_sources = await CopySourceService(
             HeartbeatRepository(session),
             monitors,
+            ScoreSnapshotRepository(session),
         ).reconcile()
         for source_wallet in dynamic_sources or source_wallets:
             await monitors.add(source_wallet)
@@ -698,6 +721,35 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                                     1,
                                 )
                             ),
+                            float(
+                                getattr(
+                                    settings,
+                                    "paper_copy_max_signal_age_seconds",
+                                    30,
+                                )
+                            ),
+                            float(
+                                getattr(
+                                    settings,
+                                    "paper_copy_maximum_source_exposure_pct",
+                                    10,
+                                )
+                            ),
+                            float(settings.paper_copy_maximum_token_exposure_pct),
+                            int(settings.paper_copy_maximum_buys_per_position),
+                            bool(settings.paper_copy_allow_averaging_down),
+                            float(
+                                getattr(
+                                    settings,
+                                    "paper_copy_maximum_price_impact_pct",
+                                    1,
+                                )
+                            ),
+                            float(settings.paper_copy_stop_loss_pct),
+                            float(settings.paper_copy_break_even_activation_pct),
+                            float(settings.paper_copy_trailing_activation_pct),
+                            float(settings.paper_copy_trailing_drawdown_pct),
+                            settings.paper_copy_strategy_version,
                             stop_event,
                         )
                     )
@@ -893,6 +945,7 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                         copy_sources = await CopySourceService(
                             HeartbeatRepository(session),
                             MonitorService(session),
+                            ScoreSnapshotRepository(session),
                         ).reconcile()
                         container.paper_copy_service.source_wallets = frozenset(
                             copy_sources

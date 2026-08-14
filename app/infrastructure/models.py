@@ -412,6 +412,11 @@ class PaperCopyPosition(Base):
     cost_basis_usd: Mapped[float] = mapped_column(Float, default=0)
     entry_price_usd: Mapped[float] = mapped_column(Float, default=0)
     last_price_usd: Mapped[float] = mapped_column(Float, default=0)
+    first_entry_price_usd: Mapped[float] = mapped_column(Float, default=0)
+    buy_count: Mapped[int] = mapped_column(default=0)
+    maximum_roi_pct: Mapped[float] = mapped_column(Float, default=0)
+    minimum_roi_pct: Mapped[float] = mapped_column(Float, default=0)
+    strategy_version: Mapped[str] = mapped_column(String(32), default="legacy")
     opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -451,6 +456,11 @@ class PaperCopyOrder(Base):
     value_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
     realized_pnl_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
     liquidity_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    price_impact_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
+    route_fee_bps: Mapped[int | None] = mapped_column(nullable=True)
+    route_provider: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    route_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    strategy_version: Mapped[str] = mapped_column(String(32), default="legacy")
     cash_balance_after_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
     equity_after_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
     open_positions_after: Mapped[int | None] = mapped_column(nullable=True)
@@ -462,4 +472,25 @@ class PaperCopyOrder(Base):
     executed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
+    )
+
+
+class PaperCopyPositionSnapshot(Base):
+    __tablename__ = "paper_copy_position_snapshots"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    position_id: Mapped[int] = mapped_column(
+        ForeignKey("paper_copy_positions.id", ondelete="CASCADE"),
+        index=True,
+    )
+    strategy_version: Mapped[str] = mapped_column(String(32), index=True)
+    executable_value_usd: Mapped[float] = mapped_column(Float)
+    executable_price_usd: Mapped[float] = mapped_column(Float)
+    roi_pct: Mapped[float] = mapped_column(Float)
+    price_impact_pct: Mapped[float] = mapped_column(Float)
+    route_fee_bps: Mapped[int]
+    observed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        index=True,
     )

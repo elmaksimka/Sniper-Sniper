@@ -145,6 +145,16 @@ class Container:
             portfolio_wallet=settings.paper_copy_portfolio_wallet,
             minimum_source_value_usd=(settings.paper_copy_minimum_source_value_usd),
             maximum_trade_age_seconds=(settings.paper_copy_max_signal_age_seconds),
+            maximum_source_exposure_pct=(
+                settings.paper_copy_maximum_source_exposure_pct
+            ),
+            maximum_token_exposure_pct=(settings.paper_copy_maximum_token_exposure_pct),
+            maximum_buys_per_position=(settings.paper_copy_maximum_buys_per_position),
+            allow_averaging_down=settings.paper_copy_allow_averaging_down,
+            maximum_price_impact_pct=(
+                settings.paper_copy_maximum_price_impact_pct
+            ),
+            strategy_version=settings.paper_copy_strategy_version,
         )
         self.paper_copy_collector = PaperCopyCollector(
             self.event_bus,

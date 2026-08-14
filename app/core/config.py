@@ -34,6 +34,11 @@ class Settings(BaseSettings):
         default="",
         description="Helius RPC endpoint",
     )
+    jupiter_api_key: str = Field(
+        default="",
+        description="Optional Jupiter API key; keyless quotes are used when empty",
+    )
+    jupiter_timeout_seconds: float = Field(default=10, gt=0)
     birdeye_api_key: str = Field(
         default="",
         description="Birdeye Data Services API key",
@@ -86,15 +91,29 @@ class Settings(BaseSettings):
     paper_copy_allocation_usd: float = Field(default=10, gt=0)
     paper_copy_max_open_positions: int = Field(default=5, ge=1, le=100)
     paper_copy_reaction_delay_seconds: float = Field(default=20, ge=0)
-    paper_copy_slippage_bps: int = Field(default=100, ge=0, le=5_000)
+    paper_copy_slippage_bps: int = Field(default=0, ge=0, le=5_000)
     paper_copy_minimum_liquidity_usd: float = Field(default=15_000, ge=0)
     paper_copy_minimum_source_value_usd: float = Field(default=1, ge=0)
+    paper_copy_maximum_source_exposure_pct: float = Field(
+        default=10,
+        gt=0,
+        le=100,
+    )
+    paper_copy_maximum_token_exposure_pct: float = Field(default=3, gt=0, le=100)
+    paper_copy_maximum_buys_per_position: int = Field(default=3, ge=1, le=100)
+    paper_copy_allow_averaging_down: bool = False
+    paper_copy_maximum_price_impact_pct: float = Field(default=1, ge=0)
+    paper_copy_stop_loss_pct: float = Field(default=30, gt=0, le=100)
+    paper_copy_break_even_activation_pct: float = Field(default=50, gt=0)
+    paper_copy_trailing_activation_pct: float = Field(default=100, gt=0)
+    paper_copy_trailing_drawdown_pct: float = Field(default=25, gt=0, le=100)
+    paper_copy_strategy_version: str = "route-risk-v2"
     paper_copy_execution_poll_seconds: float = Field(default=2, gt=0)
     paper_copy_summary_interval_seconds: float = Field(default=1800, gt=0)
     paper_copy_summary_enabled: bool = False
     paper_copy_quote_retry_seconds: float = Field(default=30, gt=0)
     paper_copy_quote_max_attempts: int = Field(default=3, ge=1, le=10)
-    paper_copy_max_signal_age_seconds: float = Field(default=300, gt=0)
+    paper_copy_max_signal_age_seconds: float = Field(default=30, gt=0)
     paper_copy_reconciliation_interval_seconds: float = Field(default=30, gt=0)
     paper_copy_daily_report_enabled: bool = False
     paper_copy_daily_report_hour: int = Field(default=10, ge=0, le=23)

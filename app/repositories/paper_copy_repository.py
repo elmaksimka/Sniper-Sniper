@@ -10,6 +10,8 @@ from app.infrastructure.models import (
     PaperCopyOrder,
     PaperCopyPortfolio,
     PaperCopyPosition,
+    PaperCopyPositionSnapshot,
+    Token,
 )
 
 
@@ -73,6 +75,7 @@ class PaperCopyRepository:
         side: str,
         source_amount: float,
         source_transaction_at: datetime,
+        strategy_version: str = "legacy",
     ) -> bool:
         statement = (
             pg_insert(PaperCopyOrder)
@@ -89,6 +92,7 @@ class PaperCopyRepository:
                 status="pending",
                 attempts=0,
                 notification_sent=False,
+                strategy_version=strategy_version,
                 created_at=datetime.now(UTC),
             )
             .on_conflict_do_nothing(constraint="uq_paper_copy_order_source_trade")
@@ -142,6 +146,71 @@ class PaperCopyRepository:
             )
         )
         return int(result.scalar_one())
+
+    async def source_cost_basis(self, portfolio_id: int, source_wallet: str) -> float:
+        result = await self.session.execute(
+            select(func.coalesce(func.sum(PaperCopyPosition.cost_basis_usd), 0.0)).where(
+                PaperCopyPosition.portfolio_id == portfolio_id,
+                PaperCopyPosition.source_wallet == source_wallet,
+                PaperCopyPosition.quantity > 0,
+            )
+        )
+        return float(result.scalar_one())
+
+    async def token_cost_basis(self, portfolio_id: int, token_address: str) -> float:
+        result = await self.session.execute(
+            select(func.coalesce(func.sum(PaperCopyPosition.cost_basis_usd), 0.0)).where(
+                PaperCopyPosition.portfolio_id == portfolio_id,
+                PaperCopyPosition.token_address == token_address,
+                PaperCopyPosition.quantity > 0,
+            )
+        )
+        return float(result.scalar_one())
+
+    async def add_position_snapshot(
+        self,
+        position: PaperCopyPosition,
+        *,
+        executable_value_usd: float,
+        executable_price_usd: float,
+        roi_pct: float,
+        price_impact_pct: float,
+        route_fee_bps: int,
+    ) -> None:
+        self.session.add(
+            PaperCopyPositionSnapshot(
+                position_id=position.id,
+                strategy_version=position.strategy_version,
+                executable_value_usd=executable_value_usd,
+                executable_price_usd=executable_price_usd,
+                roi_pct=roi_pct,
+                price_impact_pct=price_impact_pct,
+                route_fee_bps=route_fee_bps,
+            )
+        )
+
+    async def skip_pending_buys(self, portfolio: PaperCopyPortfolio, reason: str) -> int:
+        result = await self.session.execute(
+            select(PaperCopyOrder).where(
+                PaperCopyOrder.portfolio_id == portfolio.id,
+                PaperCopyOrder.status == "pending",
+                PaperCopyOrder.side == "buy",
+            )
+        )
+        orders = list(result.scalars().all())
+        for order in orders:
+            order.status = "skipped"
+            order.reason = reason[:256]
+            order.executed_at = datetime.now(UTC)
+        await self.session.commit()
+        return len(orders)
+
+    async def get_token_decimals(self, token_address: str) -> int | None:
+        result = await self.session.execute(
+            select(Token.decimals).where(Token.address == token_address)
+        )
+        decimals = result.scalar_one_or_none()
+        return int(decimals) if decimals is not None else None
 
     async def list_open_positions(
         self,

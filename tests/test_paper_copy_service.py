@@ -12,6 +12,7 @@ from app.infrastructure.models import (
     PaperCopyPosition,
 )
 from app.services.dexscreener_client import TokenMarketQuote
+from app.services.jupiter_quote_client import SwapRouteQuote, USDC_MINT
 from app.services.paper_copy_service import PaperCopyService
 
 
@@ -43,6 +44,53 @@ class FakeMarketData:
         )
 
 
+class FakeRouteQuotes:
+    def __init__(
+        self,
+        market: FakeMarketData,
+        *,
+        output_factor: float = 1,
+        price_impact_pct: float = 0.1,
+        fee_bps: int = 10,
+    ) -> None:
+        self.market = market
+        self.output_factor = output_factor
+        self.price_impact_pct = price_impact_pct
+        self.fee_bps = fee_bps
+
+    async def get_buy_quote(
+        self, token_address: str, usd_amount: float, token_decimals: int
+    ) -> SwapRouteQuote:
+        return SwapRouteQuote(
+            input_mint=USDC_MINT,
+            output_mint=token_address,
+            input_amount=usd_amount,
+            output_amount=(
+                usd_amount / self.market.price_usd * self.output_factor
+            ),
+            price_impact_pct=self.price_impact_pct,
+            fee_bps=self.fee_bps,
+            router="metis",
+            route="Raydium -> Meteora",
+        )
+
+    async def get_sell_quote(
+        self, token_address: str, token_amount: float, token_decimals: int
+    ) -> SwapRouteQuote:
+        return SwapRouteQuote(
+            input_mint=token_address,
+            output_mint=USDC_MINT,
+            input_amount=token_amount,
+            output_amount=(
+                token_amount * self.market.price_usd * self.output_factor
+            ),
+            price_impact_pct=self.price_impact_pct,
+            fee_bps=self.fee_bps,
+            router="metis",
+            route="Meteora",
+        )
+
+
 class FakeRepository:
     def __init__(self, portfolio: PaperCopyPortfolio) -> None:
         self.portfolio = portfolio
@@ -70,6 +118,27 @@ class FakeRepository:
 
     async def count_open_positions(self, portfolio_id: int) -> int:
         return int(self.position is not None and self.position.quantity > 0)
+
+    async def source_cost_basis(self, portfolio_id: int, source_wallet: str) -> float:
+        if self.position is None or self.position.quantity <= 0:
+            return 0
+        return (
+            self.position.cost_basis_usd
+            if self.position.source_wallet == source_wallet
+            else 0
+        )
+
+    async def token_cost_basis(self, portfolio_id: int, token_address: str) -> float:
+        if self.position is None or self.position.quantity <= 0:
+            return 0
+        return (
+            self.position.cost_basis_usd
+            if self.position.token_address == token_address
+            else 0
+        )
+
+    async def get_token_decimals(self, token_address: str) -> int:
+        return 6
 
     async def equity(self, portfolio: PaperCopyPortfolio) -> float:
         position_value = 0.0
@@ -193,13 +262,77 @@ async def test_stale_trade_after_downtime_is_not_queued() -> None:
 
 
 @pytest.mark.asyncio
-async def test_maximum_allocation_and_slippage_are_applied_to_round_trip() -> None:
+async def test_stale_buy_already_in_queue_is_skipped_before_quotes() -> None:
+    account = portfolio()
+    repository = FakeRepository(account)
+    stale = order("buy")
+    stale.source_transaction_at = datetime.now(UTC) - timedelta(seconds=31)
+    repository.due = stale
+
+    result = await PaperCopyService(
+        repository,  # type: ignore[arg-type]
+        maximum_trade_age_seconds=30,
+    ).execute_next()
+
+    assert result is stale
+    assert stale.status == "skipped"
+    assert stale.reason is not None
+    assert "signal expired before execution" in stale.reason
+
+
+@pytest.mark.asyncio
+async def test_stale_sell_is_still_queued_for_risk_reduction() -> None:
+    account = portfolio()
+    account.started_at = datetime.now(UTC) - timedelta(days=1)
+    repository = FakeRepository(account)
+    service = PaperCopyService(
+        repository,  # type: ignore[arg-type]
+        maximum_trade_age_seconds=30,
+    )
+    stale_sell = TradeScored(
+        wallet=account.source_wallet,
+        token_address="token",
+        side="sell",
+        amount=1,
+        sol_change=1,
+        signature="stale-sell",
+        transaction_at=datetime.now(UTC) - timedelta(hours=1),
+    )
+
+    assert await service.enqueue_trade(stale_sell) is True
+
+
+@pytest.mark.asyncio
+async def test_buy_above_maximum_route_price_impact_is_skipped() -> None:
+    account = portfolio()
+    repository = FakeRepository(account)
+    market = FakeMarketData()
+    buy = order("buy")
+    repository.due = buy
+
+    await PaperCopyService(
+        repository,  # type: ignore[arg-type]
+        market,  # type: ignore[arg-type]
+        route_quotes=FakeRouteQuotes(  # type: ignore[arg-type]
+            market,
+            price_impact_pct=1.01,
+        ),
+        maximum_price_impact_pct=1,
+    ).execute_next()
+
+    assert buy.status == "skipped"
+    assert buy.reason == "price impact 1.01% above 1.00%"
+
+
+@pytest.mark.asyncio
+async def test_route_output_includes_price_impact_and_fees_in_round_trip() -> None:
     account = portfolio()
     repository = FakeRepository(account)
     market = FakeMarketData(price_usd=1)
     service = PaperCopyService(
         repository,
         market,  # type: ignore[arg-type]
+        route_quotes=FakeRouteQuotes(market, output_factor=0.99),  # type: ignore[arg-type]
     )
 
     buy = order("buy")
@@ -208,17 +341,20 @@ async def test_maximum_allocation_and_slippage_are_applied_to_round_trip() -> No
 
     assert buy.status == "filled"
     assert buy.value_usd == pytest.approx(10)
-    assert buy.execution_price_usd == pytest.approx(1.01)
+    assert buy.execution_price_usd == pytest.approx(1 / 0.99)
+    assert buy.price_impact_pct == pytest.approx(0.1)
+    assert buy.route_fee_bps == 10
+    assert buy.route_provider == "metis"
     assert account.cash_balance_usd == pytest.approx(90)
     assert buy.open_positions_after == 1
-    assert buy.equity_after_usd == pytest.approx(99.9009901)
+    assert buy.equity_after_usd == pytest.approx(99.9)
 
     market.price_usd = 2
     sell = order("sell")
     repository.due = sell
     await service.execute_next()
 
-    expected_proceeds = (10 / 1.01) * 1.98
+    expected_proceeds = 9.9 * 2 * 0.99
     assert sell.status == "filled"
     assert sell.value_usd == pytest.approx(expected_proceeds)
     assert sell.realized_pnl_usd == pytest.approx(expected_proceeds - 10)
@@ -233,6 +369,7 @@ async def test_small_source_buy_is_not_scaled_up_to_maximum_allocation() -> None
     repository = FakeRepository(account)
     market = FakeMarketData(price_usd=1)
     service = PaperCopyService(repository, market)  # type: ignore[arg-type]
+    service.route_quotes = FakeRouteQuotes(market)  # type: ignore[assignment]
     buy = order("buy")
     buy.source_amount = 0.01
     repository.due = buy
@@ -245,7 +382,7 @@ async def test_small_source_buy_is_not_scaled_up_to_maximum_allocation() -> None
 
 
 @pytest.mark.asyncio
-async def test_repeated_buy_is_added_to_the_same_source_position() -> None:
+async def test_source_wallet_cannot_exceed_ten_percent_of_equity() -> None:
     account = portfolio()
     repository = FakeRepository(account)
     repository.position = PaperCopyPosition(
@@ -264,14 +401,16 @@ async def test_repeated_buy_is_added_to_the_same_source_position() -> None:
     service = PaperCopyService(
         repository,
         FakeMarketData(),  # type: ignore[arg-type]
+        route_quotes=FakeRouteQuotes(FakeMarketData()),  # type: ignore[arg-type]
     )
 
     await service.execute_next()
 
-    assert repeated.status == "filled"
-    assert repository.position.quantity == pytest.approx(10 + 10 / 1.01)
-    assert repository.position.source_quantity == pytest.approx(200)
-    assert account.cash_balance_usd == pytest.approx(90)
+    assert repeated.status == "skipped"
+    assert repeated.reason is not None
+    assert "10.0% portfolio cap" in repeated.reason
+    assert repository.position.quantity == pytest.approx(10)
+    assert account.cash_balance_usd == pytest.approx(100)
 
 
 @pytest.mark.asyncio
@@ -293,13 +432,15 @@ async def test_buy_reopens_existing_closed_position_instead_of_inserting_duplica
     reopened = order("buy")
     repository.due = reopened
 
+    market = FakeMarketData()
     await PaperCopyService(
         repository,
-        FakeMarketData(),  # type: ignore[arg-type]
+        market,  # type: ignore[arg-type]
+        route_quotes=FakeRouteQuotes(market),  # type: ignore[arg-type]
     ).execute_next()
 
     assert repository.position is closed
-    assert closed.quantity == pytest.approx(10 / 1.01)
+    assert closed.quantity == pytest.approx(10)
     assert closed.source_quantity == pytest.approx(100)
     assert closed.opened_at > datetime(2025, 1, 1, tzinfo=UTC)
     assert reopened.status == "filled"
@@ -330,6 +471,29 @@ async def test_allowed_source_is_attributed_to_shared_portfolio() -> None:
 
 
 @pytest.mark.asyncio
+async def test_shared_portfolio_with_no_eligible_sources_rejects_every_trade() -> None:
+    account = portfolio()
+    account.source_wallet = "shared-pool"
+    repository = FakeRepository(account)
+    service = PaperCopyService(
+        repository,  # type: ignore[arg-type]
+        source_wallets=(),
+        portfolio_wallet="shared-pool",
+    )
+    event = TradeScored(
+        wallet="unapproved-trader",
+        token_address="token",
+        side="buy",
+        amount=2,
+        sol_change=-1,
+        signature="blocked-signal",
+        transaction_at=account.started_at + timedelta(seconds=1),
+    )
+
+    assert await service.enqueue_trade(event) is False
+
+
+@pytest.mark.asyncio
 async def test_small_source_trade_is_skipped() -> None:
     account = portfolio()
     account.allocation_usd = 1
@@ -341,6 +505,7 @@ async def test_small_source_trade_is_skipped() -> None:
         repository,  # type: ignore[arg-type]
         FakeMarketData(price_usd=1),
         minimum_source_value_usd=1,
+        route_quotes=FakeRouteQuotes(FakeMarketData()),  # type: ignore[arg-type]
     )
 
     await service.execute_next()
@@ -430,6 +595,77 @@ def test_paper_copy_summary_aggregates_orders_and_includes_links() -> None:
     assert "Відкритих позицій: 9" in message
     assert "https://dexscreener.com/solana/buy-token" in message
     assert "https://solscan.io/tx/signature-sell" in message
+
+
+@pytest.mark.asyncio
+async def test_global_token_exposure_cap_applies_across_sources() -> None:
+    account = portfolio()
+    repository = FakeRepository(account)
+    market = FakeMarketData()
+    buy = order("buy")
+    repository.due = buy
+
+    await PaperCopyService(
+        repository,
+        market,  # type: ignore[arg-type]
+        route_quotes=FakeRouteQuotes(market),  # type: ignore[arg-type]
+        maximum_token_exposure_pct=3,
+    ).execute_next()
+
+    assert buy.status == "skipped"
+    assert "token exposure" in str(buy.reason)
+
+
+@pytest.mark.asyncio
+async def test_repeated_buy_is_rejected_after_three_entries() -> None:
+    account = portfolio()
+    repository = FakeRepository(account)
+    repository.position = PaperCopyPosition(
+        portfolio_id=1,
+        source_wallet=account.source_wallet,
+        token_address="token-address",
+        source_quantity=3,
+        quantity=3,
+        cost_basis_usd=3,
+        entry_price_usd=1,
+        last_price_usd=1,
+        first_entry_price_usd=1,
+        buy_count=3,
+        opened_at=datetime.now(UTC),
+    )
+    buy = order("buy")
+    repository.due = buy
+
+    await PaperCopyService(repository, FakeMarketData()).execute_next()  # type: ignore[arg-type]
+
+    assert buy.status == "skipped"
+    assert buy.reason == "maximum 3 buys per position reached"
+
+
+@pytest.mark.asyncio
+async def test_averaging_down_is_rejected() -> None:
+    account = portfolio()
+    repository = FakeRepository(account)
+    repository.position = PaperCopyPosition(
+        portfolio_id=1,
+        source_wallet=account.source_wallet,
+        token_address="token-address",
+        source_quantity=1,
+        quantity=1,
+        cost_basis_usd=2,
+        entry_price_usd=2,
+        last_price_usd=2,
+        first_entry_price_usd=2,
+        buy_count=1,
+        opened_at=datetime.now(UTC),
+    )
+    buy = order("buy")
+    repository.due = buy
+
+    await PaperCopyService(repository, FakeMarketData(price_usd=1)).execute_next()  # type: ignore[arg-type]
+
+    assert buy.status == "skipped"
+    assert buy.reason == "averaging down is disabled"
 
 
 def test_empty_paper_copy_summary_is_still_reportable() -> None:

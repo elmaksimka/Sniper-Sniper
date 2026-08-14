@@ -11,6 +11,7 @@ from app.infrastructure.models import (
     PaperCopyPosition,
 )
 from app.services.dexscreener_client import TokenMarketQuote
+from app.services.jupiter_quote_client import SwapRouteQuote, USDC_MINT
 from app.services.paper_copy_reconciliation_service import (
     PaperCopyReconciliationService,
 )
@@ -49,6 +50,7 @@ class FakeRepository:
         )
         self.position = position
         self.pending: set[tuple[str, str]] = set()
+        self.snapshots: list[dict[str, float | int]] = []
         self.session = FakeSession()
 
     async def get_portfolio(self, source_wallet: str) -> PaperCopyPortfolio | None:
@@ -63,10 +65,20 @@ class FakeRepository:
     async def count_open_positions(self, portfolio_id: int) -> int:
         return int(self.position.quantity > 0)
 
+    async def get_token_decimals(self, token_address: str) -> int:
+        return 6
+
     async def equity(self, portfolio: PaperCopyPortfolio) -> float:
         return portfolio.cash_balance_usd + (
             self.position.quantity * self.position.last_price_usd
         )
+
+    async def add_position_snapshot(
+        self,
+        position: PaperCopyPosition,
+        **values: float | int,
+    ) -> None:
+        self.snapshots.append(values)
 
 
 class FakeBalances:
@@ -93,6 +105,43 @@ class FakeMarketData:
         return TokenMarketQuote(price_usd=2, pair_url=None, liquidity_usd=50_000)
 
 
+class FakeRouteQuotes:
+    async def get_sell_quote(
+        self, token_address: str, token_amount: float, token_decimals: int
+    ) -> SwapRouteQuote:
+        return SwapRouteQuote(
+            input_mint=token_address,
+            output_mint=USDC_MINT,
+            input_amount=token_amount,
+            output_amount=token_amount * 1.98,
+            price_impact_pct=0.25,
+            fee_bps=10,
+            router="metis",
+            route="Raydium",
+        )
+
+
+class LossRouteQuotes(FakeRouteQuotes):
+    async def get_sell_quote(
+        self, token_address: str, token_amount: float, token_decimals: int
+    ) -> SwapRouteQuote:
+        route = await super().get_sell_quote(
+            token_address,
+            token_amount,
+            token_decimals,
+        )
+        return SwapRouteQuote(
+            input_mint=route.input_mint,
+            output_mint=route.output_mint,
+            input_amount=route.input_amount,
+            output_amount=route.input_amount * 0.69,
+            price_impact_pct=route.price_impact_pct,
+            fee_bps=route.fee_bps,
+            router=route.router,
+            route=route.route,
+        )
+
+
 def position() -> PaperCopyPosition:
     return PaperCopyPosition(
         id=1,
@@ -117,6 +166,7 @@ async def test_reconciliation_closes_position_absent_on_chain() -> None:
         repository,  # type: ignore[arg-type]
         FakeBalances(0),  # type: ignore[arg-type]
         FakeMarketData(),  # type: ignore[arg-type]
+        FakeRouteQuotes(),  # type: ignore[arg-type]
     ).reconcile("paper-pool")
 
     assert result.positions_closed == 1
@@ -137,6 +187,7 @@ async def test_reconciliation_reduces_partial_source_exit_proportionally() -> No
         repository,  # type: ignore[arg-type]
         FakeBalances(40),  # type: ignore[arg-type]
         FakeMarketData(),  # type: ignore[arg-type]
+        FakeRouteQuotes(),  # type: ignore[arg-type]
     ).reconcile("paper-pool")
 
     assert result.positions_reduced == 1
@@ -173,13 +224,15 @@ async def test_startup_reconciliation_refreshes_open_position_prices() -> None:
         repository,  # type: ignore[arg-type]
         FakeBalances(100),  # type: ignore[arg-type]
         market_data,  # type: ignore[arg-type]
+        FakeRouteQuotes(),  # type: ignore[arg-type]
     ).reconcile("paper-pool", refresh_prices=True)
 
     assert result.positions_checked == 1
     assert result.positions_repriced == 1
     assert result.prices_deferred == 0
-    assert tracked.last_price_usd == 2
-    assert market_data.calls == ["mint"]
+    assert tracked.last_price_usd == pytest.approx(1.98)
+    assert market_data.calls == []
+    assert repository.snapshots[0]["roi_pct"] == pytest.approx(98)
     assert repository.session.commits == 1
 
 
@@ -234,3 +287,21 @@ async def test_reconciliation_does_not_mutate_position_when_rpc_fails() -> None:
     assert tracked.source_quantity == 100
     assert tracked.quantity == 10
     assert repository.session.orders == []
+
+
+@pytest.mark.asyncio
+async def test_executable_quote_triggers_emergency_stop() -> None:
+    tracked = position()
+    repository = FakeRepository(tracked)
+
+    result = await PaperCopyReconciliationService(
+        repository,  # type: ignore[arg-type]
+        FakeBalances(100),  # type: ignore[arg-type]
+        FakeMarketData(),  # type: ignore[arg-type]
+        LossRouteQuotes(),  # type: ignore[arg-type]
+    ).reconcile("paper-pool", refresh_prices=True)
+
+    assert result.risk_exits == 1
+    assert tracked.quantity == 0
+    assert repository.session.orders[0].status == "filled"
+    assert "risk stop" in str(repository.session.orders[0].reason)

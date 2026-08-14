@@ -18,6 +18,7 @@ from app.services.copy_grade_dashboard_service import CopyGradeDashboardService
 from app.services.copy_source_service import CopySourceService
 from app.services.paper_copy_dashboard_service import PaperCopyDashboardService
 from app.repositories.heartbeat_repository import HeartbeatRepository
+from app.repositories.score_snapshot_repository import ScoreSnapshotRepository
 from app.repositories.wallet_repository import WalletRepository
 from app.services.funding_service import FundingService
 from app.services.token_score_snapshot_service import TokenScoreSnapshotService
@@ -169,7 +170,8 @@ async def get_paper_copy_dashboard_service(
 ) -> PaperCopyDashboardService:
     settings = get_settings()
     dynamic_sources = await CopySourceService(
-        HeartbeatRepository(session)
+        HeartbeatRepository(session),
+        scores=ScoreSnapshotRepository(session),
     ).list_addresses()
     return PaperCopyDashboardService(
         session,
