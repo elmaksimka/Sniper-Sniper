@@ -30,9 +30,7 @@ class CopyGradeDashboardService:
         pairs = await CandidateAuditProgressService(
             self.heartbeats,
             self.wallets,
-        ).get(
-            self.maximum_transactions
-        )
+        ).get(self.maximum_transactions)
         groups: dict[str, list[dict[str, Any]]] = {
             grade_pair: [] for grade_pair in self.GROUPS
         }
@@ -45,7 +43,7 @@ class CopyGradeDashboardService:
             )
         ]
         added_at_by_wallet = (
-            await self.wallets.list_first_seen(candidate_wallets)
+            await self.wallets.list_copy_added_at(candidate_wallets)
             if self.wallets is not None
             else {}
         )
@@ -152,9 +150,7 @@ class CopyGradeDashboardService:
                     "completed_traders": self._non_negative_int(
                         pair.get("completed_traders")
                     ),
-                    "total_traders": self._non_negative_int(
-                        pair.get("total_traders")
-                    ),
+                    "total_traders": self._non_negative_int(pair.get("total_traders")),
                     "traders": traders,
                 }
             )

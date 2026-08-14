@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from app.core.events import TradeScored
 from app.infrastructure.models import (
@@ -25,6 +25,7 @@ class PaperCopyService:
         source_wallets: tuple[str, ...] = (),
         portfolio_wallet: str = "",
         minimum_source_value_usd: float = 0,
+        maximum_trade_age_seconds: float = 300,
     ) -> None:
         self.repository = repository
         self.market_data = market_data or DexScreenerClient()
@@ -33,6 +34,7 @@ class PaperCopyService:
         self.source_wallets = frozenset(source_wallets)
         self.portfolio_wallet = portfolio_wallet
         self.minimum_source_value_usd = minimum_source_value_usd
+        self.maximum_trade_age = timedelta(seconds=maximum_trade_age_seconds)
 
     async def enqueue_trade(self, event: TradeScored) -> bool:
         if not event.signature or event.side not in {"buy", "sell"}:
@@ -46,7 +48,10 @@ class PaperCopyService:
         if portfolio is None or not portfolio.enabled:
             return False
         transaction_at = event.transaction_at or event.created_at
-        if self._aware(transaction_at) < self._aware(portfolio.started_at):
+        transaction_at = self._aware(transaction_at)
+        if transaction_at < self._aware(portfolio.started_at):
+            return False
+        if datetime.now(UTC) - transaction_at > self.maximum_trade_age:
             return False
         return await self.repository.enqueue(
             portfolio=portfolio,
@@ -55,7 +60,7 @@ class PaperCopyService:
             token_address=event.token_address,
             side=event.side,
             source_amount=event.amount,
-            source_transaction_at=self._aware(transaction_at),
+            source_transaction_at=transaction_at,
         )
 
     async def execute_next(self) -> PaperCopyOrder | None:

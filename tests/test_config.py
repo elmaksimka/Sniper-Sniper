@@ -67,6 +67,7 @@ def test_alpha_signal_defaults_require_confirmed_activity() -> None:
     assert settings.alpha_trader_max_side_switches_per_token == 2
     assert settings.alpha_trader_rapid_round_trip_seconds == 120
     assert settings.alpha_trader_max_rapid_round_trips == 0
+    assert settings.paper_copy_summary_enabled is False
 
 
 def test_discovery_requires_at_least_one_program() -> None:

@@ -106,9 +106,7 @@ class FakeCursors:
 
     async def list_by_prefix(self, prefix: str) -> list[object]:
         return [
-            item
-            for item in self.source_records
-            if item.service_name.startswith(prefix)
+            item for item in self.source_records if item.service_name.startswith(prefix)
         ]
 
 
@@ -465,6 +463,8 @@ async def test_failed_candidates_are_bounded_by_attempt_limit() -> None:
 @pytest.mark.asyncio
 async def test_external_top_trader_is_enriched_before_local_candidates() -> None:
     class FakeExternalSource:
+        token_limit = 1
+
         def exclude_tokens(self, token_addresses: list[str]) -> None:
             assert token_addresses == []
 
@@ -503,6 +503,45 @@ async def test_external_top_trader_is_enriched_before_local_candidates() -> None
     assert result.last_score_after == 68
     assert result.source_token_count == 5
     assert result.source_candidate_count == 1
+
+
+@pytest.mark.asyncio
+async def test_external_discovery_stops_at_audit_token_cap() -> None:
+    class CappedCursors(FakeCursors):
+        async def list_by_prefix(self, prefix: str) -> list[object]:
+            if prefix == "candidate-pair:":
+                return [
+                    SimpleNamespace(service_name=f"candidate-pair:token-{index}")
+                    for index in range(100)
+                ]
+            return await super().list_by_prefix(prefix)
+
+    class UnexpectedExternalSource:
+        token_limit = 1
+
+        def exclude_tokens(self, token_addresses: list[str]) -> None:
+            raise AssertionError("Discovery must stop once the audit cap is reached")
+
+        async def discover(self) -> ExternalCandidateBatch:
+            raise AssertionError("Discovery must stop once the audit cap is reached")
+
+    enrichment = CandidateEnrichmentService(
+        scores=FakeScores(),  # type: ignore[arg-type]
+        monitors=FakeMonitors(),  # type: ignore[arg-type]
+        scanner=FakeScanner(),  # type: ignore[arg-type]
+        detection=FakeDetection(),  # type: ignore[arg-type]
+        cursors=CappedCursors(),  # type: ignore[arg-type]
+        minimum_score=35,
+        history_limit=20,
+        maximum_candidates=1,
+        retry_seconds=1800,
+        external_source=UnexpectedExternalSource(),  # type: ignore[arg-type]
+        external_token_cap=100,
+    )
+
+    result = await enrichment.run_once()
+
+    assert result.last_wallet == "candidate"
 
 
 @pytest.mark.asyncio

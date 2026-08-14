@@ -532,6 +532,38 @@ class PaperCopyPositionRead(BaseModel):
     updated_at: datetime
 
 
+class PaperCopyClosedPositionRead(BaseModel):
+    source_wallet: str
+    token_address: str
+    symbol: str | None
+    name: str | None
+    source_signature: str
+    source_amount: float
+    quantity: float
+    cost_basis_usd: float
+    entry_price_usd: float
+    exit_price_usd: float
+    exit_value_usd: float
+    realized_pnl_usd: float
+    realized_roi_pct: float
+    source_transaction_at: datetime
+    closed_at: datetime
+
+
+class PaperCopyTraderStatsRead(BaseModel):
+    source_wallet: str
+    current_aa: bool
+    open_positions: int
+    closed_trades: int
+    profitable_closed_trades: int
+    realized_pnl_usd: float
+    open_pnl_usd: float
+    total_pnl_usd: float
+    total_cost_basis_usd: float
+    total_roi_pct: float
+    closed_win_rate_pct: float
+
+
 class PaperCopyDashboardRead(BaseModel):
     updated_at: datetime
     portfolio_wallet: str
@@ -540,8 +572,12 @@ class PaperCopyDashboardRead(BaseModel):
     cash_balance_usd: float
     total_equity_usd: float
     total_pnl_usd: float
+    realized_pnl_usd: float
+    open_pnl_usd: float
     allocation_usd: float
     max_open_positions: int
     slippage_bps: int
     started_at: datetime | None
     positions: list[PaperCopyPositionRead]
+    closed_positions: list[PaperCopyClosedPositionRead]
+    trader_stats: list[PaperCopyTraderStatsRead]

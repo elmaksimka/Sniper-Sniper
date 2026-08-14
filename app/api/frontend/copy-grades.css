@@ -141,6 +141,8 @@ table { width: 100%; border-collapse: collapse; }
 th { padding: 12px 18px; color: #626d71; font: 700 10px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .11em; text-align: left; text-transform: uppercase; }
 .sort-button { padding: 0; border: 0; background: transparent; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
 .sort-button:hover, .sort-button:focus-visible { color: var(--cyan); outline: none; }
+.received-sort-button { display: inline-flex; align-items: center; gap: 0.25rem; min-height: 28px; }
+.received-sort-button .sort-indicator { color: var(--cyan); font-size: 1rem; }
 td { padding: 15px 18px; border-top: 1px solid rgba(255,255,255,.045); font-size: 13px; }
 tbody tr { transition: background .15s ease; }
 tbody tr:hover { background: rgba(255,255,255,.025); }
@@ -167,7 +169,7 @@ tbody tr:hover { background: rgba(255,255,255,.025); }
 
 footer { display: flex; justify-content: space-between; gap: 20px; margin-top: 22px; color: #596367; font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
 
-.portfolio-summary { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 12px; }
+.portfolio-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 12px; }
 .portfolio-card { padding: 18px 20px; border: 1px solid var(--line); border-radius: 14px; background: linear-gradient(145deg, rgba(255,255,255,.045), rgba(255,255,255,.012)); }
 .portfolio-card span { display: block; margin-bottom: 9px; color: var(--muted); font: 700 10px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .1em; text-transform: uppercase; }
 .portfolio-card strong { font-size: 25px; letter-spacing: -.035em; }
@@ -175,7 +177,30 @@ footer { display: flex; justify-content: space-between; gap: 20px; margin-top: 2
 .negative { color: var(--red); }
 .portfolio-meta { display: flex; flex-wrap: wrap; gap: 9px 20px; margin-bottom: 22px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .portfolio-meta strong { color: #bdc7ca; font-weight: 600; }
+.trader-status { display: inline-flex; padding: 4px 7px; border-radius: 999px; font: 700 9px ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; }
+.trader-status.active { background: rgba(183,243,74,.12); color: var(--lime); }
+.trader-status.historical { background: rgba(255,255,255,.06); color: var(--muted); }
+.trader-sort-button { display: inline-flex; align-items: center; gap: 0.2rem; min-height: 28px; white-space: nowrap; }
+.trader-sort-button .sort-indicator { color: var(--cyan); font-size: 1rem; }
+.closed-sort-button { display: inline-flex; align-items: center; gap: 0.2rem; min-height: 28px; white-space: nowrap; }
+.closed-sort-button .sort-indicator { color: var(--cyan); font-size: 1rem; }
+.closed-pnl-sort-group { display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
+.open-sort-button { display: inline-flex; align-items: center; gap: 0.2rem; min-height: 28px; white-space: nowrap; }
+.open-sort-button .sort-indicator { color: var(--cyan); font-size: 1rem; }
+.position-pnl-sort-group { display: inline-flex; align-items: center; gap: 0.35rem; white-space: nowrap; }
 .positions-section { margin-top: 6px; }
+.positions-section .table-wrap { max-height: 68vh; overflow: auto; scrollbar-color: rgba(95,225,210,.55) rgba(255,255,255,.04); scrollbar-width: thin; }
+.positions-section .table-wrap th { position: sticky; top: 0; z-index: 2; background: #111719; box-shadow: 0 1px 0 var(--line); }
+.positions-section .table-wrap::-webkit-scrollbar { width: 10px; height: 10px; }
+.positions-section .table-wrap::-webkit-scrollbar-track { background: rgba(255,255,255,.04); }
+.positions-section .table-wrap::-webkit-scrollbar-thumb { border: 2px solid #111719; border-radius: 999px; background: rgba(95,225,210,.55); }
+.positions-section .table-wrap::-webkit-scrollbar-thumb:hover { background: var(--cyan); }
+.positions-header { align-items: center; }
+.position-tabs { display: flex; gap: 7px; }
+.position-tab { padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; background: transparent; color: var(--muted); cursor: pointer; font: 700 10px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.position-tab span { display: inline-flex; min-width: 20px; justify-content: center; margin-left: 5px; padding: 2px 5px; border-radius: 999px; background: rgba(255,255,255,.06); color: inherit; }
+.position-tab:hover, .position-tab:focus-visible { border-color: var(--cyan); color: var(--cyan); outline: none; }
+.position-tab.active { border-color: var(--cyan); background: rgba(95,225,210,.11); color: var(--cyan); }
 .asset-cell { min-width: 145px; }
 .asset-cell strong, .asset-cell a, .numeric small { display: block; }
 .asset-cell strong { margin-bottom: 4px; color: var(--text); }
@@ -187,6 +212,8 @@ footer { display: flex; justify-content: space-between; gap: 20px; margin-top: 2
 .pnl.positive small { color: rgba(183,243,74,.7); }
 .pnl.negative small { color: rgba(255,111,111,.75); }
 .date-cell { min-width: 112px; color: #899397; font: 10px ui-monospace, SFMono-Regular, Menlo, monospace; white-space: nowrap; }
+.transaction-link { color: var(--cyan); font: 10px ui-monospace, SFMono-Regular, Menlo, monospace; text-decoration: none; white-space: nowrap; }
+.transaction-link:hover { color: var(--lime); }
 
 @media (max-width: 900px) {
   .audit-strip { grid-template-columns: repeat(2, 1fr); }
@@ -197,6 +224,7 @@ footer { display: flex; justify-content: space-between; gap: 20px; margin-top: 2
   .hero-meta { align-items: flex-start; }
   .wallet-cell { min-width: 360px; }
   .portfolio-summary { grid-template-columns: repeat(2, 1fr); }
+  .positions-header { align-items: flex-start; flex-direction: column; }
 }
 
 @media (max-width: 620px) {

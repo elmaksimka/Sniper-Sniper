@@ -170,6 +170,29 @@ async def test_only_new_source_trades_are_queued() -> None:
 
 
 @pytest.mark.asyncio
+async def test_stale_trade_after_downtime_is_not_queued() -> None:
+    account = portfolio()
+    account.started_at = datetime.now(UTC) - timedelta(days=1)
+    repository = FakeRepository(account)
+    service = PaperCopyService(
+        repository,  # type: ignore[arg-type]
+        maximum_trade_age_seconds=300,
+    )
+    stale = TradeScored(
+        wallet=account.source_wallet,
+        token_address="token",
+        side="buy",
+        amount=1,
+        sol_change=-1,
+        signature="stale-after-downtime",
+        transaction_at=datetime.now(UTC) - timedelta(hours=1),
+    )
+
+    assert await service.enqueue_trade(stale) is False
+    assert repository.enqueued is False
+
+
+@pytest.mark.asyncio
 async def test_maximum_allocation_and_slippage_are_applied_to_round_trip() -> None:
     account = portfolio()
     repository = FakeRepository(account)

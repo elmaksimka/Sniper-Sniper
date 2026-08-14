@@ -91,8 +91,11 @@ class Settings(BaseSettings):
     paper_copy_minimum_source_value_usd: float = Field(default=1, ge=0)
     paper_copy_execution_poll_seconds: float = Field(default=2, gt=0)
     paper_copy_summary_interval_seconds: float = Field(default=1800, gt=0)
+    paper_copy_summary_enabled: bool = False
     paper_copy_quote_retry_seconds: float = Field(default=30, gt=0)
     paper_copy_quote_max_attempts: int = Field(default=3, ge=1, le=10)
+    paper_copy_max_signal_age_seconds: float = Field(default=300, gt=0)
+    paper_copy_reconciliation_interval_seconds: float = Field(default=30, gt=0)
     paper_copy_daily_report_enabled: bool = False
     paper_copy_daily_report_hour: int = Field(default=10, ge=0, le=23)
     paper_copy_daily_report_minute: int = Field(default=30, ge=0, le=59)
@@ -134,6 +137,7 @@ class Settings(BaseSettings):
         gt=0,
     )
     candidate_external_token_limit: int = Field(default=1, ge=1, le=25)
+    candidate_audit_token_cap: int = Field(default=100, ge=1, le=10_000)
     candidate_external_minimum_realized_pnl_usd: float = Field(
         default=0,
         ge=0,

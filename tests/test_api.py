@@ -550,6 +550,8 @@ class FakePaperCopyDashboardService:
             "cash_balance_usd": 90.0,
             "total_equity_usd": 101.88,
             "total_pnl_usd": 1.88,
+            "realized_pnl_usd": 1.0,
+            "open_pnl_usd": 0.88,
             "allocation_usd": 2.0,
             "max_open_positions": 20,
             "slippage_bps": 100,
@@ -571,6 +573,40 @@ class FakePaperCopyDashboardService:
                     "unrealized_roi_pct": 18.8,
                     "opened_at": now,
                     "updated_at": now,
+                }
+            ],
+            "closed_positions": [
+                {
+                    "source_wallet": "trader",
+                    "token_address": "mint",
+                    "symbol": "TKN",
+                    "name": "Token",
+                    "source_signature": "signature",
+                    "source_amount": 1000.0,
+                    "quantity": 5.0,
+                    "cost_basis_usd": 5.0,
+                    "entry_price_usd": 1.0,
+                    "exit_price_usd": 1.2,
+                    "exit_value_usd": 6.0,
+                    "realized_pnl_usd": 1.0,
+                    "realized_roi_pct": 20.0,
+                    "source_transaction_at": now,
+                    "closed_at": now,
+                }
+            ],
+            "trader_stats": [
+                {
+                    "source_wallet": "trader",
+                    "current_aa": True,
+                    "open_positions": 1,
+                    "closed_trades": 1,
+                    "profitable_closed_trades": 1,
+                    "realized_pnl_usd": 1.0,
+                    "open_pnl_usd": 1.88,
+                    "total_pnl_usd": 2.88,
+                    "total_cost_basis_usd": 15.0,
+                    "total_roi_pct": 19.2,
+                    "closed_win_rate_pct": 100.0,
                 }
             ],
         }
@@ -648,11 +684,40 @@ def test_paper_copy_positions_frontend_and_api() -> None:
     data = client.get("/api/v1/copy-positions")
 
     assert page.status_code == 200
-    assert "Open <span>Positions</span>" in page.text
-    assert "/static/copy-positions.js?v=20260812-1" in page.text
+    assert "Paper <span>Copytrading</span>" in page.text
+    assert "/static/copy-positions.js?v=20260813-4" in page.text
+    assert "closedPositionsTab" in page.text
+    assert "positionsModeTitle" in page.text
+    for sort_key in (
+        "estimated_exit_value_usd",
+        "unrealized_pnl_usd",
+        "unrealized_roi_pct",
+    ):
+        assert f'data-open-sort="{sort_key}"' in page.text
+    for sort_key in (
+        "cost_basis_usd",
+        "exit_value_usd",
+        "realized_pnl_usd",
+        "realized_roi_pct",
+    ):
+        assert f'data-closed-sort="{sort_key}"' in page.text
+    assert "traderStatsBody" in page.text
+    assert "traderStatsTab" in page.text
+    for sort_key in (
+        "closed_trades",
+        "open_positions",
+        "closed_win_rate_pct",
+        "realized_pnl_usd",
+        "open_pnl_usd",
+        "total_pnl_usd",
+        "total_roi_pct",
+    ):
+        assert f'data-trader-sort="{sort_key}"' in page.text
     assert data.status_code == 200
     assert data.json()["portfolio_wallet"] == "paper-copy-pool"
     assert data.json()["positions"][0]["unrealized_pnl_usd"] == 1.88
+    assert data.json()["closed_positions"][0]["realized_pnl_usd"] == 1.0
+    assert data.json()["trader_stats"][0]["total_pnl_usd"] == 2.88
 
 
 def test_invalid_request_id_is_replaced() -> None:

@@ -59,6 +59,7 @@ class CandidateEnrichmentService:
         source_early_entry_minutes: float = 30,
         source_early_entry_max_multiple: float = 2,
         external_source: TopTraderCandidateSource | None = None,
+        external_token_cap: int = 100,
         maximum_history_transactions: int = 1_000,
         adaptive_initial_transactions: int = 300,
         adaptive_continuation_score: float = 75,
@@ -86,6 +87,7 @@ class CandidateEnrichmentService:
         self.source_early_entry_minutes = source_early_entry_minutes
         self.source_early_entry_max_multiple = source_early_entry_max_multiple
         self.external_source = external_source
+        self.external_token_cap = external_token_cap
         self.maximum_history_transactions = maximum_history_transactions
         self.adaptive_initial_transactions = adaptive_initial_transactions
         self.adaptive_continuation_score = adaptive_continuation_score
@@ -99,7 +101,14 @@ class CandidateEnrichmentService:
     async def run_once(self) -> CandidateEnrichmentResult:
         external_addresses: list[str] = []
         external_token_count = 0
-        if self.external_source is not None:
+        existing_pairs = await self.cursors.list_by_prefix("candidate-pair:")
+        existing_token_count = len({item.service_name for item in existing_pairs})
+        remaining_token_slots = max(0, self.external_token_cap - existing_token_count)
+        if self.external_source is not None and remaining_token_slots > 0:
+            self.external_source.token_limit = min(
+                self.external_source.token_limit,
+                remaining_token_slots,
+            )
             discovery_cursor = await self.cursors.get(self.H24_DISCOVERY_CURSOR)
             discovery_details = getattr(discovery_cursor, "details", None)
             processed_tokens = (
@@ -196,6 +205,12 @@ class CandidateEnrichmentService:
                     },
                 )
             external_token_count = external.token_count
+        elif self.external_source is not None:
+            self.logger.info(
+                "candidate_token_cap_reached",
+                token_cap=self.external_token_cap,
+                tokens_queued=existing_token_count,
+            )
 
         queued = [
             item
@@ -286,10 +301,7 @@ class CandidateEnrichmentService:
                 )
                 is None
             )
-            if (
-                missing_transaction_total
-                and saved.get("state") == "complete"
-            ):
+            if missing_transaction_total and saved.get("state") == "complete":
                 attempted += 1
                 await self.cursors.beat(
                     cursor_name,
@@ -309,10 +321,10 @@ class CandidateEnrichmentService:
             if existing_monitor is not None and existing_monitor.enabled:
                 if address not in external_address_set and not selected_audit_pending:
                     continue
-                if (
-                    saved.get("state") == "complete"
-                    and saved.get("audit_version") in {2, 3}
-                ):
+                if saved.get("state") == "complete" and saved.get("audit_version") in {
+                    2,
+                    3,
+                }:
                     continue
             if not self._ready(cursor):
                 if address in external_address_set and saved.get("state") in {

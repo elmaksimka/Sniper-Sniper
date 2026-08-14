@@ -143,6 +143,33 @@ class PaperCopyRepository:
         )
         return int(result.scalar_one())
 
+    async def list_open_positions(
+        self,
+        portfolio_id: int,
+    ) -> list[PaperCopyPosition]:
+        result = await self.session.execute(
+            select(PaperCopyPosition)
+            .where(
+                PaperCopyPosition.portfolio_id == portfolio_id,
+                PaperCopyPosition.quantity > 0,
+            )
+            .order_by(PaperCopyPosition.id.asc())
+            .with_for_update(skip_locked=True)
+        )
+        return list(result.scalars().all())
+
+    async def pending_position_keys(
+        self,
+        portfolio_id: int,
+    ) -> set[tuple[str, str]]:
+        result = await self.session.execute(
+            select(PaperCopyOrder.source_wallet, PaperCopyOrder.token_address).where(
+                PaperCopyOrder.portfolio_id == portfolio_id,
+                PaperCopyOrder.status == "pending",
+            )
+        )
+        return {(str(row[0]), str(row[1])) for row in result.all()}
+
     async def equity(self, portfolio: PaperCopyPortfolio) -> float:
         result = await self.session.execute(
             select(

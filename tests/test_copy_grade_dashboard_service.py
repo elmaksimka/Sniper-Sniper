@@ -68,9 +68,20 @@ class FakeHeartbeats:
         )
 
 
+class FakeWallets:
+    added_at = datetime(2026, 8, 13, 9, 27, tzinfo=UTC)
+
+    async def list_copy_added_at(self, addresses: list[str]) -> dict[str, datetime]:
+        assert "wallet-aa" in addresses
+        return {"wallet-aa": self.added_at}
+
+
 @pytest.mark.asyncio
 async def test_dashboard_returns_selected_copy_grade_groups() -> None:
-    result = await CopyGradeDashboardService(FakeHeartbeats()).get()  # type: ignore[arg-type]
+    result = await CopyGradeDashboardService(
+        FakeHeartbeats(),  # type: ignore[arg-type]
+        wallets=FakeWallets(),  # type: ignore[arg-type]
+    ).get()
 
     assert result["total"] == 3
     assert result["tokens_total"] == 2
@@ -91,3 +102,4 @@ async def test_dashboard_returns_selected_copy_grade_groups() -> None:
     assert aa_wallet["copy_score"] == 80.13
     assert aa_wallet["transactions"] == 1000
     assert aa_wallet["total_transactions"] == 1000
+    assert aa_wallet["added_at"] == FakeWallets.added_at

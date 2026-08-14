@@ -36,7 +36,7 @@ class CandidateAuditProgressService:
             and isinstance(row.details, dict)
         }
         added_at_by_wallet = (
-            await self.wallets.list_first_seen(list(audits))
+            await self.wallets.list_copy_added_at(list(audits))
             if self.wallets is not None
             else {}
         )

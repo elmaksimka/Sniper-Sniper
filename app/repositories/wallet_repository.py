@@ -1,7 +1,7 @@
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.infrastructure.models import Wallet
+from app.infrastructure.models import Wallet, WalletMonitor
 
 
 class WalletRepository:
@@ -27,9 +27,7 @@ class WalletRepository:
         address: str,
     ) -> Wallet | None:
         result = await self.session.execute(
-            select(Wallet).where(
-                Wallet.address == address
-            )
+            select(Wallet).where(Wallet.address == address)
         )
 
         return result.scalar_one_or_none()
@@ -52,6 +50,20 @@ class WalletRepository:
             )
         )
         return {address: first_seen for address, first_seen in result.all()}
+
+    async def list_copy_added_at(self, addresses: list[str]) -> dict[str, object]:
+        """Return monitor enrollment time, falling back to wallet discovery."""
+        if not addresses:
+            return {}
+        result = await self.session.execute(
+            select(Wallet.address, Wallet.first_seen, WalletMonitor.created_at)
+            .outerjoin(WalletMonitor, WalletMonitor.wallet_id == Wallet.id)
+            .where(Wallet.address.in_(addresses))
+        )
+        return {
+            address: monitor_created_at or first_seen
+            for address, first_seen, monitor_created_at in result.all()
+        }
 
     async def count(self) -> int:
         result = await self.session.execute(select(func.count(Wallet.id)))

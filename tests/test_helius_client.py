@@ -25,6 +25,47 @@ class StubHeliusClient(HeliusClient):
 
 
 @pytest.mark.asyncio
+async def test_token_balances_include_spl_and_token_2022_accounts() -> None:
+    calls: list[str] = []
+
+    class BalanceClient(HeliusClient):
+        async def _request(
+            self,
+            method: str,
+            params: list[Any] | dict[str, Any] | None = None,
+        ) -> dict[str, Any]:
+            assert method == "getTokenAccountsByOwner"
+            assert isinstance(params, list)
+            calls.append(params[1]["programId"])
+            amount = "2.5" if len(calls) == 1 else "1.25"
+            return {
+                "result": {
+                    "value": [
+                        {
+                            "account": {
+                                "data": {
+                                    "parsed": {
+                                        "info": {
+                                            "mint": "mint",
+                                            "tokenAmount": {
+                                                "uiAmountString": amount
+                                            },
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    ]
+                }
+            }
+
+    balances = await BalanceClient().get_token_balances("owner")
+
+    assert balances == {"mint": 3.75}
+    assert calls == list(HeliusClient.TOKEN_PROGRAM_IDS)
+
+
+@pytest.mark.asyncio
 async def test_get_transactions_for_address_builds_current_rpc_request() -> None:
     client = StubHeliusClient(
         {

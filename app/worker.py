@@ -29,6 +29,9 @@ from app.services.monitor_worker import MonitorWorker
 from app.services.monitor_service import MonitorService
 from app.services.paper_copy_service import PaperCopyService
 from app.services.paper_copy_report_service import PaperCopyReportService
+from app.services.paper_copy_reconciliation_service import (
+    PaperCopyReconciliationService,
+)
 from app.services.top_trader_candidate_source import TopTraderCandidateSource
 
 
@@ -143,6 +146,7 @@ async def candidate_enrichment_loop(
     stop_event: asyncio.Event,
     external_discovery_interval_seconds: float = 21_600,
     external_token_limit: int = 5,
+    external_token_cap: int = 100,
     external_minimum_realized_pnl_usd: float = 1_000,
     external_minimum_realized_roi: float = 1,
     maximum_history_transactions: int = 1_000,
@@ -218,6 +222,7 @@ async def candidate_enrichment_loop(
                             if use_external_source
                             else None
                         ),
+                        external_token_cap=external_token_cap,
                         maximum_history_transactions=(maximum_history_transactions),
                         adaptive_initial_transactions=(adaptive_initial_transactions),
                         adaptive_continuation_score=(adaptive_continuation_score),
@@ -276,13 +281,18 @@ async def candidate_enrichment_loop(
 
 async def paper_copy_execution_loop(
     leader: PostgresLeaderElector,
+    helius_client: HeliusClient,
+    portfolio_wallet: str,
     interval_seconds: float,
+    reconciliation_interval_seconds: float,
     quote_retry_seconds: float,
     quote_max_attempts: int,
     minimum_source_value_usd: float,
     stop_event: asyncio.Event,
 ) -> None:
     logger = get_logger("paper-copy-supervisor")
+    last_reconciliation_at: float | None = None
+    startup_price_refresh_pending = True
     while not stop_event.is_set():
         if leader.is_leader:
             try:
@@ -294,6 +304,34 @@ async def paper_copy_execution_loop(
                         quote_max_attempts=quote_max_attempts,
                         minimum_source_value_usd=minimum_source_value_usd,
                     )
+                    now = asyncio.get_running_loop().time()
+                    if (
+                        last_reconciliation_at is None
+                        or now - last_reconciliation_at
+                        >= reconciliation_interval_seconds
+                    ):
+                        startup_reconciliation = last_reconciliation_at is None
+                        result = await PaperCopyReconciliationService(
+                            repository,
+                            helius_client,
+                        ).reconcile(
+                            portfolio_wallet,
+                            refresh_prices=startup_price_refresh_pending,
+                        )
+                        last_reconciliation_at = now
+                        startup_price_refresh_pending = result.prices_deferred > 0
+                        logger.info(
+                            "paper_copy_positions_reconciled",
+                            startup=startup_reconciliation,
+                            wallets_checked=result.wallets_checked,
+                            positions_checked=result.positions_checked,
+                            positions_reduced=result.positions_reduced,
+                            positions_closed=result.positions_closed,
+                            positions_increased=result.positions_increased,
+                            positions_deferred=result.positions_deferred,
+                            positions_repriced=result.positions_repriced,
+                            prices_deferred=result.prices_deferred,
+                        )
                     await service.execute_next()
             except Exception:
                 logger.exception("paper_copy_cycle_failed")
@@ -335,7 +373,7 @@ async def paper_copy_summary_loop(
                             bool(results) and all(results.values())
                         )
                         if delivered and orders:
-                                await repository.mark_notifications_sent(orders)
+                            await repository.mark_notifications_sent(orders)
             except Exception:
                 logger.exception("paper_copy_summary_failed")
 
@@ -623,11 +661,20 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                     paper_copy_task = asyncio.create_task(
                         paper_copy_execution_loop(
                             leader,
+                            helius_client,
+                            settings.paper_copy_portfolio_wallet,
                             float(
                                 getattr(
                                     settings,
                                     "paper_copy_execution_poll_seconds",
                                     2,
+                                )
+                            ),
+                            float(
+                                getattr(
+                                    settings,
+                                    "paper_copy_reconciliation_interval_seconds",
+                                    30,
                                 )
                             ),
                             float(
@@ -654,21 +701,22 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                             stop_event,
                         )
                     )
-                    paper_copy_summary_task = asyncio.create_task(
-                        paper_copy_summary_loop(
-                            leader,
-                            telegram,
-                            settings.paper_copy_portfolio_wallet,
-                            float(
-                                getattr(
-                                    settings,
-                                    "paper_copy_summary_interval_seconds",
-                                    1800,
-                                )
-                            ),
-                            stop_event,
+                    if bool(getattr(settings, "paper_copy_summary_enabled", False)):
+                        paper_copy_summary_task = asyncio.create_task(
+                            paper_copy_summary_loop(
+                                leader,
+                                telegram,
+                                settings.paper_copy_portfolio_wallet,
+                                float(
+                                    getattr(
+                                        settings,
+                                        "paper_copy_summary_interval_seconds",
+                                        1800,
+                                    )
+                                ),
+                                stop_event,
+                            )
                         )
-                    )
                     if bool(
                         getattr(
                             settings,
@@ -779,6 +827,7 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                             external_token_limit=(
                                 settings.candidate_external_token_limit
                             ),
+                            external_token_cap=settings.candidate_audit_token_cap,
                             external_minimum_realized_pnl_usd=(
                                 settings.candidate_external_minimum_realized_pnl_usd
                             ),
@@ -857,9 +906,7 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                         detection=container.token_detection_service,
                         page_size=settings.monitor_page_size,
                         max_pages=settings.monitor_max_pages,
-                        priority_addresses=(
-                            copy_sources if paper_copy_enabled else ()
-                        ),
+                        priority_addresses=(copy_sources if paper_copy_enabled else ()),
                     )
                     processed = await monitor_worker.run_once()
                     heartbeat_details["processed_transactions"] = processed

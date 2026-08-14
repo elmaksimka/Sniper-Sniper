@@ -144,6 +144,7 @@ class Container:
             source_wallets=settings.paper_copy_sources,
             portfolio_wallet=settings.paper_copy_portfolio_wallet,
             minimum_source_value_usd=(settings.paper_copy_minimum_source_value_usd),
+            maximum_trade_age_seconds=(settings.paper_copy_max_signal_age_seconds),
         )
         self.paper_copy_collector = PaperCopyCollector(
             self.event_bus,

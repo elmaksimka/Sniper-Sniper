@@ -22,6 +22,11 @@ class HeliusRPCError(RuntimeError):
 class HeliusClient:
     """Async client for the Helius RPC and Enhanced Transactions APIs."""
 
+    TOKEN_PROGRAM_IDS = (
+        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+        "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb",
+    )
+
     def __init__(self, http_client: httpx.AsyncClient | None = None) -> None:
         settings = get_settings()
         self.api_key = settings.helius_api_key
@@ -140,6 +145,33 @@ class HeliusClient:
 
     async def get_health(self) -> dict[str, Any]:
         return await self._request("getHealth")
+
+    async def get_token_balances(self, owner: str) -> dict[str, float]:
+        """Return confirmed SPL and Token-2022 balances grouped by mint."""
+        balances: dict[str, float] = {}
+        for program_id in self.TOKEN_PROGRAM_IDS:
+            response = await self._request(
+                "getTokenAccountsByOwner",
+                [
+                    owner,
+                    {"programId": program_id},
+                    {"encoding": "jsonParsed", "commitment": "confirmed"},
+                ],
+            )
+            result = response.get("result")
+            if not isinstance(result, dict) or not isinstance(result.get("value"), list):
+                raise HeliusRPCError("Invalid token-account balance response")
+            for account in result["value"]:
+                try:
+                    info = account["account"]["data"]["parsed"]["info"]
+                    mint = str(info["mint"])
+                    amount = float(info["tokenAmount"]["uiAmountString"])
+                except (KeyError, TypeError, ValueError) as error:
+                    raise HeliusRPCError(
+                        "Invalid parsed token-account balance"
+                    ) from error
+                balances[mint] = balances.get(mint, 0.0) + amount
+        return balances
 
     async def get_asset(self, address: str) -> dict[str, Any]:
         if self.transaction_history_mode == "standard":

@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="dark">
-  <title>Copy Positions · Alpha Engine</title>
-  <link rel="stylesheet" href="/static/copy-grades.css?v=20260812-3">
+  <title>Paper Copytrading · Alpha Engine</title>
+  <link rel="stylesheet" href="/static/copy-grades.css?v=20260812-4">
 </head>
 <body>
   <div class="ambient ambient-one"></div>
@@ -14,13 +14,13 @@
     <header class="hero">
       <div>
         <p class="eyebrow"><span class="pulse"></span> ALPHA ENGINE · PAPER COPY</p>
-        <h1>Open <span>Positions</span></h1>
-        <p class="subtitle">Усі активні копітрейдингові позиції та їхній поточний результат.</p>
+        <h1>Paper <span>Copytrading</span></h1>
+        <p class="subtitle">Відкриті позиції, історія закриттів і повний результат тестового портфеля.</p>
       </div>
       <div class="hero-meta">
         <div class="hero-nav">
           <a class="home-button" href="/copy-grades">Home</a>
-          <a class="home-button active" href="/copy-positions">Відкриті позиції</a>
+          <a class="home-button active" href="/copy-positions">Paper Copytrading</a>
         </div>
         <span id="connection" class="status">Оновлення…</span>
         <span id="updatedAt" class="updated">—</span>
@@ -39,14 +39,18 @@
 
     <div id="error" class="error" hidden></div>
     <section class="grade-section positions-section">
-      <header class="grade-header">
+      <header class="grade-header positions-header">
         <div class="grade-title">
-          <span class="grade-badge">LIVE</span>
-          <span class="grade-name">Відкриті позиції</span>
+          <span id="positionsModeBadge" class="grade-badge">LIVE</span>
+          <span id="positionsModeTitle" class="grade-name">Відкриті позиції</span>
         </div>
-        <span id="positionCount" class="grade-count">—</span>
+        <div class="position-tabs" role="tablist" aria-label="Paper copy позиції">
+          <button id="openPositionsTab" class="position-tab active" type="button" role="tab" aria-selected="true">Відкриті <span id="positionCount">—</span></button>
+          <button id="closedPositionsTab" class="position-tab" type="button" role="tab" aria-selected="false">Історія закритих <span id="closedPositionCount">—</span></button>
+          <button id="traderStatsTab" class="position-tab" type="button" role="tab" aria-selected="false">За трейдерами <span id="traderStatsTabCount">—</span></button>
+        </div>
       </header>
-      <div class="table-wrap">
+      <div id="openPositionsTable" class="table-wrap">
         <table>
           <thead>
             <tr>
@@ -57,14 +61,67 @@
               <th>Вхід</th>
               <th>Остання ціна</th>
               <th>Собівартість</th>
-              <th>Вартість виходу</th>
-              <th>PnL / ROI</th>
+              <th><button class="sort-button open-sort-button" type="button" data-open-sort="estimated_exit_value_usd" aria-sort="none" title="Перший клік — від більшого до меншого, другий — навпаки">Вартість виходу<span class="sort-indicator" aria-hidden="true"> ↕</span></button></th>
+              <th>
+                <span class="position-pnl-sort-group" aria-label="Сортування нереалізованого результату">
+                  <button class="sort-button open-sort-button" type="button" data-open-sort="unrealized_pnl_usd" aria-sort="none" title="Сортувати за нереалізованим PnL">PnL<span class="sort-indicator" aria-hidden="true"> ↕</span></button>
+                  <span aria-hidden="true">/</span>
+                  <button class="sort-button open-sort-button" type="button" data-open-sort="unrealized_roi_pct" aria-sort="none" title="Сортувати за нереалізованим ROI">ROI<span class="sort-indicator" aria-hidden="true"> ↕</span></button>
+                </span>
+              </th>
               <th>Відкрито</th>
               <th>Оновлено</th>
             </tr>
           </thead>
           <tbody id="positionsBody">
             <tr><td colspan="11"><div class="loading"><span></span><span></span><span></span></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="closedPositionsTable" class="table-wrap" hidden>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Монета</th>
+              <th>Трейдер</th>
+              <th>Кількість</th>
+              <th>Вхід</th>
+              <th>Вихід</th>
+              <th><button class="sort-button closed-sort-button" type="button" data-closed-sort="cost_basis_usd" aria-sort="none" title="Перший клік — від більшого до меншого, другий — навпаки">Собівартість<span class="sort-indicator" aria-hidden="true"> ↕</span></button></th>
+              <th><button class="sort-button closed-sort-button" type="button" data-closed-sort="exit_value_usd" aria-sort="none" title="Перший клік — від більшого до меншого, другий — навпаки">Отримано<span class="sort-indicator" aria-hidden="true"> ↕</span></button></th>
+              <th>
+                <span class="closed-pnl-sort-group" aria-label="Сортування реалізованого результату">
+                  <button class="sort-button closed-sort-button" type="button" data-closed-sort="realized_pnl_usd" aria-sort="none" title="Сортувати за реалізованим PnL">Реалізований PnL<span class="sort-indicator" aria-hidden="true"> ↕</span></button>
+                  <span aria-hidden="true">/</span>
+                  <button class="sort-button closed-sort-button" type="button" data-closed-sort="realized_roi_pct" aria-sort="none" title="Сортувати за реалізованим ROI">ROI<span class="sort-indicator" aria-hidden="true"> ↕</span></button>
+                </span>
+              </th>
+              <th>Закрито</th>
+              <th>Транзакція</th>
+            </tr>
+          </thead>
+          <tbody id="closedPositionsBody"></tbody>
+        </table>
+      </div>
+      <div id="traderStatsTable" class="table-wrap trader-stats-table" hidden>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Трейдер</th>
+              <th>Статус</th>
+              <th><button class="sort-button trader-sort-button" type="button" data-trader-sort="closed_trades" aria-sort="none">Закрито<span class="sort-indicator" aria-hidden="true"> ↕</span></button></th>
+              <th><button class="sort-button trader-sort-button" type="button" data-trader-sort="open_positions" aria-sort="none">Відкрито<span class="sort-indicator" aria-hidden="true"> ↕</span></button></th>
+              <th><button class="sort-button trader-sort-button" type="button" data-trader-sort="closed_win_rate_pct" aria-sort="none">Win rate<span class="sort-indicator" aria-hidden="true"> ↕</span></button></th>
+              <th><button class="sort-button trader-sort-button" type="button" data-trader-sort="realized_pnl_usd" aria-sort="none">Реалізований PnL<span class="sort-indicator" aria-hidden="true"> ↕</span></button></th>
+              <th><button class="sort-button trader-sort-button" type="button" data-trader-sort="open_pnl_usd" aria-sort="none">PnL відкритих<span class="sort-indicator" aria-hidden="true"> ↕</span></button></th>
+              <th><button class="sort-button trader-sort-button" type="button" data-trader-sort="total_pnl_usd" aria-sort="none">Загальний PnL<span class="sort-indicator" aria-hidden="true"> ↕</span></button></th>
+              <th><button class="sort-button trader-sort-button" type="button" data-trader-sort="total_roi_pct" aria-sort="none">Загальний ROI<span class="sort-indicator" aria-hidden="true"> ↕</span></button></th>
+            </tr>
+          </thead>
+          <tbody id="traderStatsBody">
+            <tr><td colspan="10"><div class="loading"><span></span><span></span><span></span></div></td></tr>
           </tbody>
         </table>
       </div>
@@ -75,6 +132,6 @@
       <span>Автооновлення о :00 та :30 за Києвом.</span>
     </footer>
   </main>
-  <script src="/static/copy-positions.js?v=20260812-1" defer></script>
+  <script src="/static/copy-positions.js?v=20260813-4" defer></script>
 </body>
 </html>
