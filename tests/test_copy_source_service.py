@@ -38,9 +38,12 @@ class FakeMonitors:
 
 
 class FakeScores:
+    def __init__(self, realized_position_count: int = 1) -> None:
+        self.realized_position_count = realized_position_count
+
     async def get_by_wallet_address(self, address: str) -> SimpleNamespace:
         return SimpleNamespace(
-            realized_position_count=19,
+            realized_position_count=self.realized_position_count,
             realized_pnl_sol=2,
             realized_pnl_ex_top_position_sol=1,
             pnl_concentration_ratio=0.5,
@@ -69,3 +72,13 @@ async def test_probation_rejects_automatic_wallet_without_robust_history() -> No
     )
 
     assert await service.list_addresses() == ()
+
+
+@pytest.mark.asyncio
+async def test_probation_accepts_profitable_known_wallet_after_two_positions() -> None:
+    service = CopySourceService(
+        FakeHeartbeats(),  # type: ignore[arg-type]
+        scores=FakeScores(realized_position_count=2),  # type: ignore[arg-type]
+    )
+
+    assert await service.list_addresses() == ("aa-one", "aa-two")

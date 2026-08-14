@@ -13,6 +13,8 @@ from app.core.logging import get_logger, setup_logging
 from app.infrastructure.database import async_session_factory, engine
 from app.infrastructure.leader_election import PostgresLeaderElector
 from app.listeners.helius_client import HeliusClient
+from app.listeners.helius_websocket import HeliusTransactionSubscriber
+from app.listeners.transaction_scanner import TransactionScanner
 from app.notifications.telegram import TelegramNotifier
 from app.repositories.heartbeat_repository import HeartbeatRepository
 from app.repositories.monitor_repository import MonitorRepository
@@ -360,6 +362,87 @@ async def paper_copy_execution_loop(
         await wait_for_stop(stop_event, interval_seconds)
 
 
+async def paper_copy_websocket_loop(
+    leader: PostgresLeaderElector,
+    helius_client: HeliusClient,
+    source_wallets: tuple[str, ...],
+    websocket_url: str,
+    reconnect_initial_seconds: float,
+    reconnect_max_seconds: float,
+    stop_event: asyncio.Event,
+) -> None:
+    logger = get_logger("paper-copy-websocket")
+
+    async def fetch_transaction(signature: str) -> dict[str, Any] | None:
+        for attempt in range(6):
+            response = await helius_client.get_transaction(
+                signature,
+                commitment="confirmed",
+            )
+            transaction = response.get("result")
+            if isinstance(transaction, dict):
+                return transaction
+            if attempt < 5:
+                await asyncio.sleep(0.4 * (attempt + 1))
+        return None
+
+    async def process_transaction(
+        transaction: dict[str, Any],
+        matched_wallets: tuple[str, ...],
+    ) -> None:
+        if not leader.is_leader:
+            return
+        signature = TransactionScanner._signature(transaction)
+        if signature is None:
+            return
+        async with async_session_factory() as session:
+            container = Container(session, helius_client=helius_client)
+            container.paper_copy_service.source_wallets = frozenset(source_wallets)
+            container.setup(
+                register_trader_promotion=False,
+                register_paper_copy=True,
+            )
+            normalized = [
+                container.scanner.normalize_transaction(
+                    transaction,
+                    wallet,
+                    signature,
+                )
+                for wallet in matched_wallets
+                if wallet in source_wallets
+            ]
+            if not normalized:
+                return
+            await container.token_detection_service.process_transactions(normalized)
+            logger.info(
+                "paper_copy_websocket_transaction_processed",
+                signature=signature,
+                wallets=list(matched_wallets),
+            )
+
+    subscriber = HeliusTransactionSubscriber(
+        websocket_url,
+        source_wallets,
+        process_transaction,
+        transaction_fetcher=fetch_transaction,
+        reconnect_initial_seconds=reconnect_initial_seconds,
+        reconnect_max_seconds=reconnect_max_seconds,
+    )
+    await subscriber.run(stop_event)
+
+
+def helius_websocket_url(
+    *,
+    configured_url: str,
+    api_key: str,
+) -> str:
+    if configured_url.strip():
+        return configured_url.strip()
+    if not api_key.strip():
+        return ""
+    return f"wss://mainnet.helius-rpc.com/?api-key={api_key.strip()}"
+
+
 async def paper_copy_summary_loop(
     leader: PostgresLeaderElector,
     telegram: TelegramNotifier,
@@ -421,7 +504,7 @@ async def initialize_paper_copy(
     slippage_bps: int,
     minimum_liquidity_usd: float,
     telegram: TelegramNotifier,
-) -> None:
+) -> tuple[str, ...]:
     if not source_wallets:
         raise RuntimeError("PAPER_COPY_SOURCE_WALLETS is required")
     async with async_session_factory() as session:
@@ -440,10 +523,9 @@ async def initialize_paper_copy(
             monitors,
             ScoreSnapshotRepository(session),
         ).reconcile()
-        for source_wallet in dynamic_sources or source_wallets:
-            await monitors.add(source_wallet)
         if created:
             await telegram.send_paper_copy_started(portfolio)
+        return dynamic_sources
 
 
 async def paper_copy_report_loop(
@@ -622,6 +704,7 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
     paper_copy_task: asyncio.Task[None] | None = None
     paper_copy_summary_task: asyncio.Task[None] | None = None
     paper_copy_report_task: asyncio.Task[None] | None = None
+    paper_copy_websocket_task: asyncio.Task[None] | None = None
     paper_copy_initialized = False
 
     try:
@@ -654,7 +737,7 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
             paper_copy_enabled = bool(getattr(settings, "paper_copy_enabled", False))
             if paper_copy_enabled and not paper_copy_initialized:
                 try:
-                    await initialize_paper_copy(
+                    paper_copy_sources = await initialize_paper_copy(
                         portfolio_wallet=settings.paper_copy_portfolio_wallet,
                         source_wallets=settings.paper_copy_sources,
                         initial_balance_usd=float(
@@ -681,6 +764,24 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
                         ),
                         telegram=telegram,
                     )
+                    if (
+                        settings.paper_copy_websocket_enabled
+                        and paper_copy_sources
+                    ):
+                        paper_copy_websocket_task = asyncio.create_task(
+                            paper_copy_websocket_loop(
+                                leader,
+                                helius_client,
+                                paper_copy_sources,
+                                helius_websocket_url(
+                                    configured_url=settings.helius_websocket_url,
+                                    api_key=settings.helius_api_key,
+                                ),
+                                settings.paper_copy_websocket_reconnect_initial_seconds,
+                                settings.paper_copy_websocket_reconnect_max_seconds,
+                                stop_event,
+                            )
+                        )
                     paper_copy_task = asyncio.create_task(
                         paper_copy_execution_loop(
                             leader,
@@ -989,6 +1090,10 @@ async def run(stop_event: asyncio.Event | None = None) -> None:
             paper_copy_task.cancel()
             with suppress(asyncio.CancelledError):
                 await paper_copy_task
+        if paper_copy_websocket_task is not None:
+            paper_copy_websocket_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await paper_copy_websocket_task
         if paper_copy_summary_task is not None:
             paper_copy_summary_task.cancel()
             with suppress(asyncio.CancelledError):

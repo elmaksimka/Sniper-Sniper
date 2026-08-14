@@ -6,7 +6,7 @@ from app.services.monitor_service import MonitorService
 
 
 class CopySourceService:
-    """Keep live paper-copy sources aligned with the current A/A grade."""
+    """Select known automatic sources that passed paper-trading probation."""
 
     def __init__(
         self,
@@ -50,7 +50,7 @@ class CopySourceService:
         try:
             return (
                 str(details.get("copy_mode") or "").strip() == "automatic"
-                and float(str(details.get("score_after", 0))) >= 65
+                and float(str(details.get("score_after", 0))) >= 60
                 and float(str(details.get("copy_score", 0))) >= 75
             )
         except (TypeError, ValueError):
@@ -59,8 +59,8 @@ class CopySourceService:
     @staticmethod
     def _passed_probation(snapshot: object) -> bool:
         return (
-            int(getattr(snapshot, "realized_position_count", 0)) >= 20
+            int(getattr(snapshot, "realized_position_count", 0)) >= 2
             and float(getattr(snapshot, "realized_pnl_sol", 0)) > 0
             and float(getattr(snapshot, "realized_pnl_ex_top_position_sol", 0)) > 0
-            and float(getattr(snapshot, "pnl_concentration_ratio", 1)) <= 0.75
+            and float(getattr(snapshot, "pnl_concentration_ratio", 1)) <= 0.85
         )

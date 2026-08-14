@@ -34,6 +34,10 @@ class Settings(BaseSettings):
         default="",
         description="Helius RPC endpoint",
     )
+    helius_websocket_url: str = Field(
+        default="",
+        description="Optional Helius WebSocket endpoint",
+    )
     jupiter_api_key: str = Field(
         default="",
         description="Optional Jupiter API key; keyless quotes are used when empty",
@@ -108,6 +112,9 @@ class Settings(BaseSettings):
     paper_copy_trailing_activation_pct: float = Field(default=100, gt=0)
     paper_copy_trailing_drawdown_pct: float = Field(default=25, gt=0, le=100)
     paper_copy_strategy_version: str = "route-risk-v2"
+    paper_copy_websocket_enabled: bool = True
+    paper_copy_websocket_reconnect_initial_seconds: float = Field(default=1, gt=0)
+    paper_copy_websocket_reconnect_max_seconds: float = Field(default=30, gt=0)
     paper_copy_execution_poll_seconds: float = Field(default=2, gt=0)
     paper_copy_summary_interval_seconds: float = Field(default=1800, gt=0)
     paper_copy_summary_enabled: bool = False

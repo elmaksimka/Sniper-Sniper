@@ -202,14 +202,18 @@ class HeliusClient:
             [address, config],
         )
 
-    async def get_transaction(self, signature: str) -> dict[str, Any]:
+    async def get_transaction(
+        self,
+        signature: str,
+        commitment: Literal["confirmed", "finalized"] = "finalized",
+    ) -> dict[str, Any]:
         return await self._request(
             "getTransaction",
             [
                 signature,
                 {
                     "encoding": "jsonParsed",
-                    "commitment": "finalized",
+                    "commitment": commitment,
                     "maxSupportedTransactionVersion": 0,
                 },
             ],
